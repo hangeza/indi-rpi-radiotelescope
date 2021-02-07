@@ -67,7 +67,8 @@ int main(void) {
 	char rx_buffer[] = { 0,0,0,0 };
 
 	int iteration = 0;
-	while (iteration++ < 100) {
+	while (iteration++ < 500) {
+		// read out Az encoder raw data (4 bytes)
 		int count = spi_read(pi, handle1, rx_buffer, 4);
 		unsigned long dataword = rx_buffer[3] | 
 			(rx_buffer[2]<<8) |
@@ -75,7 +76,25 @@ int main(void) {
 			(rx_buffer[0]<<24);
 
 		std::cout<<"Az: "<<intToBinaryString(dataword);
-	 
+
+		std::uint32_t st = (dataword >> 7) & 0b11111111111111111111111;
+		st = gray_decode(st);
+		st = st & 0b111111111111;
+		std::cout<<" ST="<<st; 
+	    
+		std::int32_t mt = (dataword >> 19) & 0b11111111111;
+		mt = gray_decode(mt);
+		// add sign bit to MT value
+		// negative counts have to be offset by -1. Otherwise one had to 
+		// distinguish between -0 and +0 rotations
+		if ( dataword & (1<<30) ) mt = -mt-1;
+
+		std::cout<<" MT="<<mt; 
+		
+		
+		
+		
+		// read out El encoder raw data (4 bytes)
 		count = spi_read(pi, handle2, rx_buffer, 4);
 		dataword = rx_buffer[3] | 
 			(rx_buffer[2]<<8) |
@@ -84,11 +103,12 @@ int main(void) {
 	 
 		std::cout<<"  El: "<<intToBinaryString(dataword);
 
-		std::uint32_t st = (dataword >> 6) & 0b111111111111;
+		st = (dataword >> 6) & 0b11111111111111111111111;
 		st = gray_decode(st);
+		st = st & 0b1111111111111;
 		std::cout<<" ST="<<st; 
 	    
-		std::int32_t mt = (dataword >> 19) & 0b11111111111;
+		mt = (dataword >> 19) & 0b11111111111;
 		mt = gray_decode(mt);
 		// add sign bit to MT value
 		// negative counts have to be offset by -1. Otherwise one had to 
