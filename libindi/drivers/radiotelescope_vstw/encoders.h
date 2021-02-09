@@ -16,44 +16,47 @@
 #include <list>
 #include <mutex>
 
-#include <pigpio.h>
+#include "gpioif.h"
+
+constexpr unsigned int SPI_BAUD_DEFAULT { 500000U };
 
 class GPIO;
 
-class encoder : public GPIO {
+class SsiPosEncoder {
   public:
-    encoder()=delete;
-    explicit encoder(int spiChannel, int nrBitsPerRev, int nrBitsTurns);
-    ~encoder();
+    SsiPosEncoder()=delete;
+    SsiPosEncoder(std::shared_ptr<GPIO> gpio, 
+				  GPIO::SPI_INTERFACE spi_interface,
+				  unsigned int baudrate = SPI_BAUD_DEFAULT,
+				  std::uint8_t spi_channel = 0,  
+				  GPIO::SPI_MODE spi_mode = GPIO::SPI_MODE::POL1PHA1);
+    ~SsiPosEncoder();
 
-//     void setPinConfig(struct PinConfig config);
-//     PinConfig getPinConfig();
+    bool isInitialized() const { return (fSpiHandle>=0); }
     
-    void init();
-
-    virtual bool isInitialized() const { return (fSPIHandle>=0); }
+    int position() { fUpdated=false; return fPos; }
+    int nrTurns() { fUpdated=false; return fTurns; }
     
-    int position() const { return fPos; }
-    int nrTurns() const { return fTurns; }
-    
+    [[nodiscard]] auto isUpdated() const -> bool { return fUpdated; }
     
   private:
     void readLoop();
     
-    static int fSPIHandle;
-    int fChannel;
-    int fNrBitsPerRev;
-    int fNrBitsTurns;
-    int fPos;
-    int fTurns;
-    bool fActiveLoop;
+    int fSpiHandle { -1 };
+    int fNrBitsPerRev { 12 };
+    int fNrBitsTurns { 12 };
+    unsigned int fPos { 0 };
+    int fTurns { 0 };
+	bool fUpdated { false };
+    bool fActiveLoop { false };
     
     static unsigned int fNrInstances;
-    std::thread* fThread;
-//     PinConfig fPinConfig;
-    
-    int readDataWord(uint32_t& data);
-    bool read(char* buf, int nBytes);
+    std::unique_ptr<std::thread> fThread { nullptr };
+	std::shared_ptr<GPIO> fGpio { nullptr };
+
+	std::mutex fMutex;
+	
+	bool readDataWord(uint32_t& data);
 };
 
 

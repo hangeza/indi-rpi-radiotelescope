@@ -20,7 +20,7 @@ constexpr unsigned int CLK2 { 21 };
 constexpr unsigned int DATA1 { 9 };
 constexpr unsigned int DATA2 { 19 };
 
-constexpr unsigned int baud_rate { 1000000 };
+constexpr unsigned int baud_rate { 500000 };
 
 std::string intToBinaryString(unsigned long number) {
    std::string numStr { };
@@ -58,7 +58,7 @@ int main(void) {
 		return -1;
 	}
 
-	int handle2 = spi_open(pi, 0, 1000000UL, spi_flags | (1<<8));
+	int handle2 = spi_open(pi, 0, baud_rate, spi_flags | (1<<8));
 	if (handle2 < 0) {
 		std::cout<<"Error opening aux spi interface.\n";
 		return -1;
@@ -92,8 +92,6 @@ int main(void) {
 		std::cout<<" MT="<<mt; 
 		
 		
-		
-		
 		// read out El encoder raw data (4 bytes)
 		count = spi_read(pi, handle2, rx_buffer, 4);
 		dataword = rx_buffer[3] | 
@@ -120,15 +118,15 @@ int main(void) {
 
 		usleep(250000UL);
 
-      /*
-      std::cout<<"received "<<count<<" bytes.\n";
-      std::cout<<"data: ";
+		/*
+		std::cout<<"received "<<count<<" bytes.\n";
+		std::cout<<"data: ";
       
-      for (int i=0; i<4; i++) {
-         std::cout<<static_cast<int>(rx_buffer[i])<<" ";
-      }
-      std::cout<<"\n";
-      */
+		for (int i=0; i<4; i++) {
+			std::cout<<static_cast<int>(rx_buffer[i])<<" ";
+		}
+		std::cout<<"\n";
+		*/
 	}
 	spi_close(pi, handle1);
 	spi_close(pi, handle2);
