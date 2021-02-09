@@ -35,7 +35,7 @@ class GPIO {
 	[[nodiscard]] auto spi_read(unsigned int spi_handle, unsigned int nBytes) -> std::vector<std::uint8_t>;
 	[[nodiscard]] auto spi_write(unsigned int spi_handle, const std::vector<std::uint8_t>& data) -> bool;
     void spi_close(int spi_handle);
-	
+	int handle() const { return fHandle; }
   protected:
     int fHandle { -1 };
 	std::mutex fMutex;

@@ -43,8 +43,11 @@ GPIO::~GPIO() {
 auto GPIO::spi_init(SPI_INTERFACE interface, std::uint8_t channel, SPI_MODE mode, unsigned int baudrate, bool lsb_first) -> int
 {
 	unsigned int spi_flags = static_cast<unsigned int>(mode) | (static_cast<unsigned int>(lsb_first) << 15);
-	if (interface == SPI_INTERFACE::Aux) spi_flags |= 1U << 8;
-	int handle = spi_open(fHandle, 0, baudrate, spi_flags);
+	if (interface == SPI_INTERFACE::Aux) {
+		spi_flags |= 1 << 8;
+		std::cout<<"spi flags: "<<spi_flags<<"\n";
+	}
+	int handle = ::spi_open(fHandle, 0, baudrate, spi_flags);
 	if (handle < 0) {
 		std::cerr<<"Error opening spi interface.\n";
 	}

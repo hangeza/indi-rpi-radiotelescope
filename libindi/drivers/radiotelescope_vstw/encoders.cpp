@@ -1,24 +1,30 @@
 #include <iostream>
 #include <stdio.h>
-//#include <pigpio.h>
-
-//#include <stdint.h>
 #include <unistd.h>
-//#include <stdlib.h>
-//#include <getopt.h>
+#include <string>
+#include <chrono>
 
 #include "encoders.h"
 
 #define DEFAULT_VERBOSITY 1
 #define DEFAULT_LD_GPIO 5
-//#define SPI_BAUD_DEFAULT 500000UL
 
 
 unsigned int SsiPosEncoder::fNrInstances = 0;
+constexpr unsigned int LOOP_DELAY_MS { 10 };
 
-uint32_t gray_decode(uint32_t g)
+auto SsiPosEncoder::intToBinaryString(unsigned long number) -> std::string 
 {
-    for (uint32_t bit = 1U << 31; bit > 1; bit >>= 1)
+   std::string numStr { };
+   for (int i=31; i>=0; i--) {
+      numStr += (number & (1<<i))?"1":"0";
+   }
+  return numStr;
+}
+
+auto SsiPosEncoder::gray_decode(std::uint32_t g) -> std::uint32_t
+{
+    for (std::uint32_t bit = 1U << 31; bit > 1; bit >>= 1)
     {
         if (g & bit) g ^= bit >> 1;
     }
@@ -26,10 +32,15 @@ uint32_t gray_decode(uint32_t g)
 }
 
 SsiPosEncoder::SsiPosEncoder(std::shared_ptr<GPIO> gpio, GPIO::SPI_INTERFACE spi_interface, unsigned int baudrate, std::uint8_t spi_channel,  GPIO::SPI_MODE spi_mode)
-	: fGpio(gpio)
+	: fGpio { std::move(gpio) } 
 {
-	if (fGpio == nullptr) return;
+	if (fGpio == nullptr) {
+		std::cerr<<"Error: no valid GPIO instance.\n";
+		return;
+	}
+//	std::cout<<"pi handle="<<fGpio->handle()<<"\n";
 	fSpiHandle = fGpio->spi_init(spi_interface, spi_channel, spi_mode, baudrate);
+//	std::cout<<"spi handle="<<fSpiHandle<<"\n";
 	if (fSpiHandle < 0) {
 		std::cerr<<"Error opening spi interface.\n";
 		return;
@@ -57,32 +68,39 @@ void SsiPosEncoder::readLoop()
 		uint32_t data;
 		bool ok = readDataWord(data);
 		if (ok) {
-			std::uint32_t st = (data >> 7) & 0b11111111111111111111111;
-			st = gray_decode(st);
-			st = st & 0b111111111111;
-			//std::cout<<" ST="<<st;
-		
-			std::int32_t mt = (data >> 19) & 0b11111111111;
-			mt = gray_decode(mt);
+//			std::cout<<" raw: "<<intToBinaryString(data)<<"\n";
+			std::uint32_t temp = data >> (32 - fStBits - fMtBits - 1);
+			temp &= (1 << (fStBits + fMtBits - 1))-1;
+			temp = gray_decode(temp);
+			std::uint32_t st = temp & ((1 << (fStBits)) - 1);
+//			std::cout<<" st: "<<intToBinaryString(st)<<"\n";
+			
+			std::int32_t mt = (temp >> fStBits) & ((1 << (fMtBits)) - 1);
+//			std::cout<<" mt: "<<intToBinaryString(mt)<<"\n";
+			
 			// add sign bit to MT value
 			// negative counts have to be offset by -1. Otherwise one had to 
 			// distinguish between -0 and +0 rotations
 			if ( data & (1<<30) ) mt = -mt-1;
 			//std::cout<<" MT="<<mt;
-
-			std::lock_guard<std::mutex> guard(fMutex);
+			
+			
+			//std::lock_guard<std::mutex> guard(fMutex);
+			fMutex.lock();
 			fPos = st;
 			fTurns = mt;
 			fUpdated = true;
+			fMutex.unlock();
 		}
-		usleep(100000UL);
+		std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS));
+		//usleep(LOOP_DELAY_MS*1000U);
 	}
 }
 
 
-bool SsiPosEncoder::readDataWord(uint32_t& data)
+auto SsiPosEncoder::readDataWord(std::uint32_t& data) -> bool
 {
-	if (fSpiHandle < 0 && fGpio == nullptr) return false;
+	if (fSpiHandle < 0 || fGpio == nullptr) return false;
 	constexpr unsigned int nBytes = 4;
 	std::vector<std::uint8_t> bytevec = fGpio->spi_read(fSpiHandle, nBytes);
 	if (bytevec.size() != nBytes) {
