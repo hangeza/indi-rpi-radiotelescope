@@ -1,6 +1,6 @@
 #include <iostream>
 #include <stdio.h>
-#include <pigpio.h>
+//#include <pigpio.h>
 
 //#include <stdint.h>
 #include <unistd.h>
@@ -8,94 +8,89 @@
 //#include <getopt.h>
 
 #include "encoders.h"
-#include "gpioif.h"
-
-using namespace std;
 
 #define DEFAULT_VERBOSITY 1
 #define DEFAULT_LD_GPIO 5
-#define SPI_BAUD_DEFAULT 500000UL
+//#define SPI_BAUD_DEFAULT 500000UL
 
 
-encoder::fSPIHandle = -1;
-encoder::fNrInstances = 0;
+unsigned int SsiPosEncoder::fNrInstances = 0;
 
-encoder::encoder(int spiChannel, int nrBitsPerRev, int nrBitsTurns) 
-    : GPIO(), fChannel(spiChannel), fNrBitsPerRev(nrBitsPerRev), fNrBitsTurns(nrBitsTurns)
+uint32_t gray_decode(uint32_t g)
 {
-  init();
-  fNrInstances++;
-  fActiveLoop=false;
+    for (uint32_t bit = 1U << 31; bit > 1; bit >>= 1)
+    {
+        if (g & bit) g ^= bit >> 1;
+    }
+    return g;
 }
 
-encoder::~encoder()
+SsiPosEncoder::SsiPosEncoder(std::shared_ptr<GPIO> gpio, GPIO::SPI_INTERFACE spi_interface, unsigned int baudrate, std::uint8_t spi_channel,  GPIO::SPI_MODE spi_mode)
+	: fGpio(gpio)
+{
+	if (fGpio == nullptr) return;
+	fSpiHandle = fGpio->spi_init(spi_interface, spi_channel, spi_mode, baudrate);
+	if (fSpiHandle < 0) {
+		std::cerr<<"Error opening spi interface.\n";
+		return;
+	}
+
+	fActiveLoop=true;
+	fThread = std::make_unique<std::thread>( [this]() { this->readLoop(); } );
+	fNrInstances++;
+}
+
+SsiPosEncoder::~SsiPosEncoder()
 {
   fActiveLoop = false;
-  if (fThread) fThread->join();
-  delete fThread;
+  if (fThread!=nullptr) fThread->join();
   fNrInstances--;
-  // close SPI device if nobody else uses it
-  if (!fNrInstances && fSPIHandle>=0) spiClose(fSPIHandle);
+  // close SPI device
+  if ( fSpiHandle>=0 && fGpio != nullptr ) fGpio->spi_close(fSpiHandle);
 }
 
-
-void encoder::init()
-{
-  if (fHandle<0) return;
-  unsigned int spiFlags = 0;
-  if (fSPIHandle<0) fSPIHandle=spiOpen(fChannel & 0x03,SPI_BAUD_DEFAULT, spiFlags);
-    
-    if (fSPIHandle < 0)
-    {
-      // spi open failed.
-      //message("SPI open failed.", fVerbose, true);
-    } else {
-      // ok
-      //message("SPI open ok",fVerbose);
-      //fOpen = true;
-      fThread = new std::thread( [this] { this->readLoop(); } );
-      fActiveLoop=true;
-    }
-}
 
 // this is the background thread loop
-void encoder::readLoop()
+void SsiPosEncoder::readLoop()
 {
-  while (fActiveLoop) {
-    uint32_t data;
-    int nbytes=readDataWord(data);
-    fPos = data>>8;
-//     fTurns = data & ((1<<fNrBitsTurns)-1)
-    usleep(100000L);
-  }
+	while (fActiveLoop) {
+		uint32_t data;
+		bool ok = readDataWord(data);
+		if (ok) {
+			std::uint32_t st = (data >> 7) & 0b11111111111111111111111;
+			st = gray_decode(st);
+			st = st & 0b111111111111;
+			//std::cout<<" ST="<<st;
+		
+			std::int32_t mt = (data >> 19) & 0b11111111111;
+			mt = gray_decode(mt);
+			// add sign bit to MT value
+			// negative counts have to be offset by -1. Otherwise one had to 
+			// distinguish between -0 and +0 rotations
+			if ( data & (1<<30) ) mt = -mt-1;
+			//std::cout<<" MT="<<mt;
+
+			std::lock_guard<std::mutex> guard(fMutex);
+			fPos = st;
+			fTurns = mt;
+			fUpdated = true;
+		}
+		usleep(100000UL);
+	}
 }
 
 
-bool encoder::read(char* buf, int nBytes)
+bool SsiPosEncoder::readDataWord(uint32_t& data)
 {
-    if (!isInitialized()) return false;
-    if (!nBytes) return true;
-    int res=spiRead(fSPIHandle, buf, nBytes);
-    if (res>0) {
-      //message("SPI read succeeded.",2);
-      return true;
-    }
-    //message("SPI read failed",0,true);
-    return false;
-}
-
-int encoder::readDataWord(uint32_t& data)
-{
-  if (!isInitialized()) return 0;
-  const static int n = 4;
-  char buf[n];
-  bool ok=read(buf, n);
-  if (!ok) return 0;
-  data=0;
-  for (int i=n-1; i>=0; i--)
-    data|=((uint32_t)buf[i])<<((n-1-i)*8);
-//     data|=((uint32_t)buf[i])<<(i*8);
-  return n;
+	if (fSpiHandle < 0 && fGpio == nullptr) return false;
+	constexpr unsigned int nBytes = 4;
+	std::vector<std::uint8_t> bytevec = fGpio->spi_read(fSpiHandle, nBytes);
+	if (bytevec.size() != nBytes) {
+		std::cout<<"error reading correct number of bytes from encoder.\n";
+		return false;
+	}
+	data = bytevec[3] | (bytevec[2]<<8) | (bytevec[1]<<16) | (bytevec[0]<<24);
+	return true;
 }
 
 
