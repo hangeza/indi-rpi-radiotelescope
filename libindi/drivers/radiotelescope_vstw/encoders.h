@@ -11,7 +11,6 @@
 #include <inttypes.h>  // uint8_t, etc
 #include <string>
 #include <thread>
-#include <chrono>
 #include <queue>
 #include <list>
 #include <mutex>
@@ -32,19 +31,24 @@ class SsiPosEncoder {
 				  GPIO::SPI_MODE spi_mode = GPIO::SPI_MODE::POL1PHA1);
     ~SsiPosEncoder();
 
-    bool isInitialized() const { return (fSpiHandle>=0); }
+    [[nodiscard]] auto isInitialized() const -> bool { return (fSpiHandle>=0); }
     
-    int position() { fUpdated=false; return fPos; }
-    int nrTurns() { fUpdated=false; return fTurns; }
+    [[nodiscard]] auto position() -> unsigned int { fUpdated=false; return fPos; }
+    [[nodiscard]] auto nrTurns() -> int { fUpdated=false; return fTurns; }
     
     [[nodiscard]] auto isUpdated() const -> bool { return fUpdated; }
+    void setStBitWidth(std::uint8_t st_bits) { fStBits = st_bits; }
+    void setMtBitWidth(std::uint8_t mt_bits) { fMtBits = mt_bits; }
     
   private:
     void readLoop();
-    
+	auto readDataWord(std::uint32_t& data) -> bool;
+	[[nodiscard]] auto gray_decode(std::uint32_t g) -> std::uint32_t;
+    [[nodiscard]] auto intToBinaryString(unsigned long number) -> std::string;
+
     int fSpiHandle { -1 };
-    int fNrBitsPerRev { 12 };
-    int fNrBitsTurns { 12 };
+    std::uint8_t fStBits { 12 };
+    std::uint8_t fMtBits { 12 };
     unsigned int fPos { 0 };
     int fTurns { 0 };
 	bool fUpdated { false };
@@ -55,8 +59,6 @@ class SsiPosEncoder {
 	std::shared_ptr<GPIO> fGpio { nullptr };
 
 	std::mutex fMutex;
-	
-	bool readDataWord(uint32_t& data);
 };
 
 

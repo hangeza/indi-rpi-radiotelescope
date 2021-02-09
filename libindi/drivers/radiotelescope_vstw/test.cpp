@@ -3,13 +3,14 @@
  g++ -std=gnu++14 -Wall -pthread -c gpioif.cpp
  g++ -std=gnu++14 -Wall -pthread -c encoders.cpp
  g++ -std=gnu++14 -Wall -pthread -c test.cpp
- g++ -Wall -pthread -o test gpioif.o encoders.o test.o -lpigpiod_if2 -lrt
+ g++ -std=gnu++14 -Wall -pthread -o test gpioif.o encoders.o test.o -lpigpiod_if2 -lrt
  */
 
 #include <iostream>
 #include <string>
 #include <cstdlib>
 #include <unistd.h>
+#include <atomic>
 
 #include "gpioif.h"
 #include "encoders.h"
@@ -30,16 +31,8 @@ std::string intToBinaryString(unsigned long number) {
    }
   return numStr;
 }
-/*
-uint32_t gray_decode(uint32_t g)
-{
-    for (uint32_t bit = 1U << 31; bit > 1; bit >>= 1)
-    {
-        if (g & bit) g ^= bit >> 1;
-    }
-    return g;
-}
-*/
+
+std::atomic<bool> stop { false };
 
 int main(void) {
     std::shared_ptr<GPIO> gpio(new GPIO("localhost"));
@@ -50,16 +43,48 @@ int main(void) {
     }
 
 	SsiPosEncoder az_encoder(gpio, GPIO::SPI_INTERFACE::Main, baud_rate);
+	SsiPosEncoder el_encoder(gpio, GPIO::SPI_INTERFACE::Aux, baud_rate);
+	el_encoder.setStBitWidth(13);
 	
+	std::thread thr( [&]() {    
+		while (!stop) {
+			if (az_encoder.isUpdated() || el_encoder.isUpdated() ) {
+				unsigned int pos = az_encoder.position();
+				int turns = az_encoder.nrTurns();
+				std::cout<<"Az: st="<<pos<<" mt="<<turns;
+				pos = el_encoder.position();
+				turns = el_encoder.nrTurns();
+				std::cout<<"  El: st="<<pos<<" mt="<<turns<<"\n";
+				//nIter--;
+			}
+			usleep(100000U);
+		}	
+	} );
+
+
+	std::cin.get();
+	
+	stop = true;
+	
+	
+	return EXIT_SUCCESS;
+	
+/*
 	int nIter = 100;
 	while (nIter > 0) {
-		if (az_encoder.isUpdated()) {
+		if (az_encoder.isUpdated() || el_encoder.isUpdated() ) {
 			unsigned int pos = az_encoder.position();
-			std::cout<<"Az: "<<pos<<"\n";
+			int turns = az_encoder.nrTurns();
+			std::cout<<"Az: st="<<pos<<" mt="<<turns;
+			pos = el_encoder.position();
+			turns = el_encoder.nrTurns();
+			std::cout<<"  El: st="<<pos<<" mt="<<turns<<"\n";
 			nIter--;
 		}
 		usleep(1000U);
 	}	
+*/
+	
 	
 /*
 	int spi1_handle = gpio->spi_init(GPIO::SPI_INTERFACE::Main, 0, GPIO::SPI_MODE::POL1PHA1, baud_rate);
