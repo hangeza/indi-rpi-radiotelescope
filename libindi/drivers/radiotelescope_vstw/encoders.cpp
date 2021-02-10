@@ -13,6 +13,10 @@
 unsigned int SsiPosEncoder::fNrInstances = 0;
 constexpr unsigned int LOOP_DELAY_MS { 10 };
 
+template <typename T> int sgn(T val) {
+    return (T(0) < val) - (val < T(0));
+}
+
 auto SsiPosEncoder::intToBinaryString(unsigned long number) -> std::string 
 {
    std::string numStr { };
@@ -64,6 +68,7 @@ SsiPosEncoder::~SsiPosEncoder()
 // this is the background thread loop
 void SsiPosEncoder::readLoop()
 {
+	bool errorFlag = true;
 	while (fActiveLoop) {
 		uint32_t data;
 		bool ok = readDataWord(data);
@@ -84,7 +89,30 @@ void SsiPosEncoder::readLoop()
 			if ( data & (1<<30) ) mt = -mt-1;
 			//std::cout<<" MT="<<mt;
 			
+			if (errorFlag) {
+				fLastPos=st; fLastTurns=mt;
+				std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS/2));
+				errorFlag=false;
+				continue;
+			}
 			
+			int posDiff = st - fLastPos;
+			int turnDiff = mt - fLastTurns;
+			if (std::abs(posDiff) > (1<<(fStBits-1))) {
+				posDiff -= sgn(posDiff)*(1<<(fStBits-1));
+			}
+			
+			
+//			if (std::abs(posDiff) > (1<<(fStBits-2)) && std::abs(turnDiff) > 1 ) {
+			if ( ( std::abs(turnDiff) > 1 ) ) {
+				//std::cout<<" st diff: "<<posDiff<<"\n";
+				fBitErrors++;
+				errorFlag = true;
+				std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS/2));
+				continue;
+			}
+			fLastPos=st; fLastTurns=mt;
+						
 			//std::lock_guard<std::mutex> guard(fMutex);
 			fMutex.lock();
 			fPos = st;

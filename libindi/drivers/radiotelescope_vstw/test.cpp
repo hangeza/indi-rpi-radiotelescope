@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <atomic>
+#include <iomanip>
 
 #include "gpioif.h"
 #include "encoders.h"
@@ -51,13 +52,16 @@ int main(void) {
 			if (az_encoder.isUpdated() || el_encoder.isUpdated() ) {
 				unsigned int pos = az_encoder.position();
 				int turns = az_encoder.nrTurns();
-				std::cout<<"Az: st="<<pos<<" mt="<<turns;
+				std::cout<<"Az: st="<<std::setfill('0')<<std::setw(4)<<pos;
+				std::cout<<" mt="<<turns<<" err="<<az_encoder.bitErrorCount();
 				pos = el_encoder.position();
 				turns = el_encoder.nrTurns();
-				std::cout<<"  El: st="<<pos<<" mt="<<turns<<"\n";
+				std::cout<<"  El: st="<<std::setfill('0')<<std::setw(4)<<pos;
+				std::cout<<" mt="<<turns<<" err="<<el_encoder.bitErrorCount();
+				std::cout<<"           \r";
 				//nIter--;
 			}
-			usleep(100000U);
+			usleep(10000U);
 		}	
 	} );
 
@@ -66,6 +70,7 @@ int main(void) {
 	
 	stop = true;
 	
+	thr.join();
 	
 	return EXIT_SUCCESS;
 	

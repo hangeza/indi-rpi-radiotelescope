@@ -45,7 +45,7 @@ auto GPIO::spi_init(SPI_INTERFACE interface, std::uint8_t channel, SPI_MODE mode
 	unsigned int spi_flags = static_cast<unsigned int>(mode) | (static_cast<unsigned int>(lsb_first) << 15);
 	if (interface == SPI_INTERFACE::Aux) {
 		spi_flags |= 1 << 8;
-		std::cout<<"spi flags: "<<spi_flags<<"\n";
+		//std::cout<<"spi flags: "<<spi_flags<<"\n";
 	}
 	int handle = ::spi_open(fHandle, 0, baudrate, spi_flags);
 	if (handle < 0) {
