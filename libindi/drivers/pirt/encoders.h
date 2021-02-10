@@ -40,6 +40,8 @@ class SsiPosEncoder {
     void setStBitWidth(std::uint8_t st_bits) { fStBits = st_bits; }
     void setMtBitWidth(std::uint8_t mt_bits) { fMtBits = mt_bits; }
     [[nodiscard]] auto bitErrorCount() const -> unsigned long { return fBitErrors; }
+    [[nodiscard]] auto currentSpeed() const -> double { return fCurrentSpeed; }
+    [[nodiscard]] auto lastReadOutDuration() const -> std::chrono::duration<int, std::micro> { return fReadOutDuration; }
     
   private:
     void readLoop();
@@ -55,6 +57,9 @@ class SsiPosEncoder {
 	unsigned int fLastPos { 0 };
 	unsigned int fLastTurns { 0 };
 	unsigned long fBitErrors { 0 };
+	double fCurrentSpeed { 0. };
+	std::chrono::duration<int, std::micro > fReadOutDuration { };
+	
 	bool fUpdated { false };
     bool fActiveLoop { false };
     

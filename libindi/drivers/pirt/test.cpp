@@ -23,7 +23,7 @@ constexpr unsigned int CLK2 { 21 };
 constexpr unsigned int DATA1 { 9 };
 constexpr unsigned int DATA2 { 19 };
 
-constexpr unsigned int baud_rate { 500000 };
+constexpr unsigned int baud_rate { 256000 };
 
 std::string intToBinaryString(unsigned long number) {
    std::string numStr { };
@@ -54,12 +54,16 @@ int main(void) {
 				int turns = az_encoder.nrTurns();
 				std::cout<<"Az: st="<<std::setfill('0')<<std::setw(4)<<pos;
 				std::cout<<" mt="<<turns<<" err="<<az_encoder.bitErrorCount();
+				std::cout<<" deg/s="<<az_encoder.currentSpeed();
+				std::cout<<" r/o="<<az_encoder.lastReadOutDuration().count()<<"us";
+				
 				pos = el_encoder.position();
 				turns = el_encoder.nrTurns();
 				std::cout<<"  El: st="<<std::setfill('0')<<std::setw(4)<<pos;
 				std::cout<<" mt="<<turns<<" err="<<el_encoder.bitErrorCount();
+				std::cout<<" deg/s="<<el_encoder.currentSpeed();
+				std::cout<<" r/o="<<el_encoder.lastReadOutDuration().count()<<"us";
 				std::cout<<"           \r";
-				//nIter--;
 			}
 			usleep(10000U);
 		}	
