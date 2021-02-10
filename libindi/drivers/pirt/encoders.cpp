@@ -7,8 +7,6 @@
 #include "encoders.h"
 
 #define DEFAULT_VERBOSITY 1
-#define DEFAULT_LD_GPIO 5
-
 
 unsigned int SsiPosEncoder::fNrInstances = 0;
 constexpr unsigned int LOOP_DELAY_MS { 10 };
@@ -68,11 +66,14 @@ SsiPosEncoder::~SsiPosEncoder()
 // this is the background thread loop
 void SsiPosEncoder::readLoop()
 {
+	auto lastReadOutTime = std::chrono::system_clock::now();
 	bool errorFlag = true;
 	while (fActiveLoop) {
-		uint32_t data;
+		std::uint32_t data;
+		auto currentReadOutTime = std::chrono::system_clock::now();
 		bool ok = readDataWord(data);
 		if (ok) {
+			auto readOutDuration { std::chrono::system_clock::now() - std::chrono::system_clock::time_point { currentReadOutTime } };
 //			std::cout<<" raw: "<<intToBinaryString(data)<<"\n";
 			std::uint32_t temp = data >> (32 - fStBits - fMtBits - 1);
 			temp &= (1 << (fStBits + fMtBits - 1))-1;
@@ -96,14 +97,7 @@ void SsiPosEncoder::readLoop()
 				continue;
 			}
 			
-			int posDiff = st - fLastPos;
 			int turnDiff = mt - fLastTurns;
-			if (std::abs(posDiff) > (1<<(fStBits-1))) {
-				posDiff -= sgn(posDiff)*(1<<(fStBits-1));
-			}
-			
-			
-//			if (std::abs(posDiff) > (1<<(fStBits-2)) && std::abs(turnDiff) > 1 ) {
 			if ( ( std::abs(turnDiff) > 1 ) ) {
 				//std::cout<<" st diff: "<<posDiff<<"\n";
 				fBitErrors++;
@@ -111,17 +105,29 @@ void SsiPosEncoder::readLoop()
 				std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS/2));
 				continue;
 			}
+
+			int posDiff = st - fLastPos;
+			
+			if (std::abs(posDiff) > (1<<(fStBits-1))) {
+				posDiff -= sgn(posDiff)*(1<<(fStBits-1));
+			}
+			double speed = 360. * static_cast<double>(posDiff) / (1<<fStBits);
+			auto diffTime { currentReadOutTime - lastReadOutTime };
+			speed *= 1000./std::chrono::duration_cast<std::chrono::milliseconds>(diffTime).count();
+			
 			fLastPos=st; fLastTurns=mt;
 						
-			//std::lock_guard<std::mutex> guard(fMutex);
 			fMutex.lock();
 			fPos = st;
 			fTurns = mt;
+			fCurrentSpeed = speed;
 			fUpdated = true;
+			fReadOutDuration = std::chrono::duration_cast<std::chrono::microseconds>(readOutDuration);
 			fMutex.unlock();
+			lastReadOutTime = currentReadOutTime;
+
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS));
-		//usleep(LOOP_DELAY_MS*1000U);
 	}
 }
 
