@@ -1,85 +1,84 @@
 /*
-    LX200 Radio Telescope
-    Copyright (C) 2009 HG Zaunick (zhg@gmx.de)
+   INDI Developers Manual
+   Tutorial #2
 
-    This library is free software; you can redistribute it and/or
-    modify it under the terms of the GNU Lesser General Public
-    License as published by the Free Software Foundation; either
-    version 2.1 of the License, or (at your option) any later version.
+   "Simple Telescope Driver"
 
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    Lesser General Public License for more details.
+   We develop a simple telescope simulator.
 
-    You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+   Refer to README, which contains instruction on how to build this driver, and use it
+   with an INDI-compatible client.
 
 */
 
-#ifndef LX200RT_H
-#define LX200RT_H
+/** \file simplescope.h
+    \brief Construct a basic INDI telescope device that simulates GOTO commands.
+    \author Jasem Mutlaq
 
-#include "indidevapi.h"
-#include "indicom.h"
+    \example simplescope.h
+    A simple GOTO telescope that simulator slewing operation.
+*/
 
-#define	POLLMS		750		/* poll period, ms */
-#define mydev		"LX200 RT" /* The device name */
+#pragma once
 
-class LX200RT
+#include "inditelescope.h"
+
+class SimpleScope : public INDI::Telescope
 {
-   public:
-      LX200RT();
-      virtual ~LX200RT();
+  public:
+    enum
+    {
+      SYSTEM_EQ,
+      SYSTEM_HOR,
+      SYSTEM_GAL
+    } TargetCoordSystem;
+    
+    enum { AXIS_AZ, AXIS_ALT };
+    //bool TrackingOn;
+    
+    SimpleScope();
+    virtual bool Connect();
+    virtual bool Disconnect();
+    virtual void TimerHit();
+    virtual bool ISNewSwitch (const char *dev, const char *name, ISState *states, char *names[], int n);
 
-      virtual void ISGetProperties (const char *dev);
-      virtual void ISNewNumber (const char *dev, const char *name, double values[], char *names[], int n);
-      virtual void ISNewText (const char *dev, const char *name, char *texts[], char *names[], int n);
-      virtual void ISNewSwitch (const char *dev, const char *name, ISState *states, char *names[], int n);
-      virtual void ISSnoopDevice (XMLEle *root);
-      virtual void ISPoll();
-      virtual void ISIdleTask();
-      virtual void getBasicData();
+    bool isTracking();
+    
+  protected:
+    bool Handshake();
+    const char *getDefaultName();
+    virtual bool initProperties() override;
+    virtual bool updateProperties() override;
 
-      int checkPower(INumberVectorProperty *np);
-      int checkPower(ISwitchVectorProperty *sp);
-      int checkPower(ITextVectorProperty *tp);
-      void handleError(ISwitchVectorProperty *svp, int err, const char *msg);
-      void handleError(INumberVectorProperty *nvp, int err, const char *msg);
-      void handleError(ITextVectorProperty *tvp, int err, const char *msg);
-      bool isTelescopeOn(void);
-      void connectTelescope();
-      void slewError(int slewCode);
-      void getAlignment();
-      void handleAltAzSlew();
-      int handleCoordSet();
-      int getOnSwitch(ISwitchVectorProperty *sp);
-      void setCurrentDeviceName(const char * devName);
-      void correctFault();
-      void enableSimulation(bool enable);
-      void updateTime();
-      void updateLocation();
-      void mountSim();
+    // Telescope specific functions
+    bool ReadScopeStatus();
+    bool Goto(double, double);
+    bool GotoHor(double, double);
+    bool Abort();
 
-      int fd;
+  private:
+    void Hor2Equ(double az, double alt, double* ra, double* dec);
+    void Equ2Hor(double ra, double dec, double* az, double* alt);
 
-   protected:
-      int timeFormat;
-      int currentSiteNum;
-      int trackingMode;
+    double currentRA;
+    double currentDEC;
+    double targetRA;
+    double targetDEC;
+    
+    double currentAz, currentAlt;
+    double targetAz, targetAlt;
+    
+    ILight ScopeStatusL[5];
+    ILightVectorProperty ScopeStatusLP;
+    INumber HorN[2];
+    INumberVectorProperty HorNP;
+    
+    ISwitch TrackingS[2];
+    ISwitchVectorProperty TrackingSP;
+    
+    INumber JDN;
+    INumberVectorProperty JDNP;
 
-      double JD;
-      double lastRA;
-      double lastDEC;
-      bool   fault;
-      bool   simulation;
-      char   thisDevice[64];
-      int    currentSet;
-      int    lastSet;
+    IPState lastHorState;
+    unsigned int DBG_SCOPE;
 };
-
-void changeLX200RTDeviceName(const char * newName);
-void changeAllDeviceNames(const char *newName);
-
-#endif
