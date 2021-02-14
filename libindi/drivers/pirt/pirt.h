@@ -22,7 +22,7 @@
 #pragma once
 
 #include "inditelescope.h"
-
+#include "axis.h"
 
 class GPIO;
 class SsiPosEncoder;
@@ -48,6 +48,7 @@ class PiRT : public INDI::Telescope
     bool Disconnect() override;
     void TimerHit() override;
     virtual bool ISNewSwitch (const char *dev, const char *name, ISState *states, char *names[], int n) override;
+	virtual bool ISNewNumber(const char *dev, const char *name, double values[], char *names[], int n) override;
 
     bool isTracking();
     
@@ -90,10 +91,21 @@ class PiRT : public INDI::Telescope
     INumber JDN;
     INumberVectorProperty JDNP;
 
-	INumber AzEncoderN[2];
-	INumber ElEncoderN[2];
+    INumber EncoderBitRateN;
+    INumberVectorProperty EncoderBitRateNP;
+
+	INumber AzEncoderN[5];
+	INumber ElEncoderN[5];
 	INumberVectorProperty AzEncoderNP;
 	INumberVectorProperty ElEncoderNP;
+	INumber AzEncSettingN[2], ElEncSettingN[2];
+	INumberVectorProperty AzEncSettingNP, ElEncSettingNP;
+
+	INumber AzAxisSettingN[2], ElAxisSettingN[2];
+	INumberVectorProperty AzAxisSettingNP, ElAxisSettingNP;
+
+	double axisRatio[2] { 1., 1. };
+	double axisOffset[2] { 0., 0. };
 	
     IPState lastHorState;
     uint8_t DBG_SCOPE { INDI::Logger::DBG_IGNORE };
@@ -103,4 +115,7 @@ class PiRT : public INDI::Telescope
 	std::shared_ptr<GPIO> gpio { nullptr };
 	std::shared_ptr<SsiPosEncoder> az_encoder { nullptr };
 	std::shared_ptr<SsiPosEncoder> el_encoder { nullptr };
+	PIRT::RotAxis az_axis { 0., 360., 360. };
+	PIRT::RotAxis el_axis { -90., 90., 360. };
+	
 };

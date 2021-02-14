@@ -11,8 +11,9 @@
 
 unsigned int SsiPosEncoder::fNrInstances = 0;
 constexpr unsigned int LOOP_DELAY_MS { 10 };
+constexpr double MAX_TURNS_PER_SECOND { 5. };
 
-template <typename T> int sgn(T val) {
+template <typename T> constexpr int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
@@ -119,7 +120,14 @@ void SsiPosEncoder::readLoop()
 			}
 			double speed = 360. * static_cast<double>(posDiff) / (1<<fStBits);
 			auto diffTime { currentReadOutTime - lastReadOutTime };
+			
 			speed *= 1000./std::chrono::duration_cast<std::chrono::milliseconds>(diffTime).count();
+			if ( std::abs(speed / 360.) > MAX_TURNS_PER_SECOND ) {
+				fBitErrors++;
+				errorFlag = true;
+				std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS/2));
+				continue;
+			}
 			
 			fLastPos=st; fLastTurns=mt;
 						
@@ -149,6 +157,17 @@ auto SsiPosEncoder::readDataWord(std::uint32_t& data) -> bool
 	}
 	data = bytevec[3] | (bytevec[2]<<8) | (bytevec[1]<<16) | (bytevec[0]<<24);
 	return true;
+}
+
+
+auto SsiPosEncoder::absolutePosition() -> double {
+	fUpdated=false; 
+	double pos = static_cast<double>( fPos ) / ( 1<<fStBits );
+	if ( fTurns < 0 ) {
+		pos = 1. - pos;
+	}
+	pos += static_cast<double>( fTurns );
+	return pos;
 }
 
 
