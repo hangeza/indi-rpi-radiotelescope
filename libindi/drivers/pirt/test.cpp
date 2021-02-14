@@ -1,9 +1,9 @@
 /* simple program to read out absolute position encoder via SSI/SPI interface
  * compile with:
  g++ -std=gnu++14 -Wall -pthread -c gpioif.cpp
- g++ -std=gnu++14 -Wall -pthread -c encoders.cpp
+ g++ -std=gnu++14 -Wall -pthread -c encoder.cpp
  g++ -std=gnu++14 -Wall -pthread -c test.cpp
- g++ -std=gnu++14 -Wall -pthread -o test gpioif.o encoders.o test.o -lpigpiod_if2 -lrt
+ g++ -std=gnu++14 -Wall -pthread -o test gpioif.o encoder.o test.o -lpigpiod_if2 -lrt
  */
 
 #include <iostream>
@@ -14,7 +14,7 @@
 #include <iomanip>
 
 #include "gpioif.h"
-#include "encoders.h"
+#include "encoder.h"
 
 constexpr unsigned int CE0 { 8 };
 constexpr unsigned int CE1 { 18 };

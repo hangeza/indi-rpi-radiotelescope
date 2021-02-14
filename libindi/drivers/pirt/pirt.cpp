@@ -11,15 +11,15 @@
 
 */
 
-/** \file simplescope.cpp
+/** \file pirt.cpp
     \brief Construct a basic INDI telescope device that simulates GOTO commands.
     \author Jasem Mutlaq
 
-    \example simplescope.cpp
+    \example pirt.cpp
     A simple GOTO telescope that simulator slewing operation.
 */
 
-#include "simplescope.h"
+#include "pirt.h"
 
 #include "indicom.h"
 
@@ -31,23 +31,22 @@
 #include <string.h>
 #include <libnova.h>
 
-// #include <math.h>
-// #include <unistd.h>
-// #include <sys/time.h>
-// #include <time.h>
+#include <encoder.h>
+#include <gpioif.h>
 
-const double SID_RATE = 0.004178; /* sidereal rate, degrees/s */
-const double SLEW_RATE = 5.;        /* slew rate, degrees/s */
+constexpr unsigned int SSI_BAUD_RATE { 250000 };
+constexpr unsigned int POLL_INTERVAL_MS { 100 };
 
+constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
+constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 
-#define POLLMS 100
+//#define POLLMS 100
 #define POS_ACCURACY 0.05
-#define TRACK_ACCURACY 0.07
+#define TRACK_ACCURACY 0.00007
 #define MAX_ELEVATION_EXCESS 100.0
 
 
-std::unique_ptr<SimpleScope> simpleScope(new SimpleScope());
-
+static std::unique_ptr<PiRT> pirt(new PiRT());
 
 
 
@@ -57,7 +56,7 @@ std::unique_ptr<SimpleScope> simpleScope(new SimpleScope());
 ***************************************************************************************/
 void ISGetProperties(const char *dev)
 {
-    simpleScope->ISGetProperties(dev);
+    pirt->ISGetProperties(dev);
 }
 
 /**************************************************************************************
@@ -65,7 +64,7 @@ void ISGetProperties(const char *dev)
 ***************************************************************************************/
 void ISNewSwitch(const char *dev, const char *name, ISState *states, char *names[], int n)
 {
-    simpleScope->ISNewSwitch(dev, name, states, names, n);
+    pirt->ISNewSwitch(dev, name, states, names, n);
 }
 
 /**************************************************************************************
@@ -73,7 +72,7 @@ void ISNewSwitch(const char *dev, const char *name, ISState *states, char *names
 ***************************************************************************************/
 void ISNewText(const char *dev, const char *name, char *texts[], char *names[], int n)
 {
-    simpleScope->ISNewText(dev, name, texts, names, n);
+    pirt->ISNewText(dev, name, texts, names, n);
 }
 
 /**************************************************************************************
@@ -81,7 +80,7 @@ void ISNewText(const char *dev, const char *name, char *texts[], char *names[], 
 ***************************************************************************************/
 void ISNewNumber(const char *dev, const char *name, double values[], char *names[], int n)
 {
-    simpleScope->ISNewNumber(dev, name, values, names, n);
+    pirt->ISNewNumber(dev, name, values, names, n);
 }
 
 /**************************************************************************************
@@ -90,7 +89,7 @@ void ISNewNumber(const char *dev, const char *name, double values[], char *names
 void ISNewBLOB(const char *dev, const char *name, int sizes[], int blobsizes[], char *blobs[], char *formats[],
                char *names[], int n)
 {
-    simpleScope->ISNewBLOB(dev, name, sizes, blobsizes, blobs, formats, names, n);
+    pirt->ISNewBLOB(dev, name, sizes, blobsizes, blobs, formats, names, n);
 }
 
 /**************************************************************************************
@@ -98,49 +97,61 @@ void ISNewBLOB(const char *dev, const char *name, int sizes[], int blobsizes[], 
 ***************************************************************************************/
 void ISSnoopDevice(XMLEle *root)
 {
-    INDI_UNUSED(root);
+    pirt->ISSnoopDevice(root);
 }
 
 
 
 
 /*
- * class SimpleScope
+ * class Pi RT
  * 
  */
-SimpleScope::SimpleScope()
+PiRT::PiRT()
 {
     currentRA  = 0;
     currentDEC = 0;
     currentAz = currentAlt = 0;
+	setDefaultPollingPeriod(POLL_INTERVAL_MS);
 //     TrackingOn = false;
 
     // We add an additional debug level so we can log verbose scope status
     DBG_SCOPE = INDI::Logger::getInstance().addDebugLevel("Scope Verbose", "SCOPE");
 
-    SetTelescopeCapability(TELESCOPE_CAN_PARK 
-			 | TELESCOPE_CAN_ABORT | TELESCOPE_HAS_TIME 
-			 | TELESCOPE_HAS_LOCATION  );
+//    setTelescopeConnection(CONNECTION_TCP);
+    setTelescopeConnection(CONNECTION_TCP);
+
+	SetTelescopeCapability(
+			TELESCOPE_CAN_PARK |
+			TELESCOPE_CAN_ABORT |
+			TELESCOPE_HAS_TIME | 
+			TELESCOPE_HAS_LOCATION |
+			TELESCOPE_HAS_TRACK_MODE |
+			TELESCOPE_CAN_CONTROL_TRACK /*|
+			TELESCOPE_HAS_TRACK_RATE */
+	);
 }
 
 /**************************************************************************************
 ** We init our properties here. The only thing we want to init are the Debug controls
 ***************************************************************************************/
-bool SimpleScope::initProperties()
+bool PiRT::initProperties()
 {
     // ALWAYS call initProperties() of parent first
     INDI::Telescope::initProperties();
-//     setTelescopeConnection(1);
-    IUFillSwitch(&TrackingS[0], "Off", "", ISS_ON);
+    
+	//return true;
+/*
+	IUFillSwitch(&TrackingS[0], "Off", "", ISS_ON);
     IUFillSwitch(&TrackingS[1], "On", "", ISS_OFF);
     IUFillSwitchVector(&TrackingSP, TrackingS, 2, getDeviceName(), "TRACKING", "Tracking", MAIN_CONTROL_TAB, IP_RW, ISR_1OFMANY,0, IPS_IDLE);
-    
-    IUFillLight(&ScopeStatusL[0], "SCOPE_IDLE", "Idle", IPS_IDLE);
+*/    
+    IUFillLight(&ScopeStatusL[0], "SCOPE_IDLE", "Idle", IPS_OK);
     IUFillLight(&ScopeStatusL[1], "SCOPE_SLEWING", "Slew", IPS_IDLE);
-    IUFillLight(&ScopeStatusL[2], "SCOPE_TRACKING", "Track", IPS_IDLE);
+    IUFillLight(&ScopeStatusL[2], "SCOPE_TRACKING", "Tracking", IPS_IDLE);
     IUFillLight(&ScopeStatusL[3], "SCOPE_PARKING", "Parking", IPS_IDLE);
     IUFillLight(&ScopeStatusL[4], "SCOPE_PARKED", "Parked", IPS_IDLE);
-  // Make sure to set the device name to "Rain Detector" since we are snooping on rain detector device.
+
     IUFillLightVector(&ScopeStatusLP, ScopeStatusL, 5, getDeviceName(), "SCOPE_STATUS", "Scope Status", MAIN_CONTROL_TAB, IPS_IDLE);
 
     IUFillTextVector(&TimeTP, TimeT, 2, getDeviceName(), TimeTP.name, TimeTP.label, SITE_TAB, IP_RO, 60, IPS_IDLE);
@@ -161,80 +172,178 @@ bool SimpleScope::initProperties()
     LocationN[LOCATION_ELEVATION].value = 180.;
     LocationNP.s = IPS_OK;
     IDSetNumber(&LocationNP, NULL);
-    
     //defineLight(&ScopeStatusLP);
-    addDebugControl();
 
-    return true;
+    IUFillNumber(&AzEncoderN[0], "AZ_ENC_ST", "ST", "%5.0f", 0, 65535, 0, 1);
+    IUFillNumber(&AzEncoderN[1], "AZ_ENC_MT", "MT", "%5.0f", -32767, 32767, 0, 2);
+    IUFillNumberVector(&AzEncoderNP, AzEncoderN, 2, getDeviceName(), "AZ_ENC", "Azimuth", "Encoders",
+           IP_RO, 60, IPS_IDLE);
+    IUFillNumber(&ElEncoderN[0], "EL_ENC_ST", "ST", "%5.0f", 0, 65535, 0, 3);
+    IUFillNumber(&ElEncoderN[1], "EL_ENC_MT", "MT", "%5.0f", -32767, 32767, 0, 4);
+    IUFillNumberVector(&ElEncoderNP, ElEncoderN, 2, getDeviceName(), "EL_ENC", "Elevation", "Encoders",
+           IP_RO, 60, IPS_IDLE);
+
+	addDebugControl();
+
+//	INDI::Telescope::Connect();
+
+	return true;
 }
 
-bool SimpleScope::updateProperties()
+bool PiRT::updateProperties()
 {
     // ALWAYS call initProperties() of parent first
     INDI::Telescope::updateProperties();
     // delete the paramters defined for optical scopes - don't need 'em
     deleteProperty(ScopeParametersNP.name);
+//	deleteProperty("ConnectSP");
 
-    if (isConnected()) {
-      defineLight(&ScopeStatusLP);
+	if (isConnected()) {
+      defineProperty(&ScopeStatusLP);
       LocationNP.s = IPS_OK;
       IDSetNumber(&LocationNP, NULL);
-      defineNumber(&HorNP);
-      defineNumber(&JDNP);
-      defineSwitch(&TrackingSP);
+	  defineProperty(&HorNP);
+      defineProperty(&JDNP);
+	  defineProperty(&AzEncoderNP);
+	  defineProperty(&ElEncoderNP);
+      //defineProperty(&TrackingSP);
     } else {
       deleteProperty(ScopeStatusLP.name);
       deleteProperty(HorNP.name);
-      deleteProperty(TrackingSP.name);
+      //deleteProperty(TrackingSP.name);
       deleteProperty(JDNP.name);
+	  deleteProperty(AzEncoderNP.name);
+	  deleteProperty(ElEncoderNP.name);
     }
+    
     return true;
 }
 
 /**************************************************************************************
 **
 ***************************************************************************************/
-bool SimpleScope::ISNewSwitch (const char *dev, const char *name, ISState *states, char *names[], int n)
+bool PiRT::ISNewSwitch (const char *dev, const char *name, ISState *states, char *names[], int n)
 {
-    if(strcmp(dev,getDeviceName())==0)
-    {
-        //  This one is for us
-        if(!strcmp(name,TrackingSP.name))
-        {
-            //  client is telling us what to do with co-ordinate requests
-            TrackingSP.s=IPS_OK;
-            IUUpdateSwitch(&TrackingSP,states,names,n);
-            //  Update client display
-            IDSetSwitch(&TrackingSP, NULL);
-            if (TrackState == SCOPE_IDLE && isTracking()) {
-	      TrackState = SCOPE_TRACKING;
-	      Hor2Equ(currentAz, currentAlt, &targetRA, &targetDEC);
-	    }
-	    else if (!isTracking() && TrackState == SCOPE_TRACKING) TrackState = SCOPE_IDLE;
-	    return true;
-        }
-    }
-    //  Nobody has claimed this, so, ignore it
-    return INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
+	//return INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
+	if(strcmp(dev,getDeviceName())==0)
+	{
+		//  This one is for us
+		//if(!strcmp(name,TrackingSP.name))
+		{
+			//bool res = INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
+			//TrackStateSP.s = (TrackState == SCOPE_TRACKING) ? IPS_OK : IPS_IDLE;
+			//IUUpdateSwitch(&TrackingSP,states,names,n);
+			//TrackingSP.s=IPS_OK;
+			//  Update client display
+			//IDSetSwitch(&TrackingSP, NULL);
+			/*
+			if (TrackState == SCOPE_IDLE && isTracking()) {
+				TrackState = SCOPE_TRACKING;
+				Hor2Equ(currentAz, currentAlt, &targetRA, &targetDEC);
+								
+			}
+			else if (!isTracking() && TrackState == SCOPE_TRACKING) {
+				TrackState = SCOPE_IDLE;
+			}
+			*/
+			//if (res) updateScopeState();
+			//return true;
+		}
+	}
+	//  Nobody has claimed this, so, ignore it
+	return INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
 }
 
-bool SimpleScope::Connect()
+void PiRT::updateScopeState()
 {
-  SetTimer(POLLMS);
-  return true;
+	for (uint8_t i = 0; i<5; i++) ScopeStatusL[i].s=IPS_IDLE;
+	ScopeStatusL[(unsigned int)TrackState].s=IPS_OK;
+	IDSetLight(&ScopeStatusLP, nullptr);
+	/*
+	switch (TrackState) {
+		case SCOPE_IDLE:
+			ScopeStatusL[0].s=IPS_OK;
+		
+	}
+	*/
 }
 
-bool SimpleScope::Disconnect()
-{
-  return true;
+bool PiRT::SetTrackMode(uint8_t mode) {
+	return false;
 }
 
-void SimpleScope::TimerHit()
+bool PiRT::SetTrackEnabled(bool enabled) {
+	// TODO: do sth here to enable the tracking loop
+	if (enabled) {
+		targetRA = currentRA;
+		targetDEC = currentDEC;
+	}
+	return true;
+}
+
+bool PiRT::Park() {
+	// TODO: do sth here to start the parking operation
+	return true;
+}
+
+
+bool PiRT::Connect()
 {
-//     if(isConnected())
+	ITextVectorProperty *tvp = getText("DEVICE_ADDRESS");
+	if (tvp == nullptr) {
+        DEBUG(INDI::Logger::DBG_ERROR, "No address property found.");
+		return false;
+	}
+	
+	//DEBUGF(INDI::Logger::DBG_SESSION, "host: %s:%s", tvp->tp[0].text, tvp->tp[1].text);
+
+	const std::string host { tvp->tp[0].text };
+	const std::string port { tvp->tp[1].text };
+	
+//	std::shared_ptr<GPIO> temp_ptr ( new GPIO("localhost") );
+	std::shared_ptr<GPIO> temp_ptr ( new GPIO(host, port) );
+	if (!temp_ptr->isInitialized()) {
+        DEBUG(INDI::Logger::DBG_ERROR, "Could not initialize GPIO interface. Is pigpiod running?");
+		return false;
+	}
+	gpio = std::move ( temp_ptr );
+	
+	std::shared_ptr<SsiPosEncoder> temp_az_enc ( new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, SSI_BAUD_RATE) );
+	if (!temp_az_enc->isInitialized()) {
+        DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to Az position encoder.");
+		return false;
+	}
+	az_encoder = std::move(temp_az_enc);
+	
+	std::shared_ptr<SsiPosEncoder> temp_el_enc { new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, SSI_BAUD_RATE) };
+	if (!temp_el_enc->isInitialized()) {
+        DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to El position encoder.");
+		return false;
+	}
+	el_encoder = std::move(temp_el_enc);
+	el_encoder->setStBitWidth(13);
+	
+	INDI::Telescope::Connect();
+	SetTimer(POLL_INTERVAL_MS);
+	return true;
+}
+
+bool PiRT::Disconnect()
+{
+	return true;
+}
+
+
+void PiRT::TimerHit()
+{
+    if(isConnected())
     {
         bool rc;
 
+        //LOG_INFO("TimerHit");
+
+//		updateScopeState();
+		
         rc=ReadScopeStatus();
 
         if(rc == false)
@@ -244,43 +353,43 @@ void SimpleScope::TimerHit()
             IDSetNumber(&EqNP, NULL);
         }
 
-//         SetTimer(POLLMS);
+		SetTimer(POLL_INTERVAL_MS);
     }
-    SetTimer(POLLMS);
 }
 
 
 /**************************************************************************************
 ** INDI is asking us to check communication with the device via a handshake
 ***************************************************************************************/
-bool SimpleScope::Handshake()
+bool PiRT::Handshake()
 {
-    // When communicating with a real mount, we check here if commands are receieved
-    // and acknolowedged by the mount. For SimpleScope, we simply return true.
-    return true;
+	// When communicating with a real mount, we check here if commands are receieved
+	// and acknolowedged by the mount. For SimpleScope, we simply return true.
+	return true;
 }
 
 /**************************************************************************************
 ** INDI is asking us for our default device name
 ***************************************************************************************/
-const char *SimpleScope::getDefaultName()
+const char *PiRT::getDefaultName()
 {
-    return "Simple Scope";
+	return "Pi Radiotelescope";
 }
 
 /**************************************************************************************
 ** is telescope in tracking mode?
 ***************************************************************************************/
-bool SimpleScope::isTracking()
+bool PiRT::isTracking()
 {
-  return (TrackingS[1].s == ISS_ON);
+	//return true;
+	return (TrackingS[1].s == ISS_ON);
 }
 
 
 /**************************************************************************************
 ** Client is asking us to slew to a new position
 ***************************************************************************************/
-bool SimpleScope::Goto(double ra, double dec)
+bool PiRT::Goto(double ra, double dec)
 {
     targetRA  = ra;
     targetDEC = dec;
@@ -303,7 +412,7 @@ bool SimpleScope::Goto(double ra, double dec)
 /**************************************************************************************
 ** Client is asking us to slew to a new position (horizontal coordinates)
 ***************************************************************************************/
-bool SimpleScope::GotoHor(double az, double alt)
+bool PiRT::GotoHor(double az, double alt)
 {
     targetAz  = az;
     targetAlt = alt;
@@ -332,13 +441,14 @@ bool SimpleScope::GotoHor(double az, double alt)
 /**************************************************************************************
 ** Client is asking us to abort our motion
 ***************************************************************************************/
-bool SimpleScope::Abort()
+bool PiRT::Abort()
 {
-    return true;
+    TrackState = (isTracking() ? SCOPE_TRACKING : SCOPE_IDLE);
+	return true;
 }
 
 
-void SimpleScope::Hor2Equ(double az, double alt, double* ra, double* dec) {
+void PiRT::Hor2Equ(double az, double alt, double* ra, double* dec) {
   struct ln_date date;
   struct tm *utc;
 
@@ -376,7 +486,7 @@ void SimpleScope::Hor2Equ(double az, double alt, double* ra, double* dec) {
 }
 
 
-void SimpleScope::Equ2Hor(double ra, double dec, double* az, double* alt) {
+void PiRT::Equ2Hor(double ra, double dec, double* az, double* alt) {
   struct ln_date date;
   struct tm *utc;
 
@@ -417,9 +527,9 @@ void SimpleScope::Equ2Hor(double ra, double dec, double* az, double* alt) {
 /**************************************************************************************
 ** Client is asking us to report telescope status
 ***************************************************************************************/
-bool SimpleScope::ReadScopeStatus()
+bool PiRT::ReadScopeStatus()
 {
-    static struct timeval ltv { 0, 0 };
+	static struct timeval ltv { 0, 0 };
     struct timeval tv { 0, 0 };
     double dt = 0, da_ra = 0, da_dec = 0, dx = 0, dy = 0;
     static double dt_time_update = 0.;
@@ -438,6 +548,20 @@ bool SimpleScope::ReadScopeStatus()
       IDSetNumber(&LocationNP, NULL);
     }
 
+    // read pos encoders
+    unsigned int st = az_encoder->position();
+    int mt = az_encoder->nrTurns();
+    int us = az_encoder->lastReadOutDuration().count();
+	
+    AzEncoderN[0].value = static_cast<double>(st);
+    AzEncoderN[1].value = static_cast<double>(mt);
+    //DEBUGF(INDI::Logger::DBG_SESSION, "Az Encoder values: st=%d mt=%u t_ro=%u us", st, mt, us);
+    AzEncoderNP.s = IPS_OK;
+    IDSetNumber(&AzEncoderNP, nullptr);
+    ElEncoderN[0].value = el_encoder->position();
+    ElEncoderN[1].value = el_encoder->nrTurns();
+    ElEncoderNP.s = IPS_OK;
+    IDSetNumber(&ElEncoderNP, nullptr);
 
     // time since last update
     dt  = tv.tv_sec - ltv.tv_sec + 1e-6*(tv.tv_usec - ltv.tv_usec);
@@ -483,104 +607,98 @@ bool SimpleScope::ReadScopeStatus()
 //       IDSetNumber(&LocationNP, NULL);
     }
     
-    // Calculate how much we moved since last time
-    double dmov = 0.;
-    double imot = 0.;
-    switch (TrackState)
-    {
-        case SCOPE_SLEWING:
-	  dmov = SLEW_RATE * dt;
-	  nlocked=0;
-	  if (TargetCoordSystem == SYSTEM_EQ) {
-	    Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
-	  }
+	// Calculate how much we moved since last time
+	double dmov = 0.;
+	double imot = 0.;
+	switch (TrackState)
+	{
+		case SCOPE_SLEWING:
+			dmov = SLEW_RATE * dt;
+			nlocked=0;
+			if (TargetCoordSystem == SYSTEM_EQ) {
+				Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
+			}
 	  
-	  dx = targetAz-currentAz;
-	  dy = targetAlt-currentAlt;
+			dx = targetAz-currentAz;
+			dy = targetAlt-currentAlt;
 	  
-	  if (dx>180.) dx-=360.;
-	  else if (dx<-180.) dx+=360.;
-	  if (dy>180.) dy-=360.;
-	  else if (dy<-180.) dy+=360.;
+			if (dx>180.) { dx-=360.;
+			} else if (dx<-180.) {
+				dx+=360.;
+			}
+			
+			if (dy>180.) {
+				dy-=360.;
+			} else if (dy<-180.) {
+				dy+=360.;
+			}
 	  
-	  if (fabs(dx) <= POS_ACCURACY) nlocked++;
-	  else {
-	   imot = dx/10.;
-	   if (fabs(imot)>1.) imot=(dx>=0)?1.:-1.;
-	   currentAz += dmov*imot;
-	   currentAz = ln_range_degrees(currentAz);
-	  }
-// 	    if (dx > 0) currentAz += dmov;
-// 	  else currentAz -= dmov;
+			if (fabs(dx) <= POS_ACCURACY) {
+				nlocked++;
+			} else {
+				imot = dx/10.;
+				if (fabs(imot)>1.) imot=(dx>=0)?1.:-1.;
+				currentAz += dmov*imot;
+				currentAz = ln_range_degrees(currentAz);
+			}
+			//if (dx > 0) currentAz += dmov;
+			//else currentAz -= dmov;
 	  
-	  if (fabs(dy) <= POS_ACCURACY) nlocked++;
-	  else {
-	   imot = dy/10.;
-	   if (fabs(imot)>1.) imot=(dy>=0)?1.:-1.;
-	   currentAlt += dmov*imot;
-	  }
-// 	  else if (dy > 0) currentAlt += dmov;
-// 	  else currentAlt -= dmov;
+			if (fabs(dy) <= POS_ACCURACY) { 
+				nlocked++;
+			} else {
+				imot = dy/10.;
+				if (fabs(imot)>1.) imot=(dy>=0)?1.:-1.;
+				currentAlt += dmov*imot;
+			}
+			//else if (dy > 0) currentAlt += dmov;
+			//else currentAlt -= dmov;
 	  
-          // Let's check if we reached position for both axes
-          if (nlocked == 2)
-          {
-                // Let's set state to TRACKING
-                TrackState = (isTracking())?SCOPE_TRACKING:SCOPE_IDLE;
-		if (isTracking() && TargetCoordSystem == SYSTEM_HOR) {
-		  Hor2Equ(currentAz, currentAlt, &targetRA, &targetDEC);
-		}
+			// Let's check if we reached position for both axes
+			if (nlocked == 2)
+			{
+				// Let's set state to TRACKING
+				TrackState = (isTracking())?SCOPE_TRACKING:SCOPE_IDLE;
+				if (isTracking() && TargetCoordSystem == SYSTEM_HOR) {
+					Hor2Equ(currentAz, currentAlt, &targetRA, &targetDEC);
+				}
                 DEBUG(INDI::Logger::DBG_SESSION, "Telescope slew is complete.");
-          }
-          break;
+			}
+			break;
 	
-	case SCOPE_TRACKING:
-	  dmov = 2.5*SID_RATE * dt;
-	  Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
+		case SCOPE_TRACKING:
+			dmov = 5.0*SID_RATE * dt;
+			Equ2Hor(targetRA, targetDEC, &currentAz, &currentAlt);
 	  
-// 	  DEBUG(INDI::Logger::DBG_SESSION, "tracking...");
-// 	  DEBUGF(INDI::Logger::DBG_SESSION, "target Az: %f target Alt: %f", targetAz, targetAlt);
+			//DEBUG(INDI::Logger::DBG_SESSION, "tracking...");
+			//DEBUGF(INDI::Logger::DBG_SESSION, "target Az: %f target Alt: %f", targetAz, targetAlt);
 
-	  dx = targetAz-currentAz;
-	  dy = targetAlt-currentAlt;
-	  if (dx>180.) dx-=360.;
-	  else if (dx<-180.) dx+=360.;
-	  if (dy>180.) dy-=360.;
-	  else if (dy<-180.) dy+=360.;
+			dx = targetAz-currentAz;
+			dy = targetAlt-currentAlt;
+			if (dx>180.) dx-=360.;
+			else if (dx<-180.) dx+=360.;
+			if (dy>180.) dy-=360.;
+			else if (dy<-180.) dy+=360.;
 	  
-	  if (fabs(dx) > TRACK_ACCURACY) {
-// 	   currentAz += 0.1*dmov*(dx>=0)?1.:-1.;
-	   currentAz += dmov*((dx>=0)?1.:-1.);
-// 	   DEBUGF(INDI::Logger::DBG_SESSION, "cur Az+  %f", dmov*((dx>=0)?1.:-1.));
-// 	   DEBUGF(INDI::Logger::DBG_SESSION, "dmov = %f", dmov);
-	   currentAz = ln_range_degrees(currentAz);
-	  }
+			if (fabs(dx) > TRACK_ACCURACY) {
+				//currentAz += 0.1*dmov*(dx>=0)?1.:-1.;
+				currentAz += dmov*((dx>=0)?1.:-1.);
+				//DEBUGF(INDI::Logger::DBG_SESSION, "cur Az+  %f", dmov*((dx>=0)?1.:-1.));
+				//DEBUGF(INDI::Logger::DBG_SESSION, "dmov = %f", dmov);
+				currentAz = ln_range_degrees(currentAz);
+			}
 	  
-	  if (fabs(dy) > TRACK_ACCURACY) {
-// 	   currentAlt += 0.1*dmov*(dy>=0)?1.:-1.;
-	   currentAlt += dmov*((dy>=0)?1.:-1.);
-// 	   DEBUGF(INDI::Logger::DBG_SESSION, "cur Alt+  %f", dmov*((dx>=0)?1.:-1.));
-	  }
+			if (fabs(dy) > TRACK_ACCURACY) {
+				//currentAlt += 0.1*dmov*(dy>=0)?1.:-1.;
+				currentAlt += dmov*((dy>=0)?1.:-1.);
+				//DEBUGF(INDI::Logger::DBG_SESSION, "cur Alt+  %f", dmov*((dx>=0)?1.:-1.));
+			}
 	  
-	  break;
+			break;
 	  
-	default:
-	  break;
-	  
-    }
-    
-
-// 0599546776a
-
-
-
-
-
-
-
-
-
-
+		default:
+			break;
+	}
     
     /* Process per current state. We check the state of EQUATORIAL_EOD_COORDS_REQUEST and act acoordingly */
 //     switch (TrackState)
@@ -635,35 +753,34 @@ bool SimpleScope::ReadScopeStatus()
 //             break;
 //     }
 
-    /* update scope status */
-    // update the telescope state lights
-    for (int i=0; i<5; i++) ScopeStatusL[i].s=IPS_IDLE;
-    ScopeStatusL[TrackState].s=IPS_OK;
-    IDSetLight(&ScopeStatusLP, NULL);
+	/* update scope status */
+	// update the telescope state lights
+	for (int i=0; i<5; i++) ScopeStatusL[i].s=IPS_IDLE;
+	ScopeStatusL[TrackState].s=IPS_OK;
+	IDSetLight(&ScopeStatusLP, NULL);
     
-    if (HorN[AXIS_AZ].value != currentAz || HorN[AXIS_ALT].value != currentAlt)
-    {
-        HorN[AXIS_AZ].value=currentAz;
-        HorN[AXIS_ALT].value=currentAlt;
-	HorNP.s = IPS_OK;
-        //lastEqState = EqNP.s;
-        IDSetNumber(&HorNP, NULL);
-    }
+	if (HorN[AXIS_AZ].value != currentAz || HorN[AXIS_ALT].value != currentAlt)
+	{
+		HorN[AXIS_AZ].value=currentAz;
+		HorN[AXIS_ALT].value=currentAlt;
+		HorNP.s = IPS_OK;
+		//lastEqState = EqNP.s;
+		IDSetNumber(&HorNP, NULL);
+	}
   
-    Hor2Equ(currentAz, currentAlt, &currentRA, &currentDEC);
-    //currentRA*=24./360.;
+	Hor2Equ(currentAz, currentAlt, &currentRA, &currentDEC);
+	//currentRA*=24./360.;
     
-    char RAStr[64]={0}, DecStr[64]={0};
+	char RAStr[64]={0}, DecStr[64]={0};
 
-    // Parse the RA/DEC into strings
-    fs_sexa(RAStr, currentRA, 2, 3600);
-    fs_sexa(DecStr, currentDEC, 2, 3600);
+	// Parse the RA/DEC into strings
+	fs_sexa(RAStr, currentRA, 2, 3600);
+	fs_sexa(DecStr, currentDEC, 2, 3600);
 
-    DEBUGF(DBG_SCOPE, "Current RA: %s Current DEC: %s", RAStr, DecStr);
+	DEBUGF(DBG_SCOPE, "Current RA: %s Current DEC: %s", RAStr, DecStr);
 
-    NewRaDec(currentRA, currentDEC);
-//    Equ2Hor(currentRA, currentDEC, &currentAz, &currentAlt);
-    
-   
-    return true;
+	NewRaDec(currentRA, currentDEC);
+	//Equ2Hor(currentRA, currentDEC, &currentAz, &currentAlt);
+
+	return true;
 }

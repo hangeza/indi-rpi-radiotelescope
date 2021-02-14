@@ -3,8 +3,9 @@
 #include <unistd.h>
 #include <string>
 #include <chrono>
+#include <memory>
 
-#include "encoders.h"
+#include "encoder.h"
 
 #define DEFAULT_VERBOSITY 1
 
@@ -49,7 +50,12 @@ SsiPosEncoder::SsiPosEncoder(std::shared_ptr<GPIO> gpio, GPIO::SPI_INTERFACE spi
 	}
 
 	fActiveLoop=true;
-	fThread = std::make_unique<std::thread>( [this]() { this->readLoop(); } );
+// since C++14 using std::make_unique
+	// fThread = std::make_unique<std::thread>( [this]() { this->readLoop(); } );
+// C++11 is unfortunately more unconvenient with move from a locally generated pointer
+	std::unique_ptr<std::thread> thread( new std::thread( [this]() { this->readLoop(); } ));
+	fThread = std::move(thread);
+
 	fNrInstances++;
 }
 
