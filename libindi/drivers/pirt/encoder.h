@@ -35,6 +35,7 @@ class SsiPosEncoder {
     
     [[nodiscard]] auto position() -> unsigned int { fUpdated=false; return fPos; }
     [[nodiscard]] auto nrTurns() -> int { fUpdated=false; return fTurns; }
+    [[nodiscard]] auto absolutePosition() -> double;
     
     [[nodiscard]] auto isUpdated() const -> bool { return fUpdated; }
     void setStBitWidth(std::uint8_t st_bits) { fStBits = st_bits; }

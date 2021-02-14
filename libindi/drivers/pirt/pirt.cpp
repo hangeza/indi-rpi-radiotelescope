@@ -34,8 +34,10 @@
 #include <encoder.h>
 #include <gpioif.h>
 
-constexpr unsigned int SSI_BAUD_RATE { 250000 };
-constexpr unsigned int POLL_INTERVAL_MS { 100 };
+constexpr unsigned int SSI_BAUD_RATE { 500000 };
+constexpr unsigned int POLL_INTERVAL_MS { 250 };
+constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 10. };
+constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 10. };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
@@ -112,7 +114,6 @@ PiRT::PiRT()
     currentRA  = 0;
     currentDEC = 0;
     currentAz = currentAlt = 0;
-	setDefaultPollingPeriod(POLL_INTERVAL_MS);
 //     TrackingOn = false;
 
     // We add an additional debug level so we can log verbose scope status
@@ -130,6 +131,8 @@ PiRT::PiRT()
 			TELESCOPE_CAN_CONTROL_TRACK /*|
 			TELESCOPE_HAS_TRACK_RATE */
 	);
+	
+	el_axis.registerGimbalFlipCallback( [this]() { this->az_axis.gimbalFlip(); } );
 }
 
 /**************************************************************************************
@@ -139,7 +142,9 @@ bool PiRT::initProperties()
 {
     // ALWAYS call initProperties() of parent first
     INDI::Telescope::initProperties();
-    
+
+	setDefaultPollingPeriod(POLL_INTERVAL_MS);
+
 	//return true;
 /*
 	IUFillSwitch(&TrackingS[0], "Off", "", ISS_ON);
@@ -174,18 +179,58 @@ bool PiRT::initProperties()
     IDSetNumber(&LocationNP, NULL);
     //defineLight(&ScopeStatusLP);
 
-    IUFillNumber(&AzEncoderN[0], "AZ_ENC_ST", "ST", "%5.0f", 0, 65535, 0, 1);
-    IUFillNumber(&AzEncoderN[1], "AZ_ENC_MT", "MT", "%5.0f", -32767, 32767, 0, 2);
-    IUFillNumberVector(&AzEncoderNP, AzEncoderN, 2, getDeviceName(), "AZ_ENC", "Azimuth", "Encoders",
+	IUFillNumber(&EncoderBitRateN, "SSI_BITRATE", "SSI Bit Rate", "%5.0f Hz", 0, 5000000, 0, SSI_BAUD_RATE);
+    IUFillNumberVector(&EncoderBitRateNP, &EncoderBitRateN, 1, getDeviceName(), "ENC_SPI_SETTINGS", "SPI Interface", "Encoders",
+           IP_RW, 60, IPS_IDLE);
+	defineProperty(&EncoderBitRateNP);
+    IDSetNumber(&EncoderBitRateNP, NULL);
+
+	IUFillNumber(&AzEncoderN[0], "AZ_ENC_POS", "Position", "%5.4f rev", -32767, 32767, 0, 0);
+	IUFillNumber(&AzEncoderN[1], "AZ_ENC_ST", "ST", "%5.0f", 0, 65535, 0, 0);
+	IUFillNumber(&AzEncoderN[2], "AZ_ENC_MT", "MT", "%5.0f", -32767, 32767, 0, 0);
+    IUFillNumber(&AzEncoderN[3], "AZ_ENC_ERR", "Bit Errors", "%5.0f", 0, 0, 0, 0);
+    IUFillNumber(&AzEncoderN[4], "AZ_ENC_ROTIME", "R/O Time", "%5.0f us", 0, 0, 0, 0);
+    IUFillNumberVector(&AzEncoderNP, AzEncoderN, 5, getDeviceName(), "AZ_ENC", "Azimuth", "Encoders",
            IP_RO, 60, IPS_IDLE);
-    IUFillNumber(&ElEncoderN[0], "EL_ENC_ST", "ST", "%5.0f", 0, 65535, 0, 3);
-    IUFillNumber(&ElEncoderN[1], "EL_ENC_MT", "MT", "%5.0f", -32767, 32767, 0, 4);
-    IUFillNumberVector(&ElEncoderNP, ElEncoderN, 2, getDeviceName(), "EL_ENC", "Elevation", "Encoders",
+	IUFillNumber(&ElEncoderN[0], "EL_ENC_POS", "Position", "%5.4f rev", -32767, 32767, 0, 0);
+    IUFillNumber(&ElEncoderN[1], "EL_ENC_ST", "ST", "%5.0f", 0, 65535, 0, 3);
+    IUFillNumber(&ElEncoderN[2], "EL_ENC_MT", "MT", "%5.0f", -32767, 32767, 0, 4);
+    IUFillNumber(&ElEncoderN[3], "EL_ENC_ERR", "Bit Errors", "%5.0f", 0, 0, 0, 0);
+    IUFillNumber(&ElEncoderN[4], "EL_ENC_ROTIME", "R/O Time", "%5.0f us", 0, 0, 0, 0);
+    IUFillNumberVector(&ElEncoderNP, ElEncoderN, 5, getDeviceName(), "EL_ENC", "Elevation", "Encoders",
            IP_RO, 60, IPS_IDLE);
+	IUFillNumber(&AzEncSettingN[0], "AZ_AXIS_ST_BITS", "ST bits", "%5.0f", 0, 24, 0, 12);
+	IUFillNumber(&AzEncSettingN[1], "AZ_AXIS_MT_BITS", "MT bits", "%5.0f", 0, 24, 0, 12);
+    IUFillNumberVector(&AzEncSettingNP, AzEncSettingN, 2, getDeviceName(), "AZ_ENC_SETTING", "Az Encoder Settings", "Encoders",
+           IP_RW, 60, IPS_IDLE);
+	defineProperty(&AzEncSettingNP);
+	IDSetNumber(&AzEncSettingNP, NULL);
+
+	IUFillNumber(&ElEncSettingN[0], "EL_AXIS_ST_BITS", "ST bits", "%5.0f", 0, 24, 0, 12);
+	IUFillNumber(&ElEncSettingN[1], "EL_AXIS_MT_BITS", "MT bits", "%5.0f", 0, 24, 0, 12);
+    IUFillNumberVector(&ElEncSettingNP, ElEncSettingN, 2, getDeviceName(), "EL_ENC_SETTING", "El Encoder Settings", "Encoders",
+           IP_RW, 60, IPS_IDLE);
+	defineProperty(&ElEncSettingNP);
+    IDSetNumber(&ElEncSettingNP, NULL);
+
+	
+	IUFillNumber(&AzAxisSettingN[0], "AZ_AXIS_RATIO", "Enc-to-Axis turns ratio", "%5.3f", 0.0001, 100000, 0, DEFAULT_AZ_AXIS_TURNS_RATIO);
+	IUFillNumber(&AzAxisSettingN[1], "AZ_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -180., 180., 0, 0);
+    IUFillNumberVector(&AzAxisSettingNP, AzAxisSettingN, 2, getDeviceName(), "AZ_AXIS_SETTING", "Az Axis Settings", "Axes",
+           IP_RW, 60, IPS_IDLE);
+	defineProperty(&AzAxisSettingNP);
+    IDSetNumber(&AzAxisSettingNP, NULL);
+
+	IUFillNumber(&ElAxisSettingN[0], "EL_AXIS_RATIO", "Enc-to-Axis turns ratio", "%5.3f", 0.0001, 100000, 0, DEFAULT_EL_AXIS_TURNS_RATIO);
+	IUFillNumber(&ElAxisSettingN[1], "EL_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -90., 90., 0, 0);
+    IUFillNumberVector(&ElAxisSettingNP, ElAxisSettingN, 2, getDeviceName(), "El_AXIS_SETTING", "El Axis Settings", "Axes",
+           IP_RW, 60, IPS_IDLE);
+	defineProperty(&ElAxisSettingNP);
+    IDSetNumber(&ElAxisSettingNP, NULL);
+	axisRatio[0] = DEFAULT_AZ_AXIS_TURNS_RATIO;
+	axisRatio[1] = DEFAULT_EL_AXIS_TURNS_RATIO;
 
 	addDebugControl();
-
-//	INDI::Telescope::Connect();
 
 	return true;
 }
@@ -206,6 +251,7 @@ bool PiRT::updateProperties()
       defineProperty(&JDNP);
 	  defineProperty(&AzEncoderNP);
 	  defineProperty(&ElEncoderNP);
+	  EncoderBitRateNP.p = IP_RO;
       //defineProperty(&TrackingSP);
     } else {
       deleteProperty(ScopeStatusLP.name);
@@ -214,7 +260,9 @@ bool PiRT::updateProperties()
       deleteProperty(JDNP.name);
 	  deleteProperty(AzEncoderNP.name);
 	  deleteProperty(ElEncoderNP.name);
+	  EncoderBitRateNP.p = IP_RW;
     }
+	IDSetNumber(&EncoderBitRateNP, nullptr);
     
     return true;
 }
@@ -252,6 +300,50 @@ bool PiRT::ISNewSwitch (const char *dev, const char *name, ISState *states, char
 	}
 	//  Nobody has claimed this, so, ignore it
 	return INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
+}
+
+bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char *names[], int n)
+{
+	if(strcmp(dev,getDeviceName())==0)
+	{
+		//  This one is for us
+		if(!strcmp(name, EncoderBitRateNP.name))
+		{
+			// set Encoder bit rate
+			EncoderBitRateNP.s = IPS_OK;
+			EncoderBitRateN.value = values[0];
+			IDSetNumber(&EncoderBitRateNP, nullptr);
+			unsigned int rate = EncoderBitRateNP.np[0].value;
+			DEBUGF(DBG_SCOPE, "Setting SSI bit rate to: %u Hz. Please reconnect client!", rate);
+			return true;
+		} else if(!strcmp(name, AzEncSettingNP.name)) {
+			return true;
+		} else if(!strcmp(name, ElEncSettingNP.name)) {
+			return true;
+		} else if(!strcmp(name, AzAxisSettingNP.name)) {
+			AzAxisSettingNP.s = IPS_OK;
+			AzAxisSettingN[0].value = values[0];
+			AzAxisSettingN[1].value = values[1];
+			IDSetNumber(&AzAxisSettingNP, nullptr);
+			axisRatio[0] = values[0];
+			axisOffset[0] = values[1];
+			DEBUGF(DBG_SCOPE, "Setting Az axis turns ratio to %5.4f rev.", axisRatio[0]);
+			DEBUGF(DBG_SCOPE, "Setting Az axis offset %5.4f rev.", axisOffset[0]);
+			return true;
+		} else if(!strcmp(name, ElAxisSettingNP.name)) {
+			ElAxisSettingNP.s = IPS_OK;
+			ElAxisSettingN[0].value = values[0];
+			ElAxisSettingN[1].value = values[1];
+			IDSetNumber(&ElAxisSettingNP, nullptr);
+			axisRatio[1] = values[0];
+			axisOffset[1] = values[1];
+			DEBUGF(DBG_SCOPE, "Setting El axis turns ratio to %5.4f rev.", axisRatio[1]);
+			DEBUGF(DBG_SCOPE, "Setting El axis offset %5.4f rev.", axisOffset[1]);
+			return true;
+		}
+	}	
+	//  Nobody has claimed this, so forward it to the base class method
+	return INDI::Telescope::ISNewNumber(dev,name,values,names,n);
 }
 
 void PiRT::updateScopeState()
@@ -308,14 +400,20 @@ bool PiRT::Connect()
 	}
 	gpio = std::move ( temp_ptr );
 	
-	std::shared_ptr<SsiPosEncoder> temp_az_enc ( new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, SSI_BAUD_RATE) );
+	unsigned int bitrate = static_cast<unsigned int>( EncoderBitRateNP.np[0].value );
+	if ( bitrate < 80000 || bitrate > 5000000 ) {
+        DEBUG(INDI::Logger::DBG_ERROR, "SSI bitrate out of range (80k...5M)");
+		return false;
+	}
+
+	std::shared_ptr<SsiPosEncoder> temp_az_enc ( new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, bitrate) );
 	if (!temp_az_enc->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to Az position encoder.");
 		return false;
 	}
 	az_encoder = std::move(temp_az_enc);
 	
-	std::shared_ptr<SsiPosEncoder> temp_el_enc { new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, SSI_BAUD_RATE) };
+	std::shared_ptr<SsiPosEncoder> temp_el_enc { new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, bitrate) };
 	if (!temp_el_enc->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to El position encoder.");
 		return false;
@@ -324,7 +422,6 @@ bool PiRT::Connect()
 	el_encoder->setStBitWidth(13);
 	
 	INDI::Telescope::Connect();
-	SetTimer(POLL_INTERVAL_MS);
 	return true;
 }
 
@@ -353,7 +450,8 @@ void PiRT::TimerHit()
             IDSetNumber(&EqNP, NULL);
         }
 
-		SetTimer(POLL_INTERVAL_MS);
+//		SetTimer(POLL_INTERVAL_MS);
+		SetTimer(getCurrentPollingPeriod());
     }
 }
 
@@ -551,19 +649,45 @@ bool PiRT::ReadScopeStatus()
     // read pos encoders
     unsigned int st = az_encoder->position();
     int mt = az_encoder->nrTurns();
-    int us = az_encoder->lastReadOutDuration().count();
-	
-    AzEncoderN[0].value = static_cast<double>(st);
-    AzEncoderN[1].value = static_cast<double>(mt);
+
+	AzEncoderN[0].value = az_encoder->absolutePosition();
+    AzEncoderN[1].value = static_cast<double>(st);
+    AzEncoderN[2].value = static_cast<double>(mt);
+	AzEncoderN[3].value = az_encoder->bitErrorCount();
+	AzEncoderN[4].value = az_encoder->lastReadOutDuration().count();
     //DEBUGF(INDI::Logger::DBG_SESSION, "Az Encoder values: st=%d mt=%u t_ro=%u us", st, mt, us);
     AzEncoderNP.s = IPS_OK;
     IDSetNumber(&AzEncoderNP, nullptr);
-    ElEncoderN[0].value = el_encoder->position();
-    ElEncoderN[1].value = el_encoder->nrTurns();
+    ElEncoderN[0].value = el_encoder->absolutePosition();
+    ElEncoderN[1].value = static_cast<double>(el_encoder->position());
+    ElEncoderN[2].value = static_cast<double>(el_encoder->nrTurns());
+	ElEncoderN[3].value = el_encoder->bitErrorCount();
+	ElEncoderN[4].value = el_encoder->lastReadOutDuration().count();
     ElEncoderNP.s = IPS_OK;
     IDSetNumber(&ElEncoderNP, nullptr);
 
-    // time since last update
+	az_axis.setValue( 360. * ( (az_encoder->absolutePosition() ) / axisRatio[0] ) + axisOffset[0] );
+	el_axis.setValue( 360. * ( (el_encoder->absolutePosition() ) / axisRatio[1] ) + axisOffset[1] );
+	
+	currentAz = az_axis.value();
+	currentAlt = el_axis.value();
+
+	/*
+	currentAz = 360. * ( (az_encoder->absolutePosition() + axisOffset[0]) / axisRatio[0] );
+	currentAz = ln_range_degrees(currentAz);
+	currentAlt = 360. * ( (el_encoder->absolutePosition() + axisOffset[1]) / axisRatio[1] );
+	currentAlt = ln_range_degrees(currentAlt);
+	if ( currentAlt > 180. ) currentAlt -= 360.;
+	if ( currentAlt > 90. ) { 
+		currentAlt = 180. - currentAlt;
+		currentAz = ln_range_degrees(currentAz+180.);
+	} else if ( currentAlt < -90. ) { 
+		currentAlt = -180. + currentAlt;
+		currentAz = ln_range_degrees(currentAz+180.);
+	}
+	*/
+	
+	// time since last update
     dt  = tv.tv_sec - ltv.tv_sec + 1e-6*(tv.tv_usec - ltv.tv_usec);
     ltv = tv;
 
@@ -638,8 +762,8 @@ bool PiRT::ReadScopeStatus()
 			} else {
 				imot = dx/10.;
 				if (fabs(imot)>1.) imot=(dx>=0)?1.:-1.;
-				currentAz += dmov*imot;
-				currentAz = ln_range_degrees(currentAz);
+				///currentAz += dmov*imot;
+				///currentAz = ln_range_degrees(currentAz);
 			}
 			//if (dx > 0) currentAz += dmov;
 			//else currentAz -= dmov;
@@ -649,7 +773,7 @@ bool PiRT::ReadScopeStatus()
 			} else {
 				imot = dy/10.;
 				if (fabs(imot)>1.) imot=(dy>=0)?1.:-1.;
-				currentAlt += dmov*imot;
+				///currentAlt += dmov*imot;
 			}
 			//else if (dy > 0) currentAlt += dmov;
 			//else currentAlt -= dmov;
@@ -667,6 +791,7 @@ bool PiRT::ReadScopeStatus()
 			break;
 	
 		case SCOPE_TRACKING:
+			break;
 			dmov = 5.0*SID_RATE * dt;
 			Equ2Hor(targetRA, targetDEC, &currentAz, &currentAlt);
 	  
