@@ -8,7 +8,8 @@
 SET(pirt_SRC
     pirt.cpp
     gpioif.cpp
-    encoder.cpp)
+    encoder.cpp
+    motordriver.cpp)
 
 add_executable(indi_pirt ${pirt_SRC})
 target_link_libraries(indi_pirt indidriver "-lpigpiod_if2" "-lrt")

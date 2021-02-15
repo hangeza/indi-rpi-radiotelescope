@@ -33,6 +33,7 @@
 
 #include <encoder.h>
 #include <gpioif.h>
+#include "motordriver.h"
 
 constexpr unsigned int SSI_BAUD_RATE { 500000 };
 constexpr unsigned int POLL_INTERVAL_MS { 250 };
@@ -420,6 +421,8 @@ bool PiRT::Connect()
 	}
 	el_encoder = std::move(temp_el_enc);
 	el_encoder->setStBitWidth(13);
+	
+	std::shared_ptr<MotorDriver> temp_az_mot { new MotorDriver( gpio, MotorDriver::Pins { }, nullptr ) };
 	
 	INDI::Telescope::Connect();
 	return true;

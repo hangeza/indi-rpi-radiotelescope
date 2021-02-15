@@ -47,7 +47,7 @@ auto GPIO::spi_init(SPI_INTERFACE interface, std::uint8_t channel, SPI_MODE mode
 		spi_flags |= 1 << 8;
 		//std::cout<<"spi flags: "<<spi_flags<<"\n";
 	}
-	int handle = ::spi_open(fHandle, 0, baudrate, spi_flags);
+	int handle = ::spi_open(fHandle, channel, baudrate, spi_flags);
 	if (handle < 0) {
 		std::cerr<<"Error opening spi interface.\n";
 	}
@@ -66,11 +66,40 @@ auto GPIO::spi_read(unsigned int spi_handle, unsigned int nBytes) -> std::vector
 
 auto GPIO::spi_write(unsigned int spi_handle, const std::vector<std::uint8_t>& data) -> bool
 {
+	unsigned int nBytes = data.size();
+	char tx_buffer[nBytes];
+	std::copy(data.begin(), data.end(), tx_buffer);
 	std::lock_guard<std::mutex> guard(fMutex);
-	return false;
+	int count = ::spi_write(fHandle, spi_handle, tx_buffer, nBytes);
+	return (count == static_cast<int>(nBytes));
 }
 
 void GPIO::spi_close(int spi_handle)
 {
 	::spi_close(fHandle, spi_handle);
 }
+
+auto GPIO::pwm_set_frequency(unsigned int gpio_pin, unsigned int freq) -> bool {
+	int res = ::set_PWM_frequency(fHandle, gpio_pin, freq);
+	return (res >= 0);
+}
+
+auto GPIO::pwm_set_range(unsigned int gpio_pin, unsigned int range) -> bool {
+	int res = ::set_PWM_range(fHandle, gpio_pin, range);
+	return (res == 0);
+}
+
+auto GPIO::pwm_set_value(unsigned int gpio_pin, unsigned int value) -> bool {
+	int res = ::set_PWM_dutycycle(fHandle, gpio_pin, value);
+	return (res == 0);
+}
+
+void GPIO::pwm_off(unsigned int gpio_pin) {
+	::set_PWM_dutycycle(fHandle, gpio_pin, 0);
+}
+
+auto GPIO::hw_pwm_set_value(unsigned int gpio_pin, unsigned int freq, std::uint32_t value) -> bool {
+	int res = ::hardware_PWM(fHandle, gpio_pin, freq, value);
+	return (res == 0);
+}
+	
