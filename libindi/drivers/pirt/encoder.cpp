@@ -118,16 +118,18 @@ void SsiPosEncoder::readLoop()
 			if (std::abs(posDiff) > (1<<(fStBits-1))) {
 				posDiff -= sgn(posDiff)*(1<<(fStBits-1));
 			}
-			double speed = 360. * static_cast<double>(posDiff) / (1<<fStBits);
+			double speed = static_cast<double>(posDiff) / (1<<fStBits);
 			auto diffTime { currentReadOutTime - lastReadOutTime };
 			
 			speed *= 1000./std::chrono::duration_cast<std::chrono::milliseconds>(diffTime).count();
-			if ( std::abs(speed / 360.) > MAX_TURNS_PER_SECOND ) {
+			if ( std::abs(speed) > MAX_TURNS_PER_SECOND ) {
 				fBitErrors++;
 				errorFlag = true;
 				std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS/2));
 				continue;
 			}
+			
+			speed *= 360.;
 			
 			fLastPos=st; fLastTurns=mt;
 						

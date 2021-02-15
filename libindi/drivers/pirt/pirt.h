@@ -23,9 +23,11 @@
 
 #include "inditelescope.h"
 #include "axis.h"
+//#include "motordriver.h"
 
 class GPIO;
 class SsiPosEncoder;
+class MotorDriver;
 
 class PiRT : public INDI::Telescope
 {
@@ -115,6 +117,8 @@ class PiRT : public INDI::Telescope
 	std::shared_ptr<GPIO> gpio { nullptr };
 	std::shared_ptr<SsiPosEncoder> az_encoder { nullptr };
 	std::shared_ptr<SsiPosEncoder> el_encoder { nullptr };
+	std::shared_ptr<MotorDriver> az_motor { nullptr };
+	std::shared_ptr<MotorDriver> el_motor { nullptr };
 	PIRT::RotAxis az_axis { 0., 360., 360. };
 	PIRT::RotAxis el_axis { -90., 90., 360. };
 	

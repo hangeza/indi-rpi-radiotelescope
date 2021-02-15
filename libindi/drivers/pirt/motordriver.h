@@ -16,27 +16,30 @@
 #include <list>
 #include <mutex>
 
-#include <pigpio.h>
+#include "gpioif.h"
+
+//namespace PIRT {
+
+constexpr unsigned int DEFAULT_PWM_FREQ { 20000 };
 
 class GPIO;
 class ADS1115;
 
 
-class motordriver : public GPIO {
+class MotorDriver {
   public:
-    struct PinConfig {
-      int gpio_pin_A1, gpio_pin_B1, 
-	  gpio_pin_A2, gpio_pin_B2,
-	  gpio_pin_pwm1, gpio_pin_pwm2,
-	  gpio_pin_diag1, gpio_pin_diag2;
+    struct Pins {
+      unsigned int Enable { 0 };
+      unsigned int Pwm { 0 };
+	  unsigned int Dir { 0 };
+	  unsigned int Fault { 0 };
     };
 
-    motordriver();
-    motordriver(GPIO* gpio) : fGpio(gpio) {}
-    motordriver(GPIO* gpio, struct PinConfig config) 
-    : fGpio(gpio), fPinConfig(config)
-    { }
-    ~motordriver();
+    MotorDriver()=delete;
+
+    MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, std::shared_ptr<ADS1115> adc = nullptr);
+	
+    ~MotorDriver();
 
     void setPinConfig(struct PinConfig config);
     PinConfig getPinConfig();
@@ -48,17 +51,30 @@ class motordriver : public GPIO {
     
     int getErrorFlags();
     bool isADCpresent();
-    ADS1115* ADC();
+    //ADS1115* ADC();
     
     
   private:
-    void listenLoop();
+    void threadLoop();
+	void setSpeed(float speed_ratio);
     
-    std::thread* fThread;
-    GPIO* fGpio;
-    PinConfig fPinConfig;
-    ADS1115* fAdc;
+	std::shared_ptr<GPIO> fGpio { nullptr };
+    Pins fPins;
+    std::shared_ptr<ADS1115> fAdc { nullptr };
+	unsigned int fPwmFreq { DEFAULT_PWM_FREQ };
+	unsigned int fPwmRange { 255 };
+	
+	bool fUpdated { false };
+	float fCurrentDutyCycle { 0 };
+	float fTargetDutyCycle { 0 };
+    bool fActiveLoop { false };
+
+    std::unique_ptr<std::thread> fThread { nullptr };
+
+	std::mutex fMutex;
+
 };
 
+//} // namespace PIRT
 
 #endif
