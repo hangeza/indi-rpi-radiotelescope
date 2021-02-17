@@ -43,6 +43,12 @@ public:
 	auto pwm_set_value(unsigned int gpio_pin, unsigned int value) -> bool;
 	void pwm_off(unsigned int gpio_pin);
 	auto hw_pwm_set_value(unsigned int gpio_pin, unsigned int freq, std::uint32_t value) -> bool;
+	
+	auto set_gpio_direction(unsigned int gpio_pin, bool output) -> bool;
+	auto set_gpio_state(unsigned int gpio_pin, bool state) -> bool;
+	auto get_gpio_state(unsigned int gpio_pin, bool* err) -> bool;
+	auto set_gpio_pullup(unsigned int gpio_pin, bool pullup_enable=true) -> bool;
+	auto set_gpio_pulldown(unsigned int gpio_pin, bool pulldown_enable=true) -> bool;
 protected:
     int fHandle { -1 };
 	std::mutex fMutex;

@@ -27,12 +27,15 @@ class ADS1115;
 
 
 class MotorDriver {
-  public:
-    struct Pins {
-      unsigned int Enable { 0 };
-      unsigned int Pwm { 0 };
-	  unsigned int Dir { 0 };
-	  unsigned int Fault { 0 };
+public:
+	struct Pins {
+		Pins(unsigned int enable, unsigned int pwm, unsigned int dir, unsigned int fault)
+			: Enable { enable }, Pwm { pwm }, Dir { dir }, Fault { fault }
+			{}
+		unsigned int Enable { 0 };
+		unsigned int Pwm { 0 };
+		unsigned int Dir { 0 };
+		unsigned int Fault { 0 };
     };
 
     MotorDriver()=delete;
@@ -41,18 +44,16 @@ class MotorDriver {
 	
     ~MotorDriver();
 
-    void setPinConfig(struct PinConfig config);
-    PinConfig getPinConfig();
-    
-    void stopMovement();
+    void setPinConfig(Pins pins);
+    [[nodiscard]] auto getPinConfig() const -> Pins;
+	void setPwmFrequency(unsigned int freq);
+	
+	void move(float speed_ratio);    
     void stop();
-    void go(uint8_t speed, bool dir);
-    void go(uint16_t dirspeed);
-    
-    int getErrorFlags();
-    bool isADCpresent();
-    //ADS1115* ADC();
-    
+    void emergencyStop();
+	[[nodiscard]] auto isFault() -> bool;
+    [[nodiscard]] auto isADCpresent() const -> bool { return (fAdc != nullptr); }
+    [[nodiscard]] auto isInitialized() const -> bool { return fActiveLoop; }
     
   private:
     void threadLoop();
