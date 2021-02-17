@@ -37,6 +37,18 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, std::shared_ptr<
 		return;
 	}
 	
+	if ( !fPins.Enable || !fPins.Dir || !fPins.Pwm || !fPins.Fault) {
+		std::cerr<<"Error: some gpio pins for motor control undefined.\n";
+		return;
+	}
+	
+	// set pin directions
+	fGpio->set_gpio_direction(fPins.Enable, true);
+	fGpio->set_gpio_direction(fPins.Dir, true);
+	fGpio->set_gpio_direction(fPins.Pwm, true);
+	fGpio->set_gpio_direction(fPins.Fault, false);
+	fGpio->set_gpio_pullup(fPins.Fault);
+	
 	fActiveLoop=true;
 // since C++14 using std::make_unique
 	// fThread = std::make_unique<std::thread>( [this]() { this->readLoop(); } );
@@ -47,8 +59,12 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, std::shared_ptr<
 
 MotorDriver::~MotorDriver()
 {
-  fActiveLoop = false;
-  if (fThread!=nullptr) fThread->join();
+	fActiveLoop = false;
+	if (fThread!=nullptr) fThread->join();
+	fGpio->set_gpio_direction(fPins.Enable, false);
+	fGpio->set_gpio_direction(fPins.Dir, false);
+	fGpio->set_gpio_direction(fPins.Pwm, false);
+	fGpio->set_gpio_pullup(fPins.Fault, false);
 }
 
 
@@ -59,31 +75,39 @@ void MotorDriver::threadLoop()
 	bool errorFlag = true;
 	while (fActiveLoop) {
 		auto currentTime = std::chrono::system_clock::now();
-		if (fTargetDutyCycle != fCurrentDutyCycle) {
-			setSpeed(fCurrentDutyCycle);
-			fCurrentDutyCycle += ramp_increment * sgn( fTargetDutyCycle - fCurrentDutyCycle);
-		}
-		if ( std::abs(fCurrentDutyCycle) > std::abs(fTargetDutyCycle) ) {
-			fCurrentDutyCycle = fTargetDutyCycle;
-		}
 		
-		
-		if (errorFlag) {
-			std::this_thread::sleep_for(loop_delay);
-			errorFlag=false;
-			continue;
+		if (isFault()) {
+			// fault condition, switch off and deactivate everything
+			emergencyStop();
+		} else {
+			fMutex.lock();
+			if (fTargetDutyCycle != fCurrentDutyCycle) {
+				setSpeed(fCurrentDutyCycle);
+				fCurrentDutyCycle += ramp_increment * sgn( fTargetDutyCycle - fCurrentDutyCycle);
+			}
+			if ( std::abs(fCurrentDutyCycle) > std::abs(fTargetDutyCycle) ) {
+				fCurrentDutyCycle = fTargetDutyCycle;
+			}
+			fMutex.unlock();
 		}
-			
-		fMutex.lock();
-		fUpdated = true;
-		fMutex.unlock();
+		if ( fAdc != nullptr ) {
+			// read current from adc
+			fUpdated = true;
+		}
 		std::this_thread::sleep_for(loop_delay);
 	}
 }
 
+auto MotorDriver::isFault() -> bool {
+	if (!isInitialized()) return true;
+	return (fGpio->get_gpio_state(fPins.Fault, nullptr) == false);
+}
+
 void MotorDriver::setSpeed(float speed_ratio) {
-	bool dir = (speed_ratio >= 0);
-	speed_ratio = std::abs(clamp(static_cast<double>(speed_ratio), -1., 1.));
+	bool dir = (speed_ratio < 0);
+	// set pins
+	fGpio->set_gpio_state(fPins.Dir, dir);
+	speed_ratio = std::abs(clamp(speed_ratio, -1.f, 1.f));
 	std::uint32_t duty_cycle { 0 };
 	if ( fPins.Pwm == HW_PWM1_PIN || fPins.Pwm == HW_PWM2_PIN ) {
 		// use hardware pwm
@@ -93,6 +117,29 @@ void MotorDriver::setSpeed(float speed_ratio) {
 	}
 	duty_cycle = speed_ratio * fPwmRange;
 	int res = fGpio->pwm_set_value(fPins.Pwm, duty_cycle);
+}
+
+void MotorDriver::move(float speed_ratio) {
+	fTargetDutyCycle = clamp(speed_ratio, -1.f, 1.f);
+	fGpio->set_gpio_state(fPins.Enable, true);
+}
+
+void MotorDriver::stop() {
+	this->move(0.f);
+}
+
+void MotorDriver::emergencyStop() {
+	fTargetDutyCycle = 0.;
+	fGpio->set_gpio_state(fPins.Enable, false);
+}
+
+void MotorDriver::setPwmFrequency(unsigned int freq)
+{ 
+	if (freq == fPwmFreq) return;
+	if ( !(fPins.Pwm == HW_PWM1_PIN || fPins.Pwm == HW_PWM2_PIN) ) {
+		int res = fGpio->pwm_set_frequency(fPins.Pwm, freq);
+	}
+	fPwmFreq = freq;
 }
 
 //} // namespace PIRT

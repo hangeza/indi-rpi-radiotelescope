@@ -422,7 +422,20 @@ bool PiRT::Connect()
 	el_encoder = std::move(temp_el_enc);
 	el_encoder->setStBitWidth(13);
 	
-	std::shared_ptr<MotorDriver> temp_az_mot { new MotorDriver( gpio, MotorDriver::Pins { }, nullptr ) };
+	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
+	std::shared_ptr<MotorDriver> temp_az_mot { new MotorDriver( gpio, az_motor_pins, nullptr ) };
+	if (!temp_az_mot->isInitialized()) {
+        DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
+		return false;
+	}
+	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
+	std::shared_ptr<MotorDriver> temp_el_mot { new MotorDriver( gpio, el_motor_pins, nullptr ) };
+	if (!temp_el_mot->isInitialized()) {
+        DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
+		return false;
+	}
+	az_motor = std::move(temp_az_mot);
+	el_motor = std::move(temp_el_mot);
 	
 	INDI::Telescope::Connect();
 	return true;

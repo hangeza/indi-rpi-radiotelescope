@@ -102,4 +102,29 @@ auto GPIO::hw_pwm_set_value(unsigned int gpio_pin, unsigned int freq, std::uint3
 	int res = ::hardware_PWM(fHandle, gpio_pin, freq, value);
 	return (res == 0);
 }
-	
+
+auto GPIO::set_gpio_direction(unsigned int gpio_pin, bool output) -> bool {
+	int res = ::set_mode(fHandle, gpio_pin, (output) ? PI_OUTPUT : PI_INPUT );
+	return (res == 0);
+}
+
+auto GPIO::set_gpio_state(unsigned int gpio_pin, bool state) -> bool {
+	int res = ::gpio_write(fHandle, gpio_pin, (state) ? 1U : 0U );
+	return (res == 0);
+}
+
+auto GPIO::get_gpio_state(unsigned int gpio_pin, bool* err) -> bool {
+	int res = ::gpio_read(fHandle, gpio_pin);
+	*err = (res < 0);
+	return (res > 0);
+}
+
+auto GPIO::set_gpio_pullup(unsigned int gpio_pin, bool pullup_enable) -> bool {
+	int res = ::set_pull_up_down(fHandle, gpio_pin, (pullup_enable) ? PI_PUD_UP : PI_PUD_OFF);
+	return (res == 0);
+}
+
+auto GPIO::set_gpio_pulldown(unsigned int gpio_pin, bool pulldown_enable) -> bool {
+	int res = ::set_pull_up_down(fHandle, gpio_pin, (pulldown_enable) ? PI_PUD_DOWN : PI_PUD_OFF);
+	return (res == 0);
+}
