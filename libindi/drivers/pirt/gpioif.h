@@ -15,6 +15,8 @@
 #include <list>
 #include <mutex>
 
+// namespace PiRaTe {
+
 class GPIO {
 public:
 
@@ -54,5 +56,6 @@ protected:
 	std::mutex fMutex;
 };
 
+//} // namespace PiRaTe
 
 #endif

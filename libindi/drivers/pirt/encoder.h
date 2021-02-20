@@ -17,7 +17,10 @@
 
 #include "gpioif.h"
 
+// namespace PiRaTe {
+
 constexpr unsigned int SPI_BAUD_DEFAULT { 500000U };
+constexpr unsigned int MAX_CONN_ERRORS { 10U };
 
 class GPIO;
 
@@ -43,6 +46,7 @@ class SsiPosEncoder {
     [[nodiscard]] auto bitErrorCount() const -> unsigned long { return fBitErrors; }
     [[nodiscard]] auto currentSpeed() const -> double { return fCurrentSpeed; }
     [[nodiscard]] auto lastReadOutDuration() const -> std::chrono::duration<int, std::micro> { return fReadOutDuration; }
+    [[nodiscard]] auto statusOk() const -> bool;
     
   private:
     void readLoop();
@@ -63,7 +67,8 @@ class SsiPosEncoder {
 	
 	bool fUpdated { false };
     bool fActiveLoop { false };
-    
+   	unsigned int fConErrorCountdown { MAX_CONN_ERRORS };
+
     static unsigned int fNrInstances;
     std::unique_ptr<std::thread> fThread { nullptr };
 	std::shared_ptr<GPIO> fGpio { nullptr };
@@ -71,5 +76,6 @@ class SsiPosEncoder {
 	std::mutex fMutex;
 };
 
+//} // namespace PiRaTe
 
 #endif

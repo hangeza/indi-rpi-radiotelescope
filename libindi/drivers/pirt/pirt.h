@@ -72,7 +72,6 @@ class PiRT : public INDI::Telescope
   private:
     void Hor2Equ(double az, double alt, double* ra, double* dec);
     void Equ2Hor(double ra, double dec, double* az, double* alt);
-	void updateScopeState();
 	
     double currentRA;
     double currentDEC;
@@ -106,6 +105,9 @@ class PiRT : public INDI::Telescope
 	INumber AzAxisSettingN[2], ElAxisSettingN[2];
 	INumberVectorProperty AzAxisSettingNP, ElAxisSettingNP;
 
+	INumber AzMotorStatusN[2], ElMotorStatusN[2];
+	INumberVectorProperty AzMotorStatusNP, ElMotorStatusNP;
+
 	double axisRatio[2] { 1., 1. };
 	double axisOffset[2] { 0., 0. };
 	
@@ -115,11 +117,11 @@ class PiRT : public INDI::Telescope
     static const uint8_t SLEW_RATE = 3;
 	
 	std::shared_ptr<GPIO> gpio { nullptr };
-	std::shared_ptr<SsiPosEncoder> az_encoder { nullptr };
-	std::shared_ptr<SsiPosEncoder> el_encoder { nullptr };
-	std::shared_ptr<MotorDriver> az_motor { nullptr };
-	std::shared_ptr<MotorDriver> el_motor { nullptr };
-	PIRT::RotAxis az_axis { 0., 360., 360. };
-	PIRT::RotAxis el_axis { -90., 90., 360. };
+	std::unique_ptr<SsiPosEncoder> az_encoder { nullptr };
+	std::unique_ptr<SsiPosEncoder> el_encoder { nullptr };
+	std::unique_ptr<MotorDriver> az_motor { nullptr };
+	std::unique_ptr<MotorDriver> el_motor { nullptr };
+	PiRaTe::RotAxis az_axis { 0., 360., 360. };
+	PiRaTe::RotAxis el_axis { -90., 90., 360. };
 	
 };

@@ -207,13 +207,12 @@ bool PiRT::initProperties()
 	defineProperty(&AzEncSettingNP);
 	IDSetNumber(&AzEncSettingNP, NULL);
 
-	IUFillNumber(&ElEncSettingN[0], "EL_AXIS_ST_BITS", "ST bits", "%5.0f", 0, 24, 0, 12);
+	IUFillNumber(&ElEncSettingN[0], "EL_AXIS_ST_BITS", "ST bits", "%5.0f", 0, 24, 0, 13);
 	IUFillNumber(&ElEncSettingN[1], "EL_AXIS_MT_BITS", "MT bits", "%5.0f", 0, 24, 0, 12);
     IUFillNumberVector(&ElEncSettingNP, ElEncSettingN, 2, getDeviceName(), "EL_ENC_SETTING", "El Encoder Settings", "Encoders",
            IP_RW, 60, IPS_IDLE);
 	defineProperty(&ElEncSettingNP);
     IDSetNumber(&ElEncSettingNP, NULL);
-
 	
 	IUFillNumber(&AzAxisSettingN[0], "AZ_AXIS_RATIO", "Enc-to-Axis turns ratio", "%5.3f", 0.0001, 100000, 0, DEFAULT_AZ_AXIS_TURNS_RATIO);
 	IUFillNumber(&AzAxisSettingN[1], "AZ_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -180., 180., 0, 0);
@@ -231,6 +230,15 @@ bool PiRT::initProperties()
 	axisRatio[0] = DEFAULT_AZ_AXIS_TURNS_RATIO;
 	axisRatio[1] = DEFAULT_EL_AXIS_TURNS_RATIO;
 
+	IUFillNumber(&AzMotorStatusN[0], "AZ_MOTOR_SPEED", "Speed", "%4.0f %%", -100, 100, 0, 0);
+	IUFillNumber(&AzMotorStatusN[1], "AZ_MOTOR_FAULTS", "Fault Counter", "%5.0f", 0, 0, 0, 0);
+    IUFillNumberVector(&AzMotorStatusNP, AzMotorStatusN, 2, getDeviceName(), "AZ_MOTOR_STATUS", "Az Motor Status", "Motors",
+           IP_RO, 60, IPS_IDLE);
+	IUFillNumber(&ElMotorStatusN[0], "EL_MOTOR_SPEED", "Speed", "%4.0f %%", -100, 100, 0, 0);
+	IUFillNumber(&ElMotorStatusN[1], "El_MOTOR_FAULTS", "Fault Counter", "%5.0f", 0, 0, 0, 0);
+    IUFillNumberVector(&ElMotorStatusNP, ElMotorStatusN, 2, getDeviceName(), "El_MOTOR_STATUS", "El Motor Status", "Motors",
+           IP_RO, 60, IPS_IDLE);
+	
 	addDebugControl();
 
 	return true;
@@ -252,6 +260,8 @@ bool PiRT::updateProperties()
       defineProperty(&JDNP);
 	  defineProperty(&AzEncoderNP);
 	  defineProperty(&ElEncoderNP);
+		defineProperty(&AzMotorStatusNP);
+		defineProperty(&ElMotorStatusNP);
 	  EncoderBitRateNP.p = IP_RO;
       //defineProperty(&TrackingSP);
     } else {
@@ -261,6 +271,8 @@ bool PiRT::updateProperties()
       deleteProperty(JDNP.name);
 	  deleteProperty(AzEncoderNP.name);
 	  deleteProperty(ElEncoderNP.name);
+	  deleteProperty(AzMotorStatusNP.name);
+	  deleteProperty(ElMotorStatusNP.name);
 	  EncoderBitRateNP.p = IP_RW;
     }
 	IDSetNumber(&EncoderBitRateNP, nullptr);
@@ -318,10 +330,43 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 			DEBUGF(DBG_SCOPE, "Setting SSI bit rate to: %u Hz. Please reconnect client!", rate);
 			return true;
 		} else if(!strcmp(name, AzEncSettingNP.name)) {
-			return true;
+			// set Az encoder bit widths
+			unsigned int stBits = values[0];
+			unsigned int mtBits = values[1];
+			if (stBits > 1 && stBits < 20 && mtBits > 1 && mtBits < 20) {
+				AzEncSettingNP.s = IPS_OK;
+				AzEncSettingN[0].value = stBits;
+				AzEncSettingN[1].value = mtBits;
+				if (isConnected()) {
+					az_encoder->setStBitWidth(stBits);
+					az_encoder->setMtBitWidth(mtBits);
+				}
+				IDSetNumber(&AzEncSettingNP, nullptr);
+				return true;
+			} else {
+				AzEncSettingNP.s = IPS_ALERT;
+				return false;
+			}
 		} else if(!strcmp(name, ElEncSettingNP.name)) {
-			return true;
+			// set El encoder bit widths
+			unsigned int stBits = values[0];
+			unsigned int mtBits = values[1];
+			if (stBits > 1 && stBits < 20 && mtBits > 1 && mtBits < 20) {
+				ElEncSettingNP.s = IPS_OK;
+				ElEncSettingN[0].value = stBits;
+				ElEncSettingN[1].value = mtBits;
+				if (isConnected()) {
+					el_encoder->setStBitWidth(stBits);
+					el_encoder->setMtBitWidth(mtBits);
+				}
+				IDSetNumber(&ElEncSettingNP, nullptr);
+				return true;
+			} else {
+				ElEncSettingNP.s = IPS_ALERT;
+				return false;
+			}
 		} else if(!strcmp(name, AzAxisSettingNP.name)) {
+			// Az axis settings: encoder-to-axis turns ratio and offset
 			AzAxisSettingNP.s = IPS_OK;
 			AzAxisSettingN[0].value = values[0];
 			AzAxisSettingN[1].value = values[1];
@@ -332,6 +377,7 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 			DEBUGF(DBG_SCOPE, "Setting Az axis offset %5.4f rev.", axisOffset[0]);
 			return true;
 		} else if(!strcmp(name, ElAxisSettingNP.name)) {
+			// El axis settings: encoder-to-axis turns ratio and offset
 			ElAxisSettingNP.s = IPS_OK;
 			ElAxisSettingN[0].value = values[0];
 			ElAxisSettingN[1].value = values[1];
@@ -345,20 +391,6 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 	}	
 	//  Nobody has claimed this, so forward it to the base class method
 	return INDI::Telescope::ISNewNumber(dev,name,values,names,n);
-}
-
-void PiRT::updateScopeState()
-{
-	for (uint8_t i = 0; i<5; i++) ScopeStatusL[i].s=IPS_IDLE;
-	ScopeStatusL[(unsigned int)TrackState].s=IPS_OK;
-	IDSetLight(&ScopeStatusLP, nullptr);
-	/*
-	switch (TrackState) {
-		case SCOPE_IDLE:
-			ScopeStatusL[0].s=IPS_OK;
-		
-	}
-	*/
 }
 
 bool PiRT::SetTrackMode(uint8_t mode) {
@@ -394,12 +426,19 @@ bool PiRT::Connect()
 	const std::string port { tvp->tp[1].text };
 	
 //	std::shared_ptr<GPIO> temp_ptr ( new GPIO("localhost") );
-	std::shared_ptr<GPIO> temp_ptr ( new GPIO(host, port) );
-	if (!temp_ptr->isInitialized()) {
+	// before instanciating a new GPIO interface, all objects which carry a reference
+	// to the old gpio object must be invalidated, to make sure
+	// that noone else uses the shared_ptr<GPIO> when it is newly created
+	az_encoder.reset();
+	el_encoder.reset();
+	az_motor.reset();
+	el_motor.reset();
+	
+	gpio.reset( new GPIO(host, port) );
+	if (!gpio->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Could not initialize GPIO interface. Is pigpiod running?");
 		return false;
 	}
-	gpio = std::move ( temp_ptr );
 	
 	unsigned int bitrate = static_cast<unsigned int>( EncoderBitRateNP.np[0].value );
 	if ( bitrate < 80000 || bitrate > 5000000 ) {
@@ -407,42 +446,45 @@ bool PiRT::Connect()
 		return false;
 	}
 
-	std::shared_ptr<SsiPosEncoder> temp_az_enc ( new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, bitrate) );
-	if (!temp_az_enc->isInitialized()) {
+	az_encoder.reset(new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, bitrate));
+	if (!az_encoder->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to Az position encoder.");
 		return false;
 	}
-	az_encoder = std::move(temp_az_enc);
-	
-	std::shared_ptr<SsiPosEncoder> temp_el_enc { new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, bitrate) };
-	if (!temp_el_enc->isInitialized()) {
+	az_encoder->setStBitWidth(AzEncSettingN[0].value);
+	az_encoder->setMtBitWidth(AzEncSettingN[1].value);
+	el_encoder.reset(new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, bitrate));
+	if (!el_encoder->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to El position encoder.");
 		return false;
 	}
-	el_encoder = std::move(temp_el_enc);
-	el_encoder->setStBitWidth(13);
-	
-	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
-	std::shared_ptr<MotorDriver> temp_az_mot { new MotorDriver( gpio, az_motor_pins, nullptr ) };
-	if (!temp_az_mot->isInitialized()) {
+	el_encoder->setStBitWidth(ElEncSettingN[0].value);
+	el_encoder->setMtBitWidth(ElEncSettingN[1].value);
+
+	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=1/*5*/ };
+	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=4/*6*/ };
+	az_motor.reset( new MotorDriver( gpio, az_motor_pins, nullptr ) );
+	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
-	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
-	std::shared_ptr<MotorDriver> temp_el_mot { new MotorDriver( gpio, el_motor_pins, nullptr ) };
-	if (!temp_el_mot->isInitialized()) {
+	el_motor.reset( new MotorDriver( gpio, el_motor_pins, nullptr ) );
+	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
 	}
-	az_motor = std::move(temp_az_mot);
-	el_motor = std::move(temp_el_mot);
-	
+
 	INDI::Telescope::Connect();
 	return true;
 }
 
 bool PiRT::Disconnect()
 {
+	az_encoder.reset();
+	el_encoder.reset();
+	az_motor.reset();
+	el_motor.reset();
+	gpio.reset();
 	return true;
 }
 
@@ -478,7 +520,14 @@ void PiRT::TimerHit()
 bool PiRT::Handshake()
 {
 	// When communicating with a real mount, we check here if commands are receieved
-	// and acknolowedged by the mount. For SimpleScope, we simply return true.
+	// and acknolowedged by the mount.
+	if (isConnected()) {
+		if (!gpio->isInitialized()) return false;
+		if (!az_encoder->statusOk()) return false;
+		if (!el_encoder->statusOk()) return false;
+		if (!az_motor->isInitialized()) return false;
+		if (!el_motor->isInitialized()) return false;
+	}
 	return true;
 }
 
@@ -672,14 +721,14 @@ bool PiRT::ReadScopeStatus()
 	AzEncoderN[3].value = az_encoder->bitErrorCount();
 	AzEncoderN[4].value = az_encoder->lastReadOutDuration().count();
     //DEBUGF(INDI::Logger::DBG_SESSION, "Az Encoder values: st=%d mt=%u t_ro=%u us", st, mt, us);
-    AzEncoderNP.s = IPS_OK;
+    AzEncoderNP.s = (az_encoder->statusOk())? IPS_OK : IPS_ALERT;
     IDSetNumber(&AzEncoderNP, nullptr);
     ElEncoderN[0].value = el_encoder->absolutePosition();
     ElEncoderN[1].value = static_cast<double>(el_encoder->position());
     ElEncoderN[2].value = static_cast<double>(el_encoder->nrTurns());
 	ElEncoderN[3].value = el_encoder->bitErrorCount();
 	ElEncoderN[4].value = el_encoder->lastReadOutDuration().count();
-    ElEncoderNP.s = IPS_OK;
+    ElEncoderNP.s = (el_encoder->statusOk())? IPS_OK : IPS_ALERT;
     IDSetNumber(&ElEncoderNP, nullptr);
 
 	az_axis.setValue( 360. * ( (az_encoder->absolutePosition() ) / axisRatio[0] ) + axisOffset[0] );
@@ -702,6 +751,22 @@ bool PiRT::ReadScopeStatus()
 		currentAz = ln_range_degrees(currentAz+180.);
 	}
 	*/
+
+	// update motor status
+	if (az_motor->isFault()) {
+		AzMotorStatusNP.s=IPS_ALERT;
+	} else {
+		AzMotorStatusNP.s=IPS_OK;
+	}
+	if (el_motor->isFault()) {
+		ElMotorStatusNP.s=IPS_ALERT;
+	} else {
+		ElMotorStatusNP.s=IPS_OK;
+	}
+	AzMotorStatusN[0].value = 100. * az_motor->currentSpeed();
+	ElMotorStatusN[0].value = 100. * el_motor->currentSpeed();
+	IDSetNumber(&AzMotorStatusNP, nullptr);
+	IDSetNumber(&ElMotorStatusNP, nullptr);
 	
 	// time since last update
     dt  = tv.tv_sec - ltv.tv_sec + 1e-6*(tv.tv_usec - ltv.tv_usec);
