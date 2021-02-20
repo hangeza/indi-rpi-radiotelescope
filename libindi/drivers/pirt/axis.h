@@ -16,7 +16,7 @@
 #include <functional>
 #include <cmath>
 
-namespace PIRT {
+namespace PiRaTe {
 
 constexpr double pi() { return std::acos(-1); }
 constexpr double twopi() { return 2.*pi(); }
@@ -78,6 +78,6 @@ private:
 	std::function<void()> fGimbalFlipFn { };
 };
 
-} // namespace PIRT
+} // namespace PiRaTe
 
 #endif

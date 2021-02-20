@@ -9,8 +9,10 @@
 
 #define DEFAULT_VERBOSITY 1
 
+// namespace PiRaTe {
+
 unsigned int SsiPosEncoder::fNrInstances = 0;
-constexpr unsigned int LOOP_DELAY_MS { 10 };
+constexpr std::chrono::milliseconds loop_delay { 10 };
 constexpr double MAX_TURNS_PER_SECOND { 5. };
 
 template <typename T> constexpr int sgn(T val) {
@@ -36,7 +38,7 @@ auto SsiPosEncoder::gray_decode(std::uint32_t g) -> std::uint32_t
 }
 
 SsiPosEncoder::SsiPosEncoder(std::shared_ptr<GPIO> gpio, GPIO::SPI_INTERFACE spi_interface, unsigned int baudrate, std::uint8_t spi_channel,  GPIO::SPI_MODE spi_mode)
-	: fGpio { std::move(gpio) } 
+	: fGpio { gpio }
 {
 	if (fGpio == nullptr) {
 		std::cerr<<"Error: no valid GPIO instance.\n";
@@ -73,14 +75,27 @@ SsiPosEncoder::~SsiPosEncoder()
 // this is the background thread loop
 void SsiPosEncoder::readLoop()
 {
+	bool errorFlag { true };
 	auto lastReadOutTime = std::chrono::system_clock::now();
-	bool errorFlag = true;
 	while (fActiveLoop) {
 		std::uint32_t data;
 		auto currentReadOutTime = std::chrono::system_clock::now();
 		bool ok = readDataWord(data);
-		if (ok) {
+		if (!ok) {
+			errorFlag = true;
+			if (fConErrorCountdown) fConErrorCountdown--;
+		} else {
 			auto readOutDuration { std::chrono::system_clock::now() - std::chrono::system_clock::time_point { currentReadOutTime } };
+			fConErrorCountdown++;
+			// check if MSB is 1
+			// this should always be the case
+			// comment out, if your encoder behaves differently
+			if ( !(data & (1<<31)) ) {
+				fBitErrors++;
+				errorFlag = true;
+				std::this_thread::sleep_for(loop_delay);
+				continue;
+			}
 //			std::cout<<" raw: "<<intToBinaryString(data)<<"\n";
 			std::uint32_t temp = data >> (32 - fStBits - fMtBits - 1);
 			temp &= (1 << (fStBits + fMtBits - 1))-1;
@@ -99,7 +114,7 @@ void SsiPosEncoder::readLoop()
 			
 			if (errorFlag) {
 				fLastPos=st; fLastTurns=mt;
-				std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS/2));
+				std::this_thread::sleep_for(loop_delay);
 				errorFlag=false;
 				continue;
 			}
@@ -109,7 +124,7 @@ void SsiPosEncoder::readLoop()
 				//std::cout<<" st diff: "<<posDiff<<"\n";
 				fBitErrors++;
 				errorFlag = true;
-				std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS/2));
+				std::this_thread::sleep_for(loop_delay);
 				continue;
 			}
 
@@ -125,7 +140,7 @@ void SsiPosEncoder::readLoop()
 			if ( std::abs(speed) > MAX_TURNS_PER_SECOND ) {
 				fBitErrors++;
 				errorFlag = true;
-				std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS/2));
+				std::this_thread::sleep_for(loop_delay);
 				continue;
 			}
 			
@@ -141,9 +156,9 @@ void SsiPosEncoder::readLoop()
 			fReadOutDuration = std::chrono::duration_cast<std::chrono::microseconds>(readOutDuration);
 			fMutex.unlock();
 			lastReadOutTime = currentReadOutTime;
-
 		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_DELAY_MS));
+		if (fConErrorCountdown > MAX_CONN_ERRORS) fConErrorCountdown = MAX_CONN_ERRORS;
+		std::this_thread::sleep_for(loop_delay);
 	}
 }
 
@@ -172,5 +187,9 @@ auto SsiPosEncoder::absolutePosition() -> double {
 	return pos;
 }
 
+auto SsiPosEncoder::statusOk() const -> bool {
+	if (!fActiveLoop) return false;
+	return (fConErrorCountdown>0);
+}
 
-
+//} // namespace PiRaTe

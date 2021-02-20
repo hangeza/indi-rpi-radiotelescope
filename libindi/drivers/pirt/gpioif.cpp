@@ -15,7 +15,7 @@ extern "C" {
 
 #define DEFAULT_VERBOSITY 1
 
-//GPIO::fHandle = -1;
+// namespace PiRaTe {
 
 GPIO::GPIO(const std::string& host, const std::string& port) 
 {
@@ -115,7 +115,7 @@ auto GPIO::set_gpio_state(unsigned int gpio_pin, bool state) -> bool {
 
 auto GPIO::get_gpio_state(unsigned int gpio_pin, bool* err) -> bool {
 	int res = ::gpio_read(fHandle, gpio_pin);
-	*err = (res < 0);
+	if (err != nullptr) *err = (res < 0);
 	return (res > 0);
 }
 
@@ -128,3 +128,5 @@ auto GPIO::set_gpio_pulldown(unsigned int gpio_pin, bool pulldown_enable) -> boo
 	int res = ::set_pull_up_down(fHandle, gpio_pin, (pulldown_enable) ? PI_PUD_DOWN : PI_PUD_OFF);
 	return (res == 0);
 }
+
+//} // namespace PiRaTe

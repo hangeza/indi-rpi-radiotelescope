@@ -18,7 +18,7 @@
 
 #include "gpioif.h"
 
-//namespace PIRT {
+//namespace PiRaTe {
 
 constexpr unsigned int DEFAULT_PWM_FREQ { 20000 };
 
@@ -54,7 +54,7 @@ public:
 	[[nodiscard]] auto isFault() -> bool;
     [[nodiscard]] auto isADCpresent() const -> bool { return (fAdc != nullptr); }
     [[nodiscard]] auto isInitialized() const -> bool { return fActiveLoop; }
-    
+    [[nodiscard]] auto currentSpeed() const -> float;
   private:
     void threadLoop();
 	void setSpeed(float speed_ratio);
@@ -76,6 +76,6 @@ public:
 
 };
 
-//} // namespace PIRT
+//} // namespace PiRaTe
 
 #endif

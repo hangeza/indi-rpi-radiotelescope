@@ -10,7 +10,7 @@
 
 #define DEFAULT_VERBOSITY 1
 
-//namespace PIRT {
+//namespace PiRaTe {
 	
 constexpr std::chrono::milliseconds loop_delay { 10 };
 constexpr std::chrono::milliseconds ramp_time { 1000 };
@@ -18,6 +18,8 @@ constexpr double ramp_increment { static_cast<double>(loop_delay.count())/ramp_t
 constexpr unsigned int HW_PWM1_PIN { 12 };
 constexpr unsigned int HW_PWM2_PIN { 13 };
 
+// helper functions for compilation with c++11
+// remove, when compiling with c++14 and add std:: to the lines where these functions are used
 template<class T>
 const T& clamp( const T& v, const T& lo, const T& hi )
 {
@@ -30,13 +32,18 @@ template <typename T> constexpr int sgn(T val) {
 }
 
 MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, std::shared_ptr<ADS1115> adc)
-	: fGpio { std::move(gpio) }, fPins { pins }, fAdc { std::move(adc) }
+	: fGpio { gpio }, fPins { pins }, fAdc { adc }
 {
 	if (fGpio == nullptr) {
 		std::cerr<<"Error: no valid GPIO instance.\n";
 		return;
 	}
 	
+	if (!fGpio->isInitialized()) {
+		std::cerr<<"Error: gpio interface not initialized.\n";
+		return;
+	}
+
 	if ( !fPins.Enable || !fPins.Dir || !fPins.Pwm || !fPins.Fault) {
 		std::cerr<<"Error: some gpio pins for motor control undefined.\n";
 		return;
@@ -61,10 +68,12 @@ MotorDriver::~MotorDriver()
 {
 	fActiveLoop = false;
 	if (fThread!=nullptr) fThread->join();
-	fGpio->set_gpio_direction(fPins.Enable, false);
-	fGpio->set_gpio_direction(fPins.Dir, false);
-	fGpio->set_gpio_direction(fPins.Pwm, false);
-	fGpio->set_gpio_pullup(fPins.Fault, false);
+	if (fGpio != nullptr && fGpio->isInitialized()) {
+		fGpio->set_gpio_direction(fPins.Enable, false);
+		fGpio->set_gpio_direction(fPins.Dir, false);
+		fGpio->set_gpio_direction(fPins.Pwm, false);
+		fGpio->set_gpio_pullup(fPins.Fault, false);
+	}
 }
 
 
@@ -99,7 +108,7 @@ void MotorDriver::threadLoop()
 }
 
 auto MotorDriver::isFault() -> bool {
-	if (!isInitialized()) return true;
+	if (!isInitialized() || !fGpio->isInitialized()) return true;
 	return (fGpio->get_gpio_state(fPins.Fault, nullptr) == false);
 }
 
@@ -142,4 +151,8 @@ void MotorDriver::setPwmFrequency(unsigned int freq)
 	fPwmFreq = freq;
 }
 
-//} // namespace PIRT
+auto MotorDriver::currentSpeed() const -> float {
+	return fCurrentDutyCycle;
+}
+
+//} // namespace PiRaTe
