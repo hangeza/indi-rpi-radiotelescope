@@ -35,7 +35,7 @@
 #include <gpioif.h>
 #include "motordriver.h"
 
-constexpr unsigned int SSI_BAUD_RATE { 500000 };
+constexpr unsigned int SSI_BAUD_RATE { 1000000 };
 constexpr unsigned int POLL_INTERVAL_MS { 250 };
 constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 10. };
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 10. };
@@ -43,9 +43,10 @@ constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 10. };
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 
-//#define POLLMS 100
-#define POS_ACCURACY 0.05
-#define TRACK_ACCURACY 0.00007
+constexpr double POS_ACCURACY_FINE { 0.25 };
+constexpr double POS_ACCURACY_COARSE { 2.0 };
+constexpr double TRACK_ACCURACY { 0.05 };
+
 #define MAX_ELEVATION_EXCESS 100.0
 
 
@@ -112,9 +113,9 @@ void ISSnoopDevice(XMLEle *root)
  */
 PiRT::PiRT()
 {
-    currentRA  = 0;
-    currentDEC = 0;
-    currentAz = currentAlt = 0;
+    //currentRA  = 0;
+    //currentDEC = 0;
+///    currentAz = currentAlt = 0;
 //     TrackingOn = false;
 
     // We add an additional debug level so we can log verbose scope status
@@ -133,7 +134,7 @@ PiRT::PiRT()
 			TELESCOPE_HAS_TRACK_RATE */
 	);
 	
-	el_axis.registerGimbalFlipCallback( [this]() { this->az_axis.gimbalFlip(); } );
+	///el_axis.registerGimbalFlipCallback( [this]() { this->az_axis.gimbalFlip(); } );
 }
 
 /**************************************************************************************
@@ -253,28 +254,28 @@ bool PiRT::updateProperties()
 //	deleteProperty("ConnectSP");
 
 	if (isConnected()) {
-      defineProperty(&ScopeStatusLP);
-      LocationNP.s = IPS_OK;
-      IDSetNumber(&LocationNP, NULL);
-	  defineProperty(&HorNP);
-      defineProperty(&JDNP);
-	  defineProperty(&AzEncoderNP);
-	  defineProperty(&ElEncoderNP);
+		defineProperty(&ScopeStatusLP);
+		LocationNP.s = IPS_OK;
+		IDSetNumber(&LocationNP, NULL);
+		defineProperty(&HorNP);
+		defineProperty(&JDNP);
+		defineProperty(&AzEncoderNP);
+		defineProperty(&ElEncoderNP);
 		defineProperty(&AzMotorStatusNP);
 		defineProperty(&ElMotorStatusNP);
-	  EncoderBitRateNP.p = IP_RO;
-      //defineProperty(&TrackingSP);
+		EncoderBitRateNP.p = IP_RO;
+		//defineProperty(&TrackingSP);
     } else {
-      deleteProperty(ScopeStatusLP.name);
-      deleteProperty(HorNP.name);
-      //deleteProperty(TrackingSP.name);
-      deleteProperty(JDNP.name);
-	  deleteProperty(AzEncoderNP.name);
-	  deleteProperty(ElEncoderNP.name);
-	  deleteProperty(AzMotorStatusNP.name);
-	  deleteProperty(ElMotorStatusNP.name);
-	  EncoderBitRateNP.p = IP_RW;
-    }
+		deleteProperty(ScopeStatusLP.name);
+		deleteProperty(HorNP.name);
+		//deleteProperty(TrackingSP.name);
+		deleteProperty(JDNP.name);
+		deleteProperty(AzEncoderNP.name);
+		deleteProperty(ElEncoderNP.name);
+		deleteProperty(AzMotorStatusNP.name);
+		deleteProperty(ElMotorStatusNP.name);
+		EncoderBitRateNP.p = IP_RW;
+	}
 	IDSetNumber(&EncoderBitRateNP, nullptr);
     
     return true;
@@ -291,27 +292,10 @@ bool PiRT::ISNewSwitch (const char *dev, const char *name, ISState *states, char
 		//  This one is for us
 		//if(!strcmp(name,TrackingSP.name))
 		{
-			//bool res = INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
-			//TrackStateSP.s = (TrackState == SCOPE_TRACKING) ? IPS_OK : IPS_IDLE;
-			//IUUpdateSwitch(&TrackingSP,states,names,n);
-			//TrackingSP.s=IPS_OK;
-			//  Update client display
-			//IDSetSwitch(&TrackingSP, NULL);
-			/*
-			if (TrackState == SCOPE_IDLE && isTracking()) {
-				TrackState = SCOPE_TRACKING;
-				Hor2Equ(currentAz, currentAlt, &targetRA, &targetDEC);
-								
-			}
-			else if (!isTracking() && TrackState == SCOPE_TRACKING) {
-				TrackState = SCOPE_IDLE;
-			}
-			*/
-			//if (res) updateScopeState();
 			//return true;
 		}
 	}
-	//  Nobody has claimed this, so, ignore it
+	//  Nobody has claimed this, so forward it to the base class' method
 	return INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
 }
 
@@ -400,14 +384,18 @@ bool PiRT::SetTrackMode(uint8_t mode) {
 bool PiRT::SetTrackEnabled(bool enabled) {
 	// TODO: do sth here to enable the tracking loop
 	if (enabled) {
+		targetEquatorialCoords = Hor2Equ(currentHorizontalCoords);
+		/*
 		targetRA = currentRA;
 		targetDEC = currentDEC;
+		*/
 	}
 	return true;
 }
 
 bool PiRT::Park() {
 	// TODO: do sth here to start the parking operation
+	TrackState = SCOPE_PARKING;
 	return true;
 }
 
@@ -494,21 +482,13 @@ void PiRT::TimerHit()
     if(isConnected())
     {
         bool rc;
-
-        //LOG_INFO("TimerHit");
-
-//		updateScopeState();
-		
         rc=ReadScopeStatus();
-
         if(rc == false)
         {
             //  read was not good
             EqNP.s= IPS_ALERT;
             IDSetNumber(&EqNP, NULL);
         }
-
-//		SetTimer(POLL_INTERVAL_MS);
 		SetTimer(getCurrentPollingPeriod());
     }
 }
@@ -554,13 +534,16 @@ bool PiRT::isTracking()
 ***************************************************************************************/
 bool PiRT::Goto(double ra, double dec)
 {
-    targetRA  = ra;
-    targetDEC = dec;
-    char RAStr[64]={0}, DecStr[64]={0};
+	//targetRA  = ra;
+    //targetDEC = dec;
+    
+	targetEquatorialCoords = EquCoords{ ra , dec };
+	
+	char RAStr[64]={0}, DecStr[64]={0};
 
     // Parse the RA/DEC into strings
-    fs_sexa(RAStr, targetRA, 2, 3600);
-    fs_sexa(DecStr, targetDEC, 2, 3600);
+    fs_sexa(RAStr, ra, 2, 3600);
+    fs_sexa(DecStr, dec, 2, 3600);
 
     // Mark state as slewing
     TrackState = SCOPE_SLEWING;
@@ -577,18 +560,21 @@ bool PiRT::Goto(double ra, double dec)
 ***************************************************************************************/
 bool PiRT::GotoHor(double az, double alt)
 {
-    targetAz  = az;
-    targetAlt = alt;
+	//targetAz  = az;
+	//targetAlt = alt;
     
-    if (alt<=0.) {
+    if (alt<0.) {
       DEBUG(INDI::Logger::DBG_WARNING, "Error: Target below horizon");
       return false;
     }
-    char AzStr[64]={0}, AltStr[64]={0};
+    
+    targetHorizontalCoords = HorCoords { az, alt };
+    
+	char AzStr[64]={0}, AltStr[64]={0};
 
     // Parse the Az/Alt into strings
-    fs_sexa(AzStr, targetAz, 2, 3600);
-    fs_sexa(AltStr, targetAlt, 2, 3600);
+    fs_sexa(AzStr, az, 2, 3600);
+    fs_sexa(AltStr, alt, 2, 3600);
 
     // Mark state as slewing
     TrackState = SCOPE_SLEWING;
@@ -610,6 +596,15 @@ bool PiRT::Abort()
 	return true;
 }
 
+void PiRT::Hor2Equ(const HorCoords& hor_coords, double* ra, double* dec) {
+	Hor2Equ(hor_coords.Az.value(), hor_coords.Alt.value(), ra, dec);
+}
+
+EquCoords PiRT::Hor2Equ(const HorCoords& hor_coords) {
+	double ra {} , dec {};
+	Hor2Equ(hor_coords.Az.value(), hor_coords.Alt.value(), &ra, &dec);
+	return EquCoords( ra , dec );
+}
 
 void PiRT::Hor2Equ(double az, double alt, double* ra, double* dec) {
   struct ln_date date;
@@ -648,6 +643,11 @@ void PiRT::Hor2Equ(double az, double alt, double* ra, double* dec) {
   *dec = equcoords.dec;
 }
 
+HorCoords PiRT::Equ2Hor(const EquCoords& equ_coords) {
+	double az {} , alt {};
+	Equ2Hor(equ_coords.Ra.value(), equ_coords.Dec.value(), &az, &alt);
+	return HorCoords( az , alt );
+}
 
 void PiRT::Equ2Hor(double ra, double dec, double* az, double* alt) {
   struct ln_date date;
@@ -694,9 +694,8 @@ bool PiRT::ReadScopeStatus()
 {
 	static struct timeval ltv { 0, 0 };
     struct timeval tv { 0, 0 };
-    double dt = 0, da_ra = 0, da_dec = 0, dx = 0, dy = 0;
+    double dt = 0, dx = 0, dy = 0;
     static double dt_time_update = 0.;
-    int nlocked;
 
     static char ts[32]={0};
     struct tm *utc, *local;
@@ -731,12 +730,17 @@ bool PiRT::ReadScopeStatus()
     ElEncoderNP.s = (el_encoder->statusOk())? IPS_OK : IPS_ALERT;
     IDSetNumber(&ElEncoderNP, nullptr);
 
-	az_axis.setValue( 360. * ( (az_encoder->absolutePosition() ) / axisRatio[0] ) + axisOffset[0] );
-	el_axis.setValue( 360. * ( (el_encoder->absolutePosition() ) / axisRatio[1] ) + axisOffset[1] );
+	const double az_revolutions { az_encoder->absolutePosition() };
+	const double el_revolutions { el_encoder->absolutePosition() };
+///	az_axis.setValue( 360. * ( az_revolutions / axisRatio[0] ) + axisOffset[0] );
+///	el_axis.setValue( 360. * ( el_revolutions / axisRatio[1] ) + axisOffset[1] );
 	
-	currentAz = az_axis.value();
-	currentAlt = el_axis.value();
+///	currentAz = az_axis.value();
+///	currentAlt = el_axis.value();
 
+	currentHorizontalCoords.Az.setValue( 360. * ( az_revolutions / axisRatio[0] ) + axisOffset[0] );
+	currentHorizontalCoords.Alt.setValue( 360. * ( el_revolutions / axisRatio[1] ) + axisOffset[1] );
+	
 	/*
 	currentAz = 360. * ( (az_encoder->absolutePosition() + axisOffset[0]) / axisRatio[0] );
 	currentAz = ln_range_degrees(currentAz);
@@ -813,95 +817,88 @@ bool PiRT::ReadScopeStatus()
     }
     
 	// Calculate how much we moved since last time
-	double dmov = 0.;
-	double imot = 0.;
 	switch (TrackState)
 	{
 		case SCOPE_SLEWING:
-			dmov = SLEW_RATE * dt;
-			nlocked=0;
 			if (TargetCoordSystem == SYSTEM_EQ) {
-				Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
+				//Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
+				targetHorizontalCoords = Equ2Hor(targetEquatorialCoords);
+			} else if (TargetCoordSystem == SYSTEM_HOR) {
+			} else if (TargetCoordSystem == SYSTEM_GAL) {
+			} else {
+				// unknown coordinate system - abort
+				Abort();
 			}
-	  
-			dx = targetAz-currentAz;
-			dy = targetAlt-currentAlt;
-	  
-			if (dx>180.) { dx-=360.;
-			} else if (dx<-180.) {
-				dx+=360.;
+
+			//PiRaTe::RotAxis diffAz { -180, 180, 360};
+			
+			dx = targetHorizontalCoords.Az.value() - currentHorizontalCoords.Az.value();
+			dy = targetHorizontalCoords.Alt.value() - currentHorizontalCoords.Alt.value();
+			
+			if ( dx > 180. ) {
+				dx -= 360.; 
+			} else if ( dx < -180. ) {
+				dx += 360.;
 			}
 			
-			if (dy>180.) {
-				dy-=360.;
-			} else if (dy<-180.) {
-				dy+=360.;
+			if ( dy > 180. ) {
+				dy -= 360.;
+			} else if ( dy < -180. ) {
+				dy += 360.;
 			}
-	  
-			if (fabs(dx) <= POS_ACCURACY) {
-				nlocked++;
+			
+			if ( std::abs(dx) > POS_ACCURACY_COARSE ) {
+				az_motor->move((dx>=0)?1.:-1.);
+			} else if ( std::abs(dx) > POS_ACCURACY_FINE ) {				
+				az_motor->move(dx/POS_ACCURACY_COARSE);
 			} else {
-				imot = dx/10.;
-				if (fabs(imot)>1.) imot=(dx>=0)?1.:-1.;
-				///currentAz += dmov*imot;
-				///currentAz = ln_range_degrees(currentAz);
 			}
-			//if (dx > 0) currentAz += dmov;
-			//else currentAz -= dmov;
-	  
-			if (fabs(dy) <= POS_ACCURACY) { 
-				nlocked++;
+
+			if ( std::abs(dy) > POS_ACCURACY_COARSE ) {
+				az_motor->move((dy>=0)?1.:-1.);
+			} else if ( std::abs(dy) > POS_ACCURACY_FINE ) {				
+				az_motor->move(dy/POS_ACCURACY_COARSE);
 			} else {
-				imot = dy/10.;
-				if (fabs(imot)>1.) imot=(dy>=0)?1.:-1.;
-				///currentAlt += dmov*imot;
 			}
-			//else if (dy > 0) currentAlt += dmov;
-			//else currentAlt -= dmov;
-	  
+
 			// Let's check if we reached position for both axes
-			if (nlocked == 2)
+			if ( 	std::abs(dx) < TRACK_ACCURACY 
+				&& 	std::abs(dy) < TRACK_ACCURACY	)
 			{
 				// Let's set state to TRACKING
-				TrackState = (isTracking())?SCOPE_TRACKING:SCOPE_IDLE;
+				Abort();
+				/*
 				if (isTracking() && TargetCoordSystem == SYSTEM_HOR) {
-					Hor2Equ(currentAz, currentAlt, &targetRA, &targetDEC);
+					Hor2Equ(currentHorizontalCoords, &targetRA, &targetDEC);
 				}
+				*/
                 DEBUG(INDI::Logger::DBG_SESSION, "Telescope slew is complete.");
 			}
 			break;
 	
 		case SCOPE_TRACKING:
 			break;
-			dmov = 5.0*SID_RATE * dt;
-			Equ2Hor(targetRA, targetDEC, &currentAz, &currentAlt);
+/*
+			Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
 	  
 			//DEBUG(INDI::Logger::DBG_SESSION, "tracking...");
 			//DEBUGF(INDI::Logger::DBG_SESSION, "target Az: %f target Alt: %f", targetAz, targetAlt);
-
-			dx = targetAz-currentAz;
-			dy = targetAlt-currentAlt;
+			dx = targetAz-currentHorizontalCoords.Az.value();
+			dy = targetAlt-currentHorizontalCoords.Alt.value();
 			if (dx>180.) dx-=360.;
 			else if (dx<-180.) dx+=360.;
 			if (dy>180.) dy-=360.;
 			else if (dy<-180.) dy+=360.;
 	  
 			if (fabs(dx) > TRACK_ACCURACY) {
-				//currentAz += 0.1*dmov*(dx>=0)?1.:-1.;
-				currentAz += dmov*((dx>=0)?1.:-1.);
-				//DEBUGF(INDI::Logger::DBG_SESSION, "cur Az+  %f", dmov*((dx>=0)?1.:-1.));
-				//DEBUGF(INDI::Logger::DBG_SESSION, "dmov = %f", dmov);
-				currentAz = ln_range_degrees(currentAz);
+				// action to proceed to the new point
 			}
 	  
 			if (fabs(dy) > TRACK_ACCURACY) {
-				//currentAlt += 0.1*dmov*(dy>=0)?1.:-1.;
-				currentAlt += dmov*((dy>=0)?1.:-1.);
-				//DEBUGF(INDI::Logger::DBG_SESSION, "cur Alt+  %f", dmov*((dx>=0)?1.:-1.));
 			}
 	  
 			break;
-	  
+*/	  
 		default:
 			break;
 	}
@@ -965,16 +962,18 @@ bool PiRT::ReadScopeStatus()
 	ScopeStatusL[TrackState].s=IPS_OK;
 	IDSetLight(&ScopeStatusLP, NULL);
     
-	if (HorN[AXIS_AZ].value != currentAz || HorN[AXIS_ALT].value != currentAlt)
+	if (HorN[AXIS_AZ].value != currentHorizontalCoords.Az.value()
+		|| HorN[AXIS_ALT].value != currentHorizontalCoords.Alt.value())
 	{
-		HorN[AXIS_AZ].value=currentAz;
-		HorN[AXIS_ALT].value=currentAlt;
+		HorN[AXIS_AZ].value=currentHorizontalCoords.Az.value();
+		HorN[AXIS_ALT].value=currentHorizontalCoords.Alt.value();
 		HorNP.s = IPS_OK;
 		//lastEqState = EqNP.s;
 		IDSetNumber(&HorNP, NULL);
 	}
   
-	Hor2Equ(currentAz, currentAlt, &currentRA, &currentDEC);
+	double currentRA { 0. }, currentDEC { 0. }; 
+	Hor2Equ(currentHorizontalCoords, &currentRA, &currentDEC);
 	//currentRA*=24./360.;
     
 	char RAStr[64]={0}, DecStr[64]={0};
