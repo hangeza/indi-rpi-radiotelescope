@@ -25,6 +25,29 @@
 #include "axis.h"
 //#include "motordriver.h"
 
+struct HorCoords {
+	HorCoords() { Alt.registerGimbalFlipCallback( [this]() { this->Az.gimbalFlip(); } ); }
+	HorCoords(double az, double alt) {
+		Alt.registerGimbalFlipCallback( [this]() { this->Az.gimbalFlip(); } );
+		Az.setValue(az);
+		Alt.setValue(alt);
+	}
+	PiRaTe::RotAxis Az { 0., 360., 360. };
+	PiRaTe::RotAxis Alt { -90., 90., 360. };
+};
+
+struct EquCoords {
+	EquCoords() { Dec.registerGimbalFlipCallback( [this]() { this->Ra.gimbalFlip(); } ); }
+	EquCoords(double ra, double dec) {
+		Dec.registerGimbalFlipCallback( [this]() { this->Ra.gimbalFlip(); } );
+		Ra.setValue(ra);
+		Dec.setValue(dec);
+	}
+	PiRaTe::RotAxis Ra { 0., 24., 24. };
+	PiRaTe::RotAxis Dec { -90., 90., 360. };
+};
+
+
 class GPIO;
 class SsiPosEncoder;
 class MotorDriver;
@@ -71,15 +94,18 @@ class PiRT : public INDI::Telescope
 	
   private:
     void Hor2Equ(double az, double alt, double* ra, double* dec);
+    void Hor2Equ(const HorCoords& hor_coords, double* ra, double* dec);
     void Equ2Hor(double ra, double dec, double* az, double* alt);
+    HorCoords Equ2Hor(const EquCoords& equ_coords);
+	EquCoords Hor2Equ(const HorCoords& hor_coords);
 	
-    double currentRA;
-    double currentDEC;
-    double targetRA;
-    double targetDEC;
+//    double currentRA;
+//    double currentDEC;
+//    double targetRA;
+//    double targetDEC;
     
-    double currentAz, currentAlt;
-    double targetAz, targetAlt;
+//    double currentAz, currentAlt;
+//    double targetAz, targetAlt;
     
     ILight ScopeStatusL[5];
     ILightVectorProperty ScopeStatusLP;
@@ -121,7 +147,9 @@ class PiRT : public INDI::Telescope
 	std::unique_ptr<SsiPosEncoder> el_encoder { nullptr };
 	std::unique_ptr<MotorDriver> az_motor { nullptr };
 	std::unique_ptr<MotorDriver> el_motor { nullptr };
-	PiRaTe::RotAxis az_axis { 0., 360., 360. };
-	PiRaTe::RotAxis el_axis { -90., 90., 360. };
-	
+	//PiRaTe::RotAxis az_axis { 0., 360., 360. };
+	//PiRaTe::RotAxis el_axis { -90., 90., 360. };
+	HorCoords currentHorizontalCoords { 0. , 90. };
+	HorCoords targetHorizontalCoords { 0. , 90. };
+	EquCoords targetEquatorialCoords { 0. , 0. };
 };
