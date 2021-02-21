@@ -134,6 +134,9 @@ class PiRT : public INDI::Telescope
 	INumber AzMotorStatusN[2], ElMotorStatusN[2];
 	INumberVectorProperty AzMotorStatusNP, ElMotorStatusNP;
 
+	INumber AxisAbsTurnsN[2];
+	INumberVectorProperty AxisAbsTurnsNP;
+	
 	double axisRatio[2] { 1., 1. };
 	double axisOffset[2] { 0., 0. };
 	
