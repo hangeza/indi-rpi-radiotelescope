@@ -37,8 +37,9 @@
 
 constexpr unsigned int SSI_BAUD_RATE { 1000000 };
 constexpr unsigned int POLL_INTERVAL_MS { 250 };
-constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 10. };
+constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152./9. };
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 10. };
+constexpr double MAX_AZ_OVERTURN { 0.25 };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
@@ -201,15 +202,15 @@ bool PiRT::initProperties()
     IUFillNumber(&ElEncoderN[4], "EL_ENC_ROTIME", "R/O Time", "%5.0f us", 0, 0, 0, 0);
     IUFillNumberVector(&ElEncoderNP, ElEncoderN, 5, getDeviceName(), "EL_ENC", "Elevation", "Encoders",
            IP_RO, 60, IPS_IDLE);
-	IUFillNumber(&AzEncSettingN[0], "AZ_AXIS_ST_BITS", "ST bits", "%5.0f", 0, 24, 0, 12);
-	IUFillNumber(&AzEncSettingN[1], "AZ_AXIS_MT_BITS", "MT bits", "%5.0f", 0, 24, 0, 12);
+	IUFillNumber(&AzEncSettingN[0], "AZ_ENC_ST_BITS", "ST bits", "%5.0f", 0, 24, 0, 12);
+	IUFillNumber(&AzEncSettingN[1], "AZ_ENC_MT_BITS", "MT bits", "%5.0f", 0, 24, 0, 12);
     IUFillNumberVector(&AzEncSettingNP, AzEncSettingN, 2, getDeviceName(), "AZ_ENC_SETTING", "Az Encoder Settings", "Encoders",
            IP_RW, 60, IPS_IDLE);
 	defineProperty(&AzEncSettingNP);
 	IDSetNumber(&AzEncSettingNP, NULL);
 
-	IUFillNumber(&ElEncSettingN[0], "EL_AXIS_ST_BITS", "ST bits", "%5.0f", 0, 24, 0, 13);
-	IUFillNumber(&ElEncSettingN[1], "EL_AXIS_MT_BITS", "MT bits", "%5.0f", 0, 24, 0, 12);
+	IUFillNumber(&ElEncSettingN[0], "EL_ENC_ST_BITS", "ST bits", "%5.0f", 0, 24, 0, 13);
+	IUFillNumber(&ElEncSettingN[1], "EL_ENC_MT_BITS", "MT bits", "%5.0f", 0, 24, 0, 12);
     IUFillNumberVector(&ElEncSettingNP, ElEncSettingN, 2, getDeviceName(), "EL_ENC_SETTING", "El Encoder Settings", "Encoders",
            IP_RW, 60, IPS_IDLE);
 	defineProperty(&ElEncSettingNP);
@@ -231,6 +232,11 @@ bool PiRT::initProperties()
 	axisRatio[0] = DEFAULT_AZ_AXIS_TURNS_RATIO;
 	axisRatio[1] = DEFAULT_EL_AXIS_TURNS_RATIO;
 
+	IUFillNumber(&AxisAbsTurnsN[0], "AZ_AXIS_TURNS", "Az", "%5.4f rev", 0, 0, 0, 0);
+	IUFillNumber(&AxisAbsTurnsN[1], "EL_AXIS_TURNS", "Alt", "%5.4f rev", 0, 0, 0, 0);
+    IUFillNumberVector(&AxisAbsTurnsNP, AxisAbsTurnsN, 2, getDeviceName(), "AXIS_ABSOLUTE_TURNS", "Absolute Axis Turns", "Axes",
+           IP_RO, 60, IPS_IDLE);
+	
 	IUFillNumber(&AzMotorStatusN[0], "AZ_MOTOR_SPEED", "Speed", "%4.0f %%", -100, 100, 0, 0);
 	IUFillNumber(&AzMotorStatusN[1], "AZ_MOTOR_FAULTS", "Fault Counter", "%5.0f", 0, 0, 0, 0);
     IUFillNumberVector(&AzMotorStatusNP, AzMotorStatusN, 2, getDeviceName(), "AZ_MOTOR_STATUS", "Az Motor Status", "Motors",
@@ -263,6 +269,7 @@ bool PiRT::updateProperties()
 		defineProperty(&ElEncoderNP);
 		defineProperty(&AzMotorStatusNP);
 		defineProperty(&ElMotorStatusNP);
+		defineProperty(&AxisAbsTurnsNP);
 		EncoderBitRateNP.p = IP_RO;
 		//defineProperty(&TrackingSP);
     } else {
@@ -274,6 +281,7 @@ bool PiRT::updateProperties()
 		deleteProperty(ElEncoderNP.name);
 		deleteProperty(AzMotorStatusNP.name);
 		deleteProperty(ElMotorStatusNP.name);
+		deleteProperty(AxisAbsTurnsNP.name);
 		EncoderBitRateNP.p = IP_RW;
 	}
 	IDSetNumber(&EncoderBitRateNP, nullptr);
@@ -449,8 +457,8 @@ bool PiRT::Connect()
 	el_encoder->setStBitWidth(ElEncSettingN[0].value);
 	el_encoder->setMtBitWidth(ElEncSettingN[1].value);
 
-	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=1/*5*/ };
-	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=4/*6*/ };
+	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
+	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
 	az_motor.reset( new MotorDriver( gpio, az_motor_pins, nullptr ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
@@ -732,30 +740,22 @@ bool PiRT::ReadScopeStatus()
 
 	const double az_revolutions { az_encoder->absolutePosition() };
 	const double el_revolutions { el_encoder->absolutePosition() };
-///	az_axis.setValue( 360. * ( az_revolutions / axisRatio[0] ) + axisOffset[0] );
-///	el_axis.setValue( 360. * ( el_revolutions / axisRatio[1] ) + axisOffset[1] );
-	
-///	currentAz = az_axis.value();
-///	currentAlt = el_axis.value();
 
-	currentHorizontalCoords.Az.setValue( 360. * ( az_revolutions / axisRatio[0] ) + axisOffset[0] );
-	currentHorizontalCoords.Alt.setValue( 360. * ( el_revolutions / axisRatio[1] ) + axisOffset[1] );
-	
-	/*
-	currentAz = 360. * ( (az_encoder->absolutePosition() + axisOffset[0]) / axisRatio[0] );
-	currentAz = ln_range_degrees(currentAz);
-	currentAlt = 360. * ( (el_encoder->absolutePosition() + axisOffset[1]) / axisRatio[1] );
-	currentAlt = ln_range_degrees(currentAlt);
-	if ( currentAlt > 180. ) currentAlt -= 360.;
-	if ( currentAlt > 90. ) { 
-		currentAlt = 180. - currentAlt;
-		currentAz = ln_range_degrees(currentAz+180.);
-	} else if ( currentAlt < -90. ) { 
-		currentAlt = -180. + currentAlt;
-		currentAz = ln_range_degrees(currentAz+180.);
+	double azAbsTurns = ( az_revolutions / axisRatio[0] ) + axisOffset[0] / 360.;
+	double altAbsTurns = ( el_revolutions / axisRatio[1] ) + axisOffset[1] / 360.;
+
+	AxisAbsTurnsN[0].value = azAbsTurns;
+	AxisAbsTurnsN[1].value = altAbsTurns;
+	if ( std::abs(azAbsTurns) > 1. + MAX_AZ_OVERTURN ) {
+		AxisAbsTurnsNP.s = IPS_ALERT;
+	} else {
+		AxisAbsTurnsNP.s = IPS_OK;
 	}
-	*/
-
+	IDSetNumber(&AxisAbsTurnsNP, nullptr);
+	
+	currentHorizontalCoords.Az.setValue( 360. * azAbsTurns );
+	currentHorizontalCoords.Alt.setValue( 360. * altAbsTurns );
+	
 	// update motor status
 	if (az_motor->isFault()) {
 		AzMotorStatusNP.s=IPS_ALERT;
