@@ -29,13 +29,13 @@ class ADS1115;
 class MotorDriver {
 public:
 	struct Pins {
-		Pins(unsigned int enable, unsigned int pwm, unsigned int dir, unsigned int fault)
+		Pins(int pwm, int dir, int enable=-1, int fault=-1)
 			: Enable { enable }, Pwm { pwm }, Dir { dir }, Fault { fault }
 			{}
-		unsigned int Enable { 0 };
-		unsigned int Pwm { 0 };
-		unsigned int Dir { 0 };
-		unsigned int Fault { 0 };
+		int Enable { -1 };
+		int Pwm { -1 };
+		int Dir { -1 };
+		int Fault { -1 };
     };
 
     MotorDriver()=delete;
@@ -52,9 +52,11 @@ public:
     void stop();
     void emergencyStop();
 	[[nodiscard]] auto isFault() -> bool;
-    [[nodiscard]] auto isADCpresent() const -> bool { return (fAdc != nullptr); }
     [[nodiscard]] auto isInitialized() const -> bool { return fActiveLoop; }
     [[nodiscard]] auto currentSpeed() const -> float;
+	[[nodiscard]] auto hasFaultSense() const -> bool { return (fPins.Fault >= 0); }
+	[[nodiscard]] auto hasEnable() const -> bool { return (fPins.Enable >= 0); }
+    [[nodiscard]] auto hasAdc() const -> bool { return (fAdc != nullptr); }
   private:
     void threadLoop();
 	void setSpeed(float speed_ratio);

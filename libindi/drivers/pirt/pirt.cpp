@@ -457,8 +457,10 @@ bool PiRT::Connect()
 	el_encoder->setStBitWidth(ElEncSettingN[0].value);
 	el_encoder->setMtBitWidth(ElEncSettingN[1].value);
 
-	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
-	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
+//	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
+	MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
+//	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
+	MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.Dir=25 };
 	az_motor.reset( new MotorDriver( gpio, az_motor_pins, nullptr ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
