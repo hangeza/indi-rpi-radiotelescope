@@ -111,10 +111,10 @@ class PiRT : public INDI::Telescope
     ILightVectorProperty ScopeStatusLP;
     INumber HorN[2];
     INumberVectorProperty HorNP;
-    
+/*    
     ISwitch TrackingS[2];
     ISwitchVectorProperty TrackingSP;
-    
+*/    
     INumber JDN;
     INumberVectorProperty JDNP;
 
@@ -131,8 +131,8 @@ class PiRT : public INDI::Telescope
 	INumber AzAxisSettingN[2], ElAxisSettingN[2];
 	INumberVectorProperty AzAxisSettingNP, ElAxisSettingNP;
 
-	INumber AzMotorStatusN[2], ElMotorStatusN[2];
-	INumberVectorProperty AzMotorStatusNP, ElMotorStatusNP;
+	INumber MotorStatusN[2];
+	INumberVectorProperty MotorStatusNP;
 
 	INumber AxisAbsTurnsN[2];
 	INumberVectorProperty AxisAbsTurnsNP;

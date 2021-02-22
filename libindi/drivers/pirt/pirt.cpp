@@ -44,10 +44,10 @@ constexpr double MAX_AZ_OVERTURN { 0.25 };
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 
-constexpr double POS_ACCURACY_FINE { 0.25 };
 constexpr double POS_ACCURACY_COARSE { 2.0 };
-constexpr double TRACK_ACCURACY { 0.05 };
-
+constexpr double POS_ACCURACY_FINE { 0.1 };
+constexpr double TRACK_ACCURACY { 0.01 };
+constexpr double MIN_MOTOR_THROTTLE { 0.1 };
 #define MAX_ELEVATION_EXCESS 100.0
 
 
@@ -186,7 +186,7 @@ bool PiRT::initProperties()
     IUFillNumberVector(&EncoderBitRateNP, &EncoderBitRateN, 1, getDeviceName(), "ENC_SPI_SETTINGS", "SPI Interface", "Encoders",
            IP_RW, 60, IPS_IDLE);
 	defineProperty(&EncoderBitRateNP);
-    IDSetNumber(&EncoderBitRateNP, NULL);
+    IDSetNumber(&EncoderBitRateNP, nullptr);
 
 	IUFillNumber(&AzEncoderN[0], "AZ_ENC_POS", "Position", "%5.4f rev", -32767, 32767, 0, 0);
 	IUFillNumber(&AzEncoderN[1], "AZ_ENC_ST", "ST", "%5.0f", 0, 65535, 0, 0);
@@ -237,13 +237,9 @@ bool PiRT::initProperties()
     IUFillNumberVector(&AxisAbsTurnsNP, AxisAbsTurnsN, 2, getDeviceName(), "AXIS_ABSOLUTE_TURNS", "Absolute Axis Turns", "Axes",
            IP_RO, 60, IPS_IDLE);
 	
-	IUFillNumber(&AzMotorStatusN[0], "AZ_MOTOR_SPEED", "Speed", "%4.0f %%", -100, 100, 0, 0);
-	IUFillNumber(&AzMotorStatusN[1], "AZ_MOTOR_FAULTS", "Fault Counter", "%5.0f", 0, 0, 0, 0);
-    IUFillNumberVector(&AzMotorStatusNP, AzMotorStatusN, 2, getDeviceName(), "AZ_MOTOR_STATUS", "Az Motor Status", "Motors",
-           IP_RO, 60, IPS_IDLE);
-	IUFillNumber(&ElMotorStatusN[0], "EL_MOTOR_SPEED", "Speed", "%4.0f %%", -100, 100, 0, 0);
-	IUFillNumber(&ElMotorStatusN[1], "El_MOTOR_FAULTS", "Fault Counter", "%5.0f", 0, 0, 0, 0);
-    IUFillNumberVector(&ElMotorStatusNP, ElMotorStatusN, 2, getDeviceName(), "El_MOTOR_STATUS", "El Motor Status", "Motors",
+	IUFillNumber(&MotorStatusN[0], "AZ_MOTOR_SPEED", "Az", "%4.0f %%", -100, 100, 0, 0);
+	IUFillNumber(&MotorStatusN[1], "ALT_MOTOR_SPEED", "Alt", "%4.0f %%", -100, 100, 0, 0);
+    IUFillNumberVector(&MotorStatusNP, MotorStatusN, 2, getDeviceName(), "MOTOR_STATUS", "Motor Status", "Motors",
            IP_RO, 60, IPS_IDLE);
 	
 	addDebugControl();
@@ -267,10 +263,9 @@ bool PiRT::updateProperties()
 		defineProperty(&JDNP);
 		defineProperty(&AzEncoderNP);
 		defineProperty(&ElEncoderNP);
-		defineProperty(&AzMotorStatusNP);
-		defineProperty(&ElMotorStatusNP);
+		defineProperty(&MotorStatusNP);
 		defineProperty(&AxisAbsTurnsNP);
-		EncoderBitRateNP.p = IP_RO;
+		deleteProperty(EncoderBitRateNP.name);
 		//defineProperty(&TrackingSP);
     } else {
 		deleteProperty(ScopeStatusLP.name);
@@ -279,12 +274,10 @@ bool PiRT::updateProperties()
 		deleteProperty(JDNP.name);
 		deleteProperty(AzEncoderNP.name);
 		deleteProperty(ElEncoderNP.name);
-		deleteProperty(AzMotorStatusNP.name);
-		deleteProperty(ElMotorStatusNP.name);
+		deleteProperty(MotorStatusNP.name);
 		deleteProperty(AxisAbsTurnsNP.name);
-		EncoderBitRateNP.p = IP_RW;
+		defineProperty(&EncoderBitRateNP);
 	}
-	IDSetNumber(&EncoderBitRateNP, nullptr);
     
     return true;
 }
@@ -312,7 +305,33 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 	if(strcmp(dev,getDeviceName())==0)
 	{
 		//  This one is for us
-		if(!strcmp(name, EncoderBitRateNP.name))
+		if(!strcmp(name, HorNP.name))
+		{
+			if (n != 2) return false;
+			double az = values[0];
+			double alt = values[1];
+			if ( (az<0.) || (az>360.) || (alt<-90.) || (alt>90.) ) return false;
+			// Remember Track State
+			RememberTrackState = TrackState;
+			// Issue GOTO
+            bool rc = GotoHor(az, alt);
+			if (rc)
+			{
+				HorNP.s = lastHorState = IPS_BUSY;
+				//  Now fill in target co-ords, so domes can start turning
+				double ra { 0. }, dec {0. };
+				Hor2Equ(az, alt, &ra, &dec);
+				TargetN[AXIS_RA].value = ra;
+				TargetN[AXIS_DE].value = dec;
+				IDSetNumber(&TargetNP, nullptr);
+			}
+			else
+			{
+				HorNP.s = lastHorState = IPS_ALERT;
+			}
+			IDSetNumber(&HorNP, nullptr);
+			return rc;
+		} else if(!strcmp(name, EncoderBitRateNP.name))
 		{
 			// set Encoder bit rate
 			EncoderBitRateNP.s = IPS_OK;
@@ -535,7 +554,7 @@ const char *PiRT::getDefaultName()
 bool PiRT::isTracking()
 {
 	//return true;
-	return (TrackingS[1].s == ISS_ON);
+	return (TrackStateS[TRACK_ON].s == ISS_ON);
 }
 
 
@@ -544,10 +563,13 @@ bool PiRT::isTracking()
 ***************************************************************************************/
 bool PiRT::Goto(double ra, double dec)
 {
-	//targetRA  = ra;
-    //targetDEC = dec;
-    
 	targetEquatorialCoords = EquCoords{ ra , dec };
+	targetHorizontalCoords = Equ2Hor(targetEquatorialCoords);
+	
+	if ( targetHorizontalCoords.Alt.value() < 0. ) {
+      DEBUG(INDI::Logger::DBG_WARNING, "Error: Target below horizon");
+      return false;
+	}
 	
 	char RAStr[64]={0}, DecStr[64]={0};
 
@@ -570,10 +592,7 @@ bool PiRT::Goto(double ra, double dec)
 ***************************************************************************************/
 bool PiRT::GotoHor(double az, double alt)
 {
-	//targetAz  = az;
-	//targetAlt = alt;
-    
-    if (alt<0.) {
+    if ( alt < 0. ) {
       DEBUG(INDI::Logger::DBG_WARNING, "Error: Target below horizon");
       return false;
     }
@@ -602,7 +621,12 @@ bool PiRT::GotoHor(double az, double alt)
 ***************************************************************************************/
 bool PiRT::Abort()
 {
-    TrackState = (isTracking() ? SCOPE_TRACKING : SCOPE_IDLE);
+    //TrackState = (isTracking() ? SCOPE_TRACKING : SCOPE_IDLE);
+	az_motor->stop();
+	el_motor->stop();
+	if ( TrackState == SCOPE_IDLE || TrackState == SCOPE_TRACKING || TrackState == SCOPE_PARKED ) return true;
+	else TrackState = RememberTrackState;
+	targetEquatorialCoords = Hor2Equ( currentHorizontalCoords );
 	return true;
 }
 
@@ -759,20 +783,15 @@ bool PiRT::ReadScopeStatus()
 	currentHorizontalCoords.Alt.setValue( 360. * altAbsTurns );
 	
 	// update motor status
-	if (az_motor->isFault()) {
-		AzMotorStatusNP.s=IPS_ALERT;
+	if ( (az_motor->hasFaultSense() && az_motor->isFault()) 
+		|| (el_motor->hasFaultSense() && el_motor->isFault()) ) {
+		MotorStatusNP.s=IPS_ALERT;
 	} else {
-		AzMotorStatusNP.s=IPS_OK;
+		MotorStatusNP.s=IPS_OK;
 	}
-	if (el_motor->isFault()) {
-		ElMotorStatusNP.s=IPS_ALERT;
-	} else {
-		ElMotorStatusNP.s=IPS_OK;
-	}
-	AzMotorStatusN[0].value = 100. * az_motor->currentSpeed();
-	ElMotorStatusN[0].value = 100. * el_motor->currentSpeed();
-	IDSetNumber(&AzMotorStatusNP, nullptr);
-	IDSetNumber(&ElMotorStatusNP, nullptr);
+	MotorStatusN[0].value = 100. * az_motor->currentSpeed();
+	MotorStatusN[1].value = 100. * el_motor->currentSpeed();
+	IDSetNumber(&MotorStatusNP, nullptr);
 	
 	// time since last update
     dt  = tv.tv_sec - ltv.tv_sec + 1e-6*(tv.tv_usec - ltv.tv_usec);
@@ -821,6 +840,9 @@ bool PiRT::ReadScopeStatus()
 	// Calculate how much we moved since last time
 	switch (TrackState)
 	{
+		case SCOPE_TRACKING:
+			TargetCoordSystem = SYSTEM_HOR;
+			targetHorizontalCoords = Equ2Hor(targetEquatorialCoords);
 		case SCOPE_SLEWING:
 			if (TargetCoordSystem == SYSTEM_EQ) {
 				//Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
@@ -852,111 +874,62 @@ bool PiRT::ReadScopeStatus()
 			if ( std::abs(dx) > POS_ACCURACY_COARSE ) {
 				az_motor->move((dx>=0)?1.:-1.);
 			} else if ( std::abs(dx) > POS_ACCURACY_FINE ) {				
-				az_motor->move(dx/POS_ACCURACY_COARSE);
+				double mot = dx/POS_ACCURACY_COARSE;
+				if (std::abs(mot) < MIN_MOTOR_THROTTLE) {
+					mot = (dx>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE;
+				}
+				az_motor->move( mot );
 			} else {
+				az_motor->move( (dx>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE );
 			}
 
 			if ( std::abs(dy) > POS_ACCURACY_COARSE ) {
-				az_motor->move((dy>=0)?1.:-1.);
+				el_motor->move((dy>=0)?1.:-1.);
 			} else if ( std::abs(dy) > POS_ACCURACY_FINE ) {				
-				az_motor->move(dy/POS_ACCURACY_COARSE);
+				double mot = dy/POS_ACCURACY_COARSE;
+				if (std::abs(mot) < MIN_MOTOR_THROTTLE) {
+					mot = (dy>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE;
+				}
+				el_motor->move( mot );
 			} else {
+				el_motor->move( (dy>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE );
 			}
 
 			// Let's check if we reached position for both axes
 			if ( 	std::abs(dx) < TRACK_ACCURACY 
 				&& 	std::abs(dy) < TRACK_ACCURACY	)
 			{
-				// Let's set state to TRACKING
-				Abort();
-				/*
-				if (isTracking() && TargetCoordSystem == SYSTEM_HOR) {
-					Hor2Equ(currentHorizontalCoords, &targetRA, &targetDEC);
+				if ( TargetCoordSystem == SYSTEM_EQ ) { 
+					EqNP.s = IPS_OK;
+					IDSetNumber(&EqNP, nullptr);
+				} else if ( TargetCoordSystem == SYSTEM_HOR ) { 
+					HorNP.s = lastHorState = IPS_OK;
+					IDSetNumber(&HorNP, nullptr);
 				}
-				*/
-                DEBUG(INDI::Logger::DBG_SESSION, "Telescope slew is complete.");
+				if ( TrackState == SCOPE_SLEWING ) {
+					DEBUG(INDI::Logger::DBG_SESSION, "Telescope slew is complete.");
+				}
+				// Let's set state to Idle or Tracking
+				Abort();
+/*				
+				TrackState = RememberTrackState;
+                if ( isTracking() ) {
+					TrackState = SCOPE_TRACKING;
+					break;
+				}
+				TrackState = SCOPE_IDLE;
+*/				
 			}
 			break;
-	
-		case SCOPE_TRACKING:
+		case SCOPE_PARKING:
 			break;
-/*
-			Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
-	  
-			//DEBUG(INDI::Logger::DBG_SESSION, "tracking...");
-			//DEBUGF(INDI::Logger::DBG_SESSION, "target Az: %f target Alt: %f", targetAz, targetAlt);
-			dx = targetAz-currentHorizontalCoords.Az.value();
-			dy = targetAlt-currentHorizontalCoords.Alt.value();
-			if (dx>180.) dx-=360.;
-			else if (dx<-180.) dx+=360.;
-			if (dy>180.) dy-=360.;
-			else if (dy<-180.) dy+=360.;
-	  
-			if (fabs(dx) > TRACK_ACCURACY) {
-				// action to proceed to the new point
-			}
-	  
-			if (fabs(dy) > TRACK_ACCURACY) {
-			}
-	  
-			break;
-*/	  
+		case SCOPE_PARKED:
+		case SCOPE_IDLE:
 		default:
+			Abort();
 			break;
 	}
     
-    /* Process per current state. We check the state of EQUATORIAL_EOD_COORDS_REQUEST and act acoordingly */
-//     switch (TrackState)
-//     {
-//         case SCOPE_SLEWING:
-// 	    // Wait until we are "locked" into positon for both RA & DEC axis
-//             nlocked = 0;
-// 
-//             // Calculate diff in RA
-//             dx = targetRA - currentRA;
-// 
-//             // If diff is very small, i.e. smaller than how much we changed since last time, then we reached target RA.
-//             if (fabs(dx) * 15. <= da_ra)
-//             {
-//                 currentRA = targetRA;
-//                 nlocked++;
-//             }
-//             // Otherwise, increase RA
-//             else if (dx > 0)
-//                 currentRA += da_ra / 15.;
-//             // Otherwise, decrease RA
-//             else
-//                 currentRA -= da_ra / 15.;
-// 
-//             // Calculate diff in DEC
-//             dy = targetDEC - currentDEC;
-// 
-//             // If diff is very small, i.e. smaller than how much we changed since last time, then we reached target DEC.
-//             if (fabs(dy) <= da_dec)
-//             {
-//                 currentDEC = targetDEC;
-//                 nlocked++;
-//             }
-//             // Otherwise, increase DEC
-//             else if (dy > 0)
-//                 currentDEC += da_dec;
-//             // Otherwise, decrease DEC
-//             else
-//                 currentDEC -= da_dec;
-// 
-//             // Let's check if we reached position for both RA/DEC
-//             if (nlocked == 2)
-//             {
-//                 // Let's set state to TRACKING
-//                 TrackState = (isTracking())?SCOPE_TRACKING:SCOPE_IDLE;
-// 
-//                 DEBUG(INDI::Logger::DBG_SESSION, "Telescope slew is complete.");
-//             }
-//             break;
-// 
-//         default:
-//             break;
-//     }
 
 	/* update scope status */
 	// update the telescope state lights
@@ -964,12 +937,13 @@ bool PiRT::ReadScopeStatus()
 	ScopeStatusL[TrackState].s=IPS_OK;
 	IDSetLight(&ScopeStatusLP, NULL);
     
+	// update horizontal coordinates
 	if (HorN[AXIS_AZ].value != currentHorizontalCoords.Az.value()
 		|| HorN[AXIS_ALT].value != currentHorizontalCoords.Alt.value())
 	{
 		HorN[AXIS_AZ].value=currentHorizontalCoords.Az.value();
 		HorN[AXIS_ALT].value=currentHorizontalCoords.Alt.value();
-		HorNP.s = IPS_OK;
+		HorNP.s = IPS_IDLE;
 		//lastEqState = EqNP.s;
 		IDSetNumber(&HorNP, NULL);
 	}
@@ -987,7 +961,6 @@ bool PiRT::ReadScopeStatus()
 	DEBUGF(DBG_SCOPE, "Current RA: %s Current DEC: %s", RAStr, DecStr);
 
 	NewRaDec(currentRA, currentDEC);
-	//Equ2Hor(currentRA, currentDEC, &currentAz, &currentAlt);
 
 	return true;
 }
