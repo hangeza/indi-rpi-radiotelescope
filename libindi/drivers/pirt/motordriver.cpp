@@ -44,18 +44,21 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, std::shared_ptr<
 		return;
 	}
 
-	if ( !fPins.Enable || !fPins.Dir || !fPins.Pwm || !fPins.Fault) {
-		std::cerr<<"Error: some gpio pins for motor control undefined.\n";
+	if ( ( fPins.Dir < 0) || ( fPins.Pwm < 0 ) ) {
+		std::cerr<<"Error: mandatory gpio pins for motor control undefined.\n";
 		return;
 	}
 	
 	// set pin directions
-	fGpio->set_gpio_direction(fPins.Enable, true);
-	fGpio->set_gpio_direction(fPins.Dir, true);
-	fGpio->set_gpio_direction(fPins.Pwm, true);
-	fGpio->set_gpio_direction(fPins.Fault, false);
-	fGpio->set_gpio_pullup(fPins.Fault);
-	
+	fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), true);
+	fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Pwm), true);
+	if ( fPins.Enable >= 0 ) {
+		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Enable), true);
+	}
+	if ( fPins.Fault >= 0 ) {
+		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Fault), false);
+		fGpio->set_gpio_pullup(static_cast<unsigned int>(fPins.Fault));
+	}	
 	fActiveLoop=true;
 // since C++14 using std::make_unique
 	// fThread = std::make_unique<std::thread>( [this]() { this->readLoop(); } );
@@ -66,13 +69,18 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, std::shared_ptr<
 
 MotorDriver::~MotorDriver()
 {
+	if (!fActiveLoop) return;
 	fActiveLoop = false;
 	if (fThread!=nullptr) fThread->join();
 	if (fGpio != nullptr && fGpio->isInitialized()) {
-		fGpio->set_gpio_direction(fPins.Enable, false);
-		fGpio->set_gpio_direction(fPins.Dir, false);
-		fGpio->set_gpio_direction(fPins.Pwm, false);
-		fGpio->set_gpio_pullup(fPins.Fault, false);
+		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), false);
+		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Pwm), false);
+		if ( fPins.Enable >= 0 ) {
+			fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Enable), false);
+		}
+		if ( fPins.Fault >= 0 ) {
+			fGpio->set_gpio_pullup(static_cast<unsigned int>(fPins.Fault), false);
+		}
 	}
 }
 
@@ -85,7 +93,7 @@ void MotorDriver::threadLoop()
 	while (fActiveLoop) {
 		auto currentTime = std::chrono::system_clock::now();
 		
-		if (isFault()) {
+		if (hasFaultSense() && isFault()) {
 			// fault condition, switch off and deactivate everything
 			emergencyStop();
 		} else {
@@ -99,7 +107,7 @@ void MotorDriver::threadLoop()
 			}
 			fMutex.unlock();
 		}
-		if ( fAdc != nullptr ) {
+		if ( hasAdc() ) {
 			// read current from adc
 			fUpdated = true;
 		}
@@ -109,28 +117,31 @@ void MotorDriver::threadLoop()
 
 auto MotorDriver::isFault() -> bool {
 	if (!isInitialized() || !fGpio->isInitialized()) return true;
-	return (fGpio->get_gpio_state(fPins.Fault, nullptr) == false);
+	if ( !hasFaultSense() ) return false;
+	return (fGpio->get_gpio_state(static_cast<unsigned int>(fPins.Fault), nullptr) == false);
 }
 
 void MotorDriver::setSpeed(float speed_ratio) {
 	bool dir = (speed_ratio < 0);
 	// set pins
-	fGpio->set_gpio_state(fPins.Dir, dir);
+	fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), dir);
 	speed_ratio = std::abs(clamp(speed_ratio, -1.f, 1.f));
 	std::uint32_t duty_cycle { 0 };
 	if ( fPins.Pwm == HW_PWM1_PIN || fPins.Pwm == HW_PWM2_PIN ) {
 		// use hardware pwm
 		duty_cycle = speed_ratio * 1000000U;
-		int res = fGpio->hw_pwm_set_value(fPins.Pwm, fPwmFreq, duty_cycle);
+		int res = fGpio->hw_pwm_set_value(static_cast<unsigned int>(fPins.Pwm), fPwmFreq, duty_cycle);
 		return;
 	}
 	duty_cycle = speed_ratio * fPwmRange;
-	int res = fGpio->pwm_set_value(fPins.Pwm, duty_cycle);
+	int res = fGpio->pwm_set_value(static_cast<unsigned int>(fPins.Pwm), duty_cycle);
 }
 
 void MotorDriver::move(float speed_ratio) {
 	fTargetDutyCycle = clamp(speed_ratio, -1.f, 1.f);
-	fGpio->set_gpio_state(fPins.Enable, true);
+	if (hasEnable()) {
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), true);
+	}
 }
 
 void MotorDriver::stop() {
@@ -139,14 +150,16 @@ void MotorDriver::stop() {
 
 void MotorDriver::emergencyStop() {
 	fTargetDutyCycle = 0.;
-	fGpio->set_gpio_state(fPins.Enable, false);
+	if (hasEnable()) {
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), false);
+	}
 }
 
 void MotorDriver::setPwmFrequency(unsigned int freq)
 { 
 	if (freq == fPwmFreq) return;
 	if ( !(fPins.Pwm == HW_PWM1_PIN || fPins.Pwm == HW_PWM2_PIN) ) {
-		int res = fGpio->pwm_set_frequency(fPins.Pwm, freq);
+		int res = fGpio->pwm_set_frequency(static_cast<unsigned int>(fPins.Pwm), freq);
 	}
 	fPwmFreq = freq;
 }
