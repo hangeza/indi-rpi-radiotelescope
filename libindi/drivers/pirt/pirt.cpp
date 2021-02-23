@@ -48,6 +48,9 @@ constexpr double POS_ACCURACY_COARSE { 2.0 };
 constexpr double POS_ACCURACY_FINE { 0.1 };
 constexpr double TRACK_ACCURACY { 0.01 };
 constexpr double MIN_MOTOR_THROTTLE { 0.1 };
+
+const HorCoords DefaultParkPosition { 0., 90. };
+
 #define MAX_ELEVATION_EXCESS 100.0
 
 
@@ -410,22 +413,47 @@ bool PiRT::SetTrackMode(uint8_t mode) {
 
 bool PiRT::SetTrackEnabled(bool enabled) {
 	// TODO: do sth here to enable the tracking loop
+	if ( enabled && TrackState == SCOPE_PARKED ) {
+        DEBUG(INDI::Logger::DBG_ERROR, "Scope in park position - tracking is prohibited.");
+		return false;
+	}
 	if (enabled) {
+		
 		targetEquatorialCoords = Hor2Equ(currentHorizontalCoords);
 		/*
 		targetRA = currentRA;
 		targetDEC = currentDEC;
 		*/
 	}
+	fIsTracking = enabled;
 	return true;
 }
 
 bool PiRT::Park() {
 	// TODO: do sth here to start the parking operation
+	if ( TrackState == SCOPE_PARKED ) {
+        DEBUG(INDI::Logger::DBG_ERROR, "Scope already parked.");
+		return false;
+	}
+	
 	TrackState = SCOPE_PARKING;
+	targetHorizontalCoords = DefaultParkPosition;
+	TargetCoordSystem = SYSTEM_HOR;
+	
 	return true;
 }
 
+bool PiRT::UnPark() {
+	// TODO: do sth here to start the parking operation
+	if ( TrackState != SCOPE_PARKED ) {
+        DEBUG(INDI::Logger::DBG_ERROR, "Scope already unparked.");
+		return false;
+	}
+	
+	TrackState = SCOPE_IDLE;
+	
+	return true;
+}
 
 bool PiRT::Connect()
 {
@@ -551,10 +579,11 @@ const char *PiRT::getDefaultName()
 /**************************************************************************************
 ** is telescope in tracking mode?
 ***************************************************************************************/
-bool PiRT::isTracking()
+auto PiRT::isTracking() const -> bool
 {
 	//return true;
-	return (TrackStateS[TRACK_ON].s == ISS_ON);
+	//return (TrackStateS[TRACK_ON].s == ISS_ON);
+	return fIsTracking;
 }
 
 
@@ -621,11 +650,11 @@ bool PiRT::GotoHor(double az, double alt)
 ***************************************************************************************/
 bool PiRT::Abort()
 {
-    //TrackState = (isTracking() ? SCOPE_TRACKING : SCOPE_IDLE);
 	az_motor->stop();
 	el_motor->stop();
 	if ( TrackState == SCOPE_IDLE || TrackState == SCOPE_TRACKING || TrackState == SCOPE_PARKED ) return true;
-	else TrackState = RememberTrackState;
+	else  TrackState = (isTracking() ? SCOPE_TRACKING : SCOPE_IDLE);
+
 	targetEquatorialCoords = Hor2Equ( currentHorizontalCoords );
 	return true;
 }
@@ -721,6 +750,14 @@ void PiRT::Equ2Hor(double ra, double dec, double* az, double* alt) {
   *alt = horcoords.alt;
 }
 
+bool PiRT::isInAbsoluteTurnRange(double absRev) {
+	
+	if ( (absRev > -0.5 - MAX_AZ_OVERTURN)
+		&& (absRev < 0.5 + MAX_AZ_OVERTURN) )
+		return true;
+	return false;
+}
+
 /**************************************************************************************
 ** Client is asking us to report telescope status
 ***************************************************************************************/
@@ -744,43 +781,50 @@ bool PiRT::ReadScopeStatus()
       IDSetNumber(&LocationNP, NULL);
     }
 
+	double azAbsTurns { 0. };
+	double altAbsTurns { 0. };
     // read pos encoders
-    unsigned int st = az_encoder->position();
-    int mt = az_encoder->nrTurns();
+    if ( az_encoder->isUpdated() || el_encoder->isUpdated() ) {
+		unsigned int st = az_encoder->position();
+		int mt = az_encoder->nrTurns();
 
-	AzEncoderN[0].value = az_encoder->absolutePosition();
-    AzEncoderN[1].value = static_cast<double>(st);
-    AzEncoderN[2].value = static_cast<double>(mt);
-	AzEncoderN[3].value = az_encoder->bitErrorCount();
-	AzEncoderN[4].value = az_encoder->lastReadOutDuration().count();
-    //DEBUGF(INDI::Logger::DBG_SESSION, "Az Encoder values: st=%d mt=%u t_ro=%u us", st, mt, us);
-    AzEncoderNP.s = (az_encoder->statusOk())? IPS_OK : IPS_ALERT;
-    IDSetNumber(&AzEncoderNP, nullptr);
-    ElEncoderN[0].value = el_encoder->absolutePosition();
-    ElEncoderN[1].value = static_cast<double>(el_encoder->position());
-    ElEncoderN[2].value = static_cast<double>(el_encoder->nrTurns());
-	ElEncoderN[3].value = el_encoder->bitErrorCount();
-	ElEncoderN[4].value = el_encoder->lastReadOutDuration().count();
-    ElEncoderNP.s = (el_encoder->statusOk())? IPS_OK : IPS_ALERT;
-    IDSetNumber(&ElEncoderNP, nullptr);
+		AzEncoderN[0].value = az_encoder->absolutePosition();
+		AzEncoderN[1].value = static_cast<double>(st);
+		AzEncoderN[2].value = static_cast<double>(mt);
+		AzEncoderN[3].value = az_encoder->bitErrorCount();
+		AzEncoderN[4].value = az_encoder->lastReadOutDuration().count();
+		//DEBUGF(INDI::Logger::DBG_SESSION, "Az Encoder values: st=%d mt=%u t_ro=%u us", st, mt, us);
+		AzEncoderNP.s = (az_encoder->statusOk())? IPS_OK : IPS_ALERT;
+		IDSetNumber(&AzEncoderNP, nullptr);
+		ElEncoderN[0].value = el_encoder->absolutePosition();
+		ElEncoderN[1].value = static_cast<double>(el_encoder->position());
+		ElEncoderN[2].value = static_cast<double>(el_encoder->nrTurns());
+		ElEncoderN[3].value = el_encoder->bitErrorCount();
+		ElEncoderN[4].value = el_encoder->lastReadOutDuration().count();
+		ElEncoderNP.s = (el_encoder->statusOk())? IPS_OK : IPS_ALERT;
+		IDSetNumber(&ElEncoderNP, nullptr);
 
-	const double az_revolutions { az_encoder->absolutePosition() };
-	const double el_revolutions { el_encoder->absolutePosition() };
+		const double az_revolutions { az_encoder->absolutePosition() };
+		const double el_revolutions { el_encoder->absolutePosition() };
 
-	double azAbsTurns = ( az_revolutions / axisRatio[0] ) + axisOffset[0] / 360.;
-	double altAbsTurns = ( el_revolutions / axisRatio[1] ) + axisOffset[1] / 360.;
+		azAbsTurns = ( az_revolutions / axisRatio[0] ) + axisOffset[0] / 360.;
+		altAbsTurns = ( el_revolutions / axisRatio[1] ) + axisOffset[1] / 360.;
 
-	AxisAbsTurnsN[0].value = azAbsTurns;
-	AxisAbsTurnsN[1].value = altAbsTurns;
-	if ( std::abs(azAbsTurns) > 1. + MAX_AZ_OVERTURN ) {
-		AxisAbsTurnsNP.s = IPS_ALERT;
-	} else {
-		AxisAbsTurnsNP.s = IPS_OK;
-	}
-	IDSetNumber(&AxisAbsTurnsNP, nullptr);
+		AxisAbsTurnsN[0].value = azAbsTurns;
+		AxisAbsTurnsN[1].value = altAbsTurns;
+		if ( std::abs(azAbsTurns) > 1. + MAX_AZ_OVERTURN ) {
+			AxisAbsTurnsNP.s = IPS_ALERT;
+		} else {
+			AxisAbsTurnsNP.s = IPS_OK;
+		}
+		IDSetNumber(&AxisAbsTurnsNP, nullptr);
 	
-	currentHorizontalCoords.Az.setValue( 360. * azAbsTurns );
-	currentHorizontalCoords.Alt.setValue( 360. * altAbsTurns );
+		currentHorizontalCoords.Az.setValue( 360. * azAbsTurns );
+		currentHorizontalCoords.Alt.setValue( 360. * altAbsTurns );
+	} else {
+		azAbsTurns = AxisAbsTurnsN[0].value;
+		altAbsTurns = AxisAbsTurnsN[1].value;
+	}
 	
 	// update motor status
 	if ( (az_motor->hasFaultSense() && az_motor->isFault()) 
@@ -837,12 +881,14 @@ bool PiRT::ReadScopeStatus()
 //       IDSetNumber(&LocationNP, NULL);
     }
     
-	// Calculate how much we moved since last time
+	// the state machine to handle all operation conditions:
+	// SCOPE_IDLE, SCOPE_TRACKING, SCOPE_PARKING, SCOPE_PARKED and SCOPE_SLEWING
 	switch (TrackState)
 	{
 		case SCOPE_TRACKING:
 			TargetCoordSystem = SYSTEM_HOR;
 			targetHorizontalCoords = Equ2Hor(targetEquatorialCoords);
+		case SCOPE_PARKING:
 		case SCOPE_SLEWING:
 			if (TargetCoordSystem == SYSTEM_EQ) {
 				//Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);
@@ -871,6 +917,10 @@ bool PiRT::ReadScopeStatus()
 				dy += 360.;
 			}
 			
+			if ( !isInAbsoluteTurnRange( azAbsTurns + dx/360. ) ) {
+				dx = ( dx>0. ) ? -180. : 180.;
+			}
+
 			if ( std::abs(dx) > POS_ACCURACY_COARSE ) {
 				az_motor->move((dx>=0)?1.:-1.);
 			} else if ( std::abs(dx) > POS_ACCURACY_FINE ) {				
@@ -909,19 +959,13 @@ bool PiRT::ReadScopeStatus()
 				if ( TrackState == SCOPE_SLEWING ) {
 					DEBUG(INDI::Logger::DBG_SESSION, "Telescope slew is complete.");
 				}
-				// Let's set state to Idle or Tracking
-				Abort();
-/*				
-				TrackState = RememberTrackState;
-                if ( isTracking() ) {
-					TrackState = SCOPE_TRACKING;
-					break;
+				// Let's set state to Idle, Tracking or Parked
+				if ( TrackState == SCOPE_PARKING) {
+					fIsTracking = false;
+					TrackState = SCOPE_PARKED;
 				}
-				TrackState = SCOPE_IDLE;
-*/				
+				Abort();
 			}
-			break;
-		case SCOPE_PARKING:
 			break;
 		case SCOPE_PARKED:
 		case SCOPE_IDLE:

@@ -75,7 +75,7 @@ class PiRT : public INDI::Telescope
     virtual bool ISNewSwitch (const char *dev, const char *name, ISState *states, char *names[], int n) override;
 	virtual bool ISNewNumber(const char *dev, const char *name, double values[], char *names[], int n) override;
 
-    bool isTracking();
+    [[nodiscard]] auto isTracking() const -> bool;
     
   protected:
     bool Handshake() override;
@@ -91,6 +91,7 @@ class PiRT : public INDI::Telescope
 	bool SetTrackMode(uint8_t mode) override;
 	bool SetTrackEnabled(bool enabled) override;
 	bool Park() override;
+	bool UnPark() override;
 	
   private:
     void Hor2Equ(double az, double alt, double* ra, double* dec);
@@ -98,23 +99,12 @@ class PiRT : public INDI::Telescope
     void Equ2Hor(double ra, double dec, double* az, double* alt);
     HorCoords Equ2Hor(const EquCoords& equ_coords);
 	EquCoords Hor2Equ(const HorCoords& hor_coords);
+	bool isInAbsoluteTurnRange(double absRev);
 	
-//    double currentRA;
-//    double currentDEC;
-//    double targetRA;
-//    double targetDEC;
-    
-//    double currentAz, currentAlt;
-//    double targetAz, targetAlt;
-    
     ILight ScopeStatusL[5];
     ILightVectorProperty ScopeStatusLP;
     INumber HorN[2];
     INumberVectorProperty HorNP;
-/*    
-    ISwitch TrackingS[2];
-    ISwitchVectorProperty TrackingSP;
-*/    
     INumber JDN;
     INumberVectorProperty JDNP;
 
@@ -136,6 +126,8 @@ class PiRT : public INDI::Telescope
 
 	INumber AxisAbsTurnsN[2];
 	INumberVectorProperty AxisAbsTurnsNP;
+	
+	bool fIsTracking { false };
 	
 	double axisRatio[2] { 1., 1. };
 	double axisOffset[2] { 0., 0. };
