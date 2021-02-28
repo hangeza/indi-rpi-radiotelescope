@@ -29,12 +29,15 @@ class ADS1115;
 class MotorDriver {
 public:
 	struct Pins {
-		Pins(int pwm, int dir, int enable=-1, int fault=-1)
-			: Enable { enable }, Pwm { pwm }, Dir { dir }, Fault { fault }
+		Pins(int pwm, int dir, int enable, int fault)
+			: Pwm { pwm }, Dir { dir }, Enable { enable }, Fault { fault }
 			{}
-		int Enable { -1 };
+		Pins(int pwm, int dir)
+			: Pwm { pwm }, Dir { dir }
+			{}
 		int Pwm { -1 };
 		int Dir { -1 };
+		int Enable { -1 };
 		int Fault { -1 };
     };
 
