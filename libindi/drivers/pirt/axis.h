@@ -26,12 +26,11 @@ constexpr double toRadians(double unitVal) { return ( unitVal * twopi() ); }
 
 class RotAxis {
 public:
-	typedef void(*FunctPtr)();
-	
 	RotAxis(double min, double max, double ref_unit = twopi()) 
 		: fValue { 0. }
 	{
-		if ( fRefUnit == 0. ) return;
+		if ( fRefUnit == 0. ) throw std::exception();
+		if ( max <= min ) throw std::exception();
 		fRefUnit = ref_unit;
 		fMin = min / fRefUnit;
 		fMax = max / fRefUnit;
@@ -49,12 +48,9 @@ public:
 
 	void setValue(double val) { 
 		double princ_val = reduceToPrincipal( val / fRefUnit );
-		if (princ_val > fMax) {
-			princ_val = 2. * fMax - princ_val;
-			if (fGimbalFlipFn) fGimbalFlipFn();
-		} else if (princ_val < fMin) {
-			princ_val = 2. * fMin - princ_val;
-			if (fGimbalFlipFn) fGimbalFlipFn();
+		unsigned int backfolding_iterations { 10 };
+		while ( backfolding_iterations-- && adjustToRange( princ_val) ) {
+				if (fGimbalFlipFn) fGimbalFlipFn();
 		}
 		fValue = princ_val;
 		fValid = true;
@@ -64,17 +60,28 @@ public:
 	void gimbalFlip() { this->setValue( fRefUnit * (fValue + 0.5) ); }
 
 private:
-	double fRefUnit { pi() };
+	double fRefUnit { twopi() };
 	double fValue { 0. };
 	double fMin { -1 };
 	double fMax { 1 };
 	bool fValid { false };
 
-	double reduceToPrincipal(double arg) {
+	[[nodiscard]] static auto reduceToPrincipal(double arg) -> double {
 		while (arg > 1.) arg -= 1.;
 		while (arg < -1.) arg += 1.;
 		return arg;
 	}
+	bool adjustToRange(double& value) {
+		if ( value > fMax ) {
+			value = 2. * fMax - value;
+			return true;
+		} else if ( value < fMin ) {
+			value = 2. * fMin - value;
+			return true;
+		}
+		return false;
+	}
+	
 	std::function<void()> fGimbalFlipFn { };
 };
 

@@ -25,6 +25,7 @@
 
 #include <cmath>
 #include <memory>
+#include <map>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,6 +51,10 @@ constexpr double TRACK_ACCURACY { 0.01 };
 constexpr double MIN_MOTOR_THROTTLE { 0.1 };
 
 const HorCoords DefaultParkPosition { 0., 90. };
+const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
+	{ 	{ INDI::Telescope::LOCATION_LATITUDE, 50.03 },
+		{ INDI::Telescope::LOCATION_LONGITUDE, 8.57 },
+		{ INDI::Telescope::LOCATION_ELEVATION, 180. } };
 
 #define MAX_ELEVATION_EXCESS 100.0
 
@@ -117,18 +122,14 @@ void ISSnoopDevice(XMLEle *root)
  */
 PiRT::PiRT()
 {
-    //currentRA  = 0;
-    //currentDEC = 0;
-///    currentAz = currentAlt = 0;
-//     TrackingOn = false;
-
     // We add an additional debug level so we can log verbose scope status
     DBG_SCOPE = INDI::Logger::getInstance().addDebugLevel("Scope Verbose", "SCOPE");
 
-//    setTelescopeConnection(CONNECTION_TCP);
+//    setTelescopeConnection(CONNECTION_SERIAL);
     setTelescopeConnection(CONNECTION_TCP);
 
 	SetTelescopeCapability(
+			TELESCOPE_CAN_GOTO |
 			TELESCOPE_CAN_PARK |
 			TELESCOPE_CAN_ABORT |
 			TELESCOPE_HAS_TIME | 
@@ -137,8 +138,6 @@ PiRT::PiRT()
 			TELESCOPE_CAN_CONTROL_TRACK /*|
 			TELESCOPE_HAS_TRACK_RATE */
 	);
-	
-	///el_axis.registerGimbalFlipCallback( [this]() { this->az_axis.gimbalFlip(); } );
 }
 
 /**************************************************************************************
@@ -151,12 +150,6 @@ bool PiRT::initProperties()
 
 	setDefaultPollingPeriod(POLL_INTERVAL_MS);
 
-	//return true;
-/*
-	IUFillSwitch(&TrackingS[0], "Off", "", ISS_ON);
-    IUFillSwitch(&TrackingS[1], "On", "", ISS_OFF);
-    IUFillSwitchVector(&TrackingSP, TrackingS, 2, getDeviceName(), "TRACKING", "Tracking", MAIN_CONTROL_TAB, IP_RW, ISR_1OFMANY,0, IPS_IDLE);
-*/    
     IUFillLight(&ScopeStatusL[0], "SCOPE_IDLE", "Idle", IPS_OK);
     IUFillLight(&ScopeStatusL[1], "SCOPE_SLEWING", "Slew", IPS_IDLE);
     IUFillLight(&ScopeStatusL[2], "SCOPE_TRACKING", "Tracking", IPS_IDLE);
@@ -178,9 +171,9 @@ bool PiRT::initProperties()
            IP_RW, 60, IPS_IDLE);
     lastHorState = IPS_IDLE;
     
-    LocationN[LOCATION_LATITUDE].value  = 50.03;
-    LocationN[LOCATION_LONGITUDE].value = 8.57;
-    LocationN[LOCATION_ELEVATION].value = 180.;
+    LocationN[LOCATION_LATITUDE].value  = DefaultLocation.at(LOCATION_LATITUDE);
+    LocationN[LOCATION_LONGITUDE].value = DefaultLocation.at(LOCATION_LONGITUDE);
+    LocationN[LOCATION_ELEVATION].value = DefaultLocation.at(LOCATION_ELEVATION);
     LocationNP.s = IPS_OK;
     IDSetNumber(&LocationNP, NULL);
     //defineLight(&ScopeStatusLP);
@@ -418,12 +411,7 @@ bool PiRT::SetTrackEnabled(bool enabled) {
 		return false;
 	}
 	if (enabled) {
-		
 		targetEquatorialCoords = Hor2Equ(currentHorizontalCoords);
-		/*
-		targetRA = currentRA;
-		targetDEC = currentDEC;
-		*/
 	}
 	fIsTracking = enabled;
 	return true;
@@ -945,7 +933,7 @@ bool PiRT::ReadScopeStatus()
 				el_motor->move( (dy>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE );
 			}
 
-			// Let's check if we reached position for both axes
+			// Let's check if we reached target position for both axes
 			if ( 	std::abs(dx) < TRACK_ACCURACY 
 				&& 	std::abs(dy) < TRACK_ACCURACY	)
 			{
