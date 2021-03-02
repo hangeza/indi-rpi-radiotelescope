@@ -5,11 +5,12 @@
 #include <chrono>
 #include <memory>
 
+#include "gpioif.h"
 #include "encoder.h"
 
 #define DEFAULT_VERBOSITY 1
 
-// namespace PiRaTe {
+namespace PiRaTe {
 
 unsigned int SsiPosEncoder::fNrInstances = 0;
 constexpr std::chrono::milliseconds loop_delay { 10 };
@@ -42,23 +43,24 @@ SsiPosEncoder::SsiPosEncoder(std::shared_ptr<GPIO> gpio, GPIO::SPI_INTERFACE spi
 {
 	if (fGpio == nullptr) {
 		std::cerr<<"Error: no valid GPIO instance.\n";
-		return;
+		throw std::exception();
 	}
 //	std::cout<<"pi handle="<<fGpio->handle()<<"\n";
 	fSpiHandle = fGpio->spi_init(spi_interface, spi_channel, spi_mode, baudrate);
 //	std::cout<<"spi handle="<<fSpiHandle<<"\n";
 	if (fSpiHandle < 0) {
 		std::cerr<<"Error opening spi interface.\n";
-		return;
+		throw std::exception();
 	}
 
 	fActiveLoop=true;
 // since C++14 using std::make_unique
 	// fThread = std::make_unique<std::thread>( [this]() { this->readLoop(); } );
 // C++11 is unfortunately more unconvenient with move from a locally generated pointer
-	std::unique_ptr<std::thread> thread( new std::thread( [this]() { this->readLoop(); } ));
-	fThread = std::move(thread);
-
+	//std::unique_ptr<std::thread> thread( new std::thread( [this]() { this->readLoop(); } ));
+	//fThread = std::move(thread);
+// or with the reset method of smart pointers
+	fThread.reset( new std::thread( [this]() { this->readLoop(); } ));
 	fNrInstances++;
 }
 
@@ -192,4 +194,4 @@ auto SsiPosEncoder::statusOk() const -> bool {
 	return (fConErrorCountdown>0);
 }
 
-//} // namespace PiRaTe
+} // namespace PiRaTe

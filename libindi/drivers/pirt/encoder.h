@@ -17,13 +17,24 @@
 
 #include "gpioif.h"
 
-// namespace PiRaTe {
+//namespace {
+//	class GPIO;
+//}
+
+namespace PiRaTe {
 
 constexpr unsigned int SPI_BAUD_DEFAULT { 500000U };
 constexpr unsigned int MAX_CONN_ERRORS { 10U };
 
-class GPIO;
 
+/**
+ * @brief Interface class for reading out SSI-interface based positional encoders.
+ * This class manages the read-out of absolute position encoders connected to the SPI interface.
+ * The interface to be utilized is set in the constructor call together with baud rate and SPI mode settings. 
+ * The absolute position is obtained with {@link #SsiPosEncoder::absolutePosition} with the return value in evolutions.
+ * @note The class launches a separate thread loop upon successfull construction which reads the encoder's data word every 10 ms.
+ * @author HG Zaunick
+ */
 class SsiPosEncoder {
   public:
     SsiPosEncoder()=delete;
@@ -76,6 +87,6 @@ class SsiPosEncoder {
 	std::mutex fMutex;
 };
 
-//} // namespace PiRaTe
+} // namespace PiRaTe
 
 #endif
