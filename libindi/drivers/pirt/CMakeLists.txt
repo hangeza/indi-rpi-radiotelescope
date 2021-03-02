@@ -6,10 +6,11 @@
 
 ########### INDI Pi Radio Telescope driver ##############
 SET(pirt_SRC
-    pirt.cpp
+    axis.cpp
     gpioif.cpp
     encoder.cpp
-    motordriver.cpp)
+    motordriver.cpp
+    pirt.cpp)
 
 add_executable(indi_pirt ${pirt_SRC})
 target_link_libraries(indi_pirt indidriver "-lpigpiod_if2" "-lrt")

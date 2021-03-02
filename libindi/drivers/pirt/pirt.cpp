@@ -34,7 +34,7 @@
 
 #include <encoder.h>
 #include <gpioif.h>
-#include "motordriver.h"
+#include <motordriver.h>
 
 constexpr unsigned int SSI_BAUD_RATE { 1000000 };
 constexpr unsigned int POLL_INTERVAL_MS { 250 };
@@ -477,14 +477,14 @@ bool PiRT::Connect()
 		return false;
 	}
 
-	az_encoder.reset(new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, bitrate));
+	az_encoder.reset(new PiRaTe::SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, bitrate));
 	if (!az_encoder->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to Az position encoder.");
 		return false;
 	}
 	az_encoder->setStBitWidth(AzEncSettingN[0].value);
 	az_encoder->setMtBitWidth(AzEncSettingN[1].value);
-	el_encoder.reset(new SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, bitrate));
+	el_encoder.reset(new PiRaTe::SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, bitrate));
 	if (!el_encoder->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to El position encoder.");
 		return false;
@@ -493,15 +493,15 @@ bool PiRT::Connect()
 	el_encoder->setMtBitWidth(ElEncSettingN[1].value);
 
 //	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
-	MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
+	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
 //	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
-	MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.Dir=25 };
-	az_motor.reset( new MotorDriver( gpio, az_motor_pins, nullptr ) );
+	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.Dir=25 };
+	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, nullptr ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
-	el_motor.reset( new MotorDriver( gpio, el_motor_pins, nullptr ) );
+	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, nullptr ) );
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;

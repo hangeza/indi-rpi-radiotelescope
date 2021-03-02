@@ -49,8 +49,11 @@ struct EquCoords {
 
 
 class GPIO;
-class SsiPosEncoder;
-class MotorDriver;
+namespace PiRaTe {
+	class SsiPosEncoder;
+	class MotorDriver;
+}
+
 
 class PiRT : public INDI::Telescope
 {
@@ -138,10 +141,10 @@ class PiRT : public INDI::Telescope
     static const uint8_t SLEW_RATE = 3;
 	
 	std::shared_ptr<GPIO> gpio { nullptr };
-	std::unique_ptr<SsiPosEncoder> az_encoder { nullptr };
-	std::unique_ptr<SsiPosEncoder> el_encoder { nullptr };
-	std::unique_ptr<MotorDriver> az_motor { nullptr };
-	std::unique_ptr<MotorDriver> el_motor { nullptr };
+	std::unique_ptr<PiRaTe::SsiPosEncoder> az_encoder { nullptr };
+	std::unique_ptr<PiRaTe::SsiPosEncoder> el_encoder { nullptr };
+	std::unique_ptr<PiRaTe::MotorDriver> az_motor { nullptr };
+	std::unique_ptr<PiRaTe::MotorDriver> el_motor { nullptr };
 	//PiRaTe::RotAxis az_axis { 0., 360., 360. };
 	//PiRaTe::RotAxis el_axis { -90., 90., 360. };
 	HorCoords currentHorizontalCoords { 0. , 90. };

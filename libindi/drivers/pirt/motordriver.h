@@ -18,11 +18,12 @@
 
 #include "gpioif.h"
 
-//namespace PiRaTe {
+class GPIO;
+
+namespace PiRaTe {
 
 constexpr unsigned int DEFAULT_PWM_FREQ { 20000 };
 
-class GPIO;
 class ADS1115;
 
 
@@ -81,6 +82,6 @@ public:
 
 };
 
-//} // namespace PiRaTe
+} // namespace PiRaTe
 
 #endif

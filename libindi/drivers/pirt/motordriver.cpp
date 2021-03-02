@@ -10,7 +10,7 @@
 
 #define DEFAULT_VERBOSITY 1
 
-//namespace PiRaTe {
+namespace PiRaTe {
 	
 constexpr std::chrono::milliseconds loop_delay { 10 };
 constexpr std::chrono::milliseconds ramp_time { 1000 };
@@ -168,4 +168,4 @@ auto MotorDriver::currentSpeed() const -> float {
 	return fCurrentDutyCycle;
 }
 
-//} // namespace PiRaTe
+} // namespace PiRaTe
