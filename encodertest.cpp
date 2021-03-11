@@ -43,8 +43,8 @@ int main(void) {
         return -1;
     }
 
-	SsiPosEncoder az_encoder(gpio, GPIO::SPI_INTERFACE::Main, baud_rate);
-	SsiPosEncoder el_encoder(gpio, GPIO::SPI_INTERFACE::Aux, baud_rate);
+	PiRaTe::SsiPosEncoder az_encoder(gpio, GPIO::SPI_INTERFACE::Main, baud_rate);
+	PiRaTe::SsiPosEncoder el_encoder(gpio, GPIO::SPI_INTERFACE::Aux, baud_rate);
 	el_encoder.setStBitWidth(13);
 	
 	std::thread thr( [&]() {    
@@ -65,7 +65,7 @@ int main(void) {
 				std::cout<<" r/o="<<el_encoder.lastReadOutDuration().count()<<"us";
 				std::cout<<"           \r";
 			}
-			usleep(10000U);
+			usleep(50000U);
 		}	
 	} );
 
