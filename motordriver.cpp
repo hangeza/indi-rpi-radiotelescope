@@ -31,8 +31,8 @@ template <typename T> constexpr int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
-MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, std::shared_ptr<ADS1115> adc)
-	: fGpio { gpio }, fPins { pins }, fAdc { adc }
+MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertedPwm, std::shared_ptr<ADS1115> adc)
+	: fGpio { gpio }, fPins { pins }, fAdc { adc }, fCurrentDir { false }, fInverted { invertedPwm }
 {
 	if (fGpio == nullptr) {
 		std::cerr<<"Error: no valid GPIO instance.\n";
@@ -44,14 +44,25 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, std::shared_ptr<
 		return;
 	}
 
-	if ( ( fPins.Dir < 0) || ( fPins.Pwm < 0 ) ) {
+	if ( ( fPins.Dir < 0 && !hasDualDir() ) || ( fPins.Pwm < 0 ) ) {
 		std::cerr<<"Error: mandatory gpio pins for motor control undefined.\n";
 		return;
 	}
 	
 	// set pin directions
-	fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), true);
-	fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Pwm), true);
+	if ( fPins.Dir >= 0 ) { 
+		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), true);
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), false);
+	}
+	if ( hasDualDir() ) {
+		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirA), true);
+		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirB), true);
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirA), fCurrentDir);
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirB), !fCurrentDir);
+	}
+	
+	//fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Pwm), true);
+	
 	if ( fPins.Enable >= 0 ) {
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Enable), true);
 	}
@@ -73,7 +84,9 @@ MotorDriver::~MotorDriver()
 	fActiveLoop = false;
 	if (fThread!=nullptr) fThread->join();
 	if (fGpio != nullptr && fGpio->isInitialized()) {
-		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), false);
+		if (fPins.Dir >= 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), false);
+		if (fPins.DirA >= 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirA), false);
+		if (fPins.DirB >= 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirB), false);
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Pwm), false);
 		if ( fPins.Enable >= 0 ) {
 			fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Enable), false);
@@ -97,15 +110,18 @@ void MotorDriver::threadLoop()
 			// fault condition, switch off and deactivate everything
 			emergencyStop();
 		} else {
-			fMutex.lock();
+			const std::lock_guard<std::mutex> lock(fMutex);
+			//fMutex.lock();
 			if (fTargetDutyCycle != fCurrentDutyCycle) {
+				fCurrentDutyCycle += ramp_increment * sgn( fTargetDutyCycle - fCurrentDutyCycle );
+				if ( 	( std::abs(fCurrentDutyCycle) > std::abs(fTargetDutyCycle) )
+					||  ( std::abs(fTargetDutyCycle-fCurrentDutyCycle) < ramp_increment	) )
+				{
+					fCurrentDutyCycle = fTargetDutyCycle;
+				}
 				setSpeed(fCurrentDutyCycle);
-				fCurrentDutyCycle += ramp_increment * sgn( fTargetDutyCycle - fCurrentDutyCycle);
 			}
-			if ( std::abs(fCurrentDutyCycle) > std::abs(fTargetDutyCycle) ) {
-				fCurrentDutyCycle = fTargetDutyCycle;
-			}
-			fMutex.unlock();
+			//fMutex.unlock();
 		}
 		if ( hasAdc() ) {
 			// read current from adc
@@ -124,32 +140,49 @@ auto MotorDriver::isFault() -> bool {
 void MotorDriver::setSpeed(float speed_ratio) {
 	bool dir = (speed_ratio < 0);
 	// set pins
-	fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), dir);
-	speed_ratio = std::abs(clamp(speed_ratio, -1.f, 1.f));
+	if ( dir != fCurrentDir ) {
+		if ( fPins.Dir>=0 ) fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), dir);
+		if ( hasDualDir() ) {
+			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirA), dir);
+			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirB), !dir);
+		}
+		fCurrentDir = dir;
+	}
+	float abs_speed_ratio = std::abs(clamp(speed_ratio, -1.f, 1.f));
 	std::uint32_t duty_cycle { 0 };
-	if ( fPins.Pwm == HW_PWM1_PIN || fPins.Pwm == HW_PWM2_PIN ) {
+	if ( (static_cast<unsigned int>(fPins.Pwm) == HW_PWM1_PIN) || (static_cast<unsigned int>(fPins.Pwm) == HW_PWM2_PIN) ) {
 		// use hardware pwm
-		duty_cycle = speed_ratio * 1000000U;
+		duty_cycle = 1000000U * abs_speed_ratio;
+		if ( fInverted ) duty_cycle = 1000000U - duty_cycle;
+		//if (duty_cycle == 0) duty_cycle++;
 		int res = fGpio->hw_pwm_set_value(static_cast<unsigned int>(fPins.Pwm), fPwmFreq, duty_cycle);
 		return;
 	}
-	duty_cycle = speed_ratio * fPwmRange;
+	duty_cycle = abs_speed_ratio * fPwmRange;
+	if ( fInverted ) duty_cycle = fPwmRange - duty_cycle;
 	int res = fGpio->pwm_set_value(static_cast<unsigned int>(fPins.Pwm), duty_cycle);
 }
 
 void MotorDriver::move(float speed_ratio) {
+	const std::lock_guard<std::mutex> lock(fMutex);
+//	fMutex.lock();
 	fTargetDutyCycle = clamp(speed_ratio, -1.f, 1.f);
+//	fMutex.unlock();
+/*
 	if (hasEnable()) {
-		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), true);
+		if ( std::abs(speed_ratio) < 1e-3 ) {
+			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), true);
+		} else fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), false);
 	}
+*/
 }
 
 void MotorDriver::stop() {
-	this->move(0.f);
+	this->move(0.);
 }
 
 void MotorDriver::emergencyStop() {
-	fTargetDutyCycle = 0.;
+	this->move(0.);
 	if (hasEnable()) {
 		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), false);
 	}
@@ -159,13 +192,19 @@ void MotorDriver::setPwmFrequency(unsigned int freq)
 { 
 	if (freq == fPwmFreq) return;
 	if ( !(fPins.Pwm == HW_PWM1_PIN || fPins.Pwm == HW_PWM2_PIN) ) {
+		fMutex.lock();
 		int res = fGpio->pwm_set_frequency(static_cast<unsigned int>(fPins.Pwm), freq);
+		fMutex.unlock();
 	}
 	fPwmFreq = freq;
 }
 
-auto MotorDriver::currentSpeed() const -> float {
-	return fCurrentDutyCycle;
+auto MotorDriver::currentSpeed() -> float {
+	const std::lock_guard<std::mutex> lock(fMutex);
+	//fMutex.lock();
+	const float speed = fCurrentDutyCycle;
+	//fMutex.unlock();
+	return speed;
 }
 
 } // namespace PiRaTe

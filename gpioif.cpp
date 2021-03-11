@@ -40,12 +40,15 @@ GPIO::~GPIO() {
 }
 
 
-auto GPIO::spi_init(SPI_INTERFACE interface, std::uint8_t channel, SPI_MODE mode, unsigned int baudrate, bool lsb_first) -> int
+auto GPIO::spi_init(SPI_INTERFACE interface, std::uint8_t channel, SPI_MODE mode, unsigned int baudrate, bool lsb_first, bool use_cs) -> int
 {
 	unsigned int spi_flags = static_cast<unsigned int>(mode) | (static_cast<unsigned int>(lsb_first) << 15);
 	if (interface == SPI_INTERFACE::Aux) {
 		spi_flags |= 1 << 8;
 		//std::cout<<"spi flags: "<<spi_flags<<"\n";
+	}
+	if (!use_cs) {
+		spi_flags |= 0b111 << 5;
 	}
 	int handle = ::spi_open(fHandle, channel, baudrate, spi_flags);
 	if (handle < 0) {
