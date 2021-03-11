@@ -23,7 +23,7 @@ constexpr unsigned int CLK2 { 21 };
 constexpr unsigned int DATA1 { 9 };
 constexpr unsigned int DATA2 { 19 };
 
-constexpr unsigned int baud_rate { 256000 };
+constexpr unsigned int baud_rate { 250000 };
 
 std::string intToBinaryString(unsigned long number) {
    std::string numStr { };
@@ -43,8 +43,12 @@ int main(void) {
         return -1;
     }
 
+//	gpio->set_gpio_direction(CLK1, true);
+//	gpio->set_gpio_direction(CLK2, true);
 	PiRaTe::SsiPosEncoder az_encoder(gpio, GPIO::SPI_INTERFACE::Main, baud_rate);
 	PiRaTe::SsiPosEncoder el_encoder(gpio, GPIO::SPI_INTERFACE::Aux, baud_rate);
+	//gpio->set_gpio_pullup(DATA1);
+	//gpio->set_gpio_pullup(DATA2);
 	el_encoder.setStBitWidth(13);
 	
 	std::thread thr( [&]() {    

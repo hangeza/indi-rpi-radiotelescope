@@ -45,19 +45,20 @@ class Serial;
 class TCP;
 }
 
-constexpr unsigned int SSI_BAUD_RATE { 1000000 };
+constexpr unsigned int SSI_BAUD_RATE { 500000 };
 constexpr unsigned int POLL_INTERVAL_MS { 250 };
-constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152./9. };
-constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 10. };
+constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { -152 /*152./9.*/ };
+constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 20. };
 constexpr double MAX_AZ_OVERTURN { 0.25 };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 
-constexpr double POS_ACCURACY_COARSE { 2.0 };
-constexpr double POS_ACCURACY_FINE { 0.1 };
-constexpr double TRACK_ACCURACY { 0.01 };
-constexpr double MIN_MOTOR_THROTTLE { 0.1 };
+constexpr double POS_ACCURACY_COARSE { 5.0 };
+constexpr double POS_ACCURACY_FINE { 0.2 };
+constexpr double TRACK_ACCURACY { 0.075 };
+constexpr double MIN_AZ_MOTOR_THROTTLE { 0.05 };
+constexpr double MIN_EL_MOTOR_THROTTLE { 0.15 };
 
 const HorCoords DefaultParkPosition { 0., 90. };
 const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
@@ -510,15 +511,23 @@ bool PiRT::Connect()
 	el_encoder->setMtBitWidth(ElEncSettingN[1].value);
 
 //	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
-	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
+//	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
+///	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.DirA=23, az_motor_pins.DirB=24 };
+	PiRaTe::MotorDriver::Pins az_motor_pins;
+	az_motor_pins.Pwm=12; az_motor_pins.DirA=23; az_motor_pins.DirB=24; /* az_motor_pins.Enable=25; */
+	PiRaTe::MotorDriver::Pins el_motor_pins;
+	el_motor_pins.Pwm=13; el_motor_pins.DirA=5; el_motor_pins.DirB=6; /* el_motor_pins.Enable=26; */
+	
+	//	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.DirA=23, az_motor_pins.DirB=24 };
 //	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
-	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.Dir=25 };
-	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, nullptr ) );
+///	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6, el_motor_pins.Enable=26 };
+//	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6 };
+	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, false, nullptr ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
-	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, nullptr ) );
+	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, false, nullptr ) );
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
@@ -934,25 +943,25 @@ bool PiRT::ReadScopeStatus()
 				az_motor->move((dx>=0)?1.:-1.);
 			} else if ( std::abs(dx) > POS_ACCURACY_FINE ) {				
 				double mot = dx/POS_ACCURACY_COARSE;
-				if (std::abs(mot) < MIN_MOTOR_THROTTLE) {
-					mot = (dx>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE;
+				if (std::abs(mot) < MIN_AZ_MOTOR_THROTTLE) {
+					mot = (dx>0.) ? MIN_AZ_MOTOR_THROTTLE : -MIN_AZ_MOTOR_THROTTLE;
 				}
 				az_motor->move( mot );
-			} else {
-				az_motor->move( (dx>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE );
-			}
+			} else if ( std::abs(dx) > TRACK_ACCURACY ) {
+				az_motor->move( (dx>0.) ? MIN_AZ_MOTOR_THROTTLE : -MIN_AZ_MOTOR_THROTTLE );
+			} else az_motor->stop();
 
 			if ( std::abs(dy) > POS_ACCURACY_COARSE ) {
 				el_motor->move((dy>=0)?1.:-1.);
 			} else if ( std::abs(dy) > POS_ACCURACY_FINE ) {				
 				double mot = dy/POS_ACCURACY_COARSE;
-				if (std::abs(mot) < MIN_MOTOR_THROTTLE) {
-					mot = (dy>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE;
+				if (std::abs(mot) < MIN_EL_MOTOR_THROTTLE) {
+					mot = (dy>0.) ? MIN_EL_MOTOR_THROTTLE : -MIN_EL_MOTOR_THROTTLE;
 				}
 				el_motor->move( mot );
-			} else {
-				el_motor->move( (dy>0.) ? MIN_MOTOR_THROTTLE : -MIN_MOTOR_THROTTLE );
-			}
+			} else if ( std::abs(dy) > TRACK_ACCURACY ) {
+				el_motor->move( (dy>0.) ? MIN_EL_MOTOR_THROTTLE : -MIN_EL_MOTOR_THROTTLE );
+			} else el_motor->stop();
 
 			// Let's check if we reached target position for both axes
 			if ( 	std::abs(dx) < TRACK_ACCURACY 

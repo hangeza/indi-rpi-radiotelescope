@@ -34,7 +34,7 @@ public:
 
     virtual bool isInitialized() const { return (fHandle>=0); }
 
-    [[nodiscard]] auto spi_init(SPI_INTERFACE interface, std::uint8_t channel, SPI_MODE mode, unsigned int baudrate, bool lsb_first = 0) -> int;
+    [[nodiscard]] auto spi_init(SPI_INTERFACE interface, std::uint8_t channel, SPI_MODE mode, unsigned int baudrate, bool lsb_first = false, bool use_cs = true) -> int;
 	[[nodiscard]] auto spi_read(unsigned int spi_handle, unsigned int nBytes) -> std::vector<std::uint8_t>;
 	[[nodiscard]] auto spi_write(unsigned int spi_handle, const std::vector<std::uint8_t>& data) -> bool;
     void spi_close(int spi_handle);

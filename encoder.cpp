@@ -13,7 +13,7 @@
 namespace PiRaTe {
 
 unsigned int SsiPosEncoder::fNrInstances = 0;
-constexpr std::chrono::milliseconds loop_delay { 10 };
+constexpr std::chrono::milliseconds loop_delay { 50 };
 constexpr double MAX_TURNS_PER_SECOND { 5. };
 
 template <typename T> constexpr int sgn(T val) {
@@ -46,7 +46,7 @@ SsiPosEncoder::SsiPosEncoder(std::shared_ptr<GPIO> gpio, GPIO::SPI_INTERFACE spi
 		throw std::exception();
 	}
 //	std::cout<<"pi handle="<<fGpio->handle()<<"\n";
-	fSpiHandle = fGpio->spi_init(spi_interface, spi_channel, spi_mode, baudrate);
+	fSpiHandle = fGpio->spi_init(spi_interface, spi_channel, spi_mode, baudrate, false, false);
 //	std::cout<<"spi handle="<<fSpiHandle<<"\n";
 	if (fSpiHandle < 0) {
 		std::cerr<<"Error opening spi interface.\n";
@@ -98,7 +98,7 @@ void SsiPosEncoder::readLoop()
 				std::this_thread::sleep_for(loop_delay);
 				continue;
 			}
-			//std::cout<<" raw: "<<intToBinaryString(data)<<"\n";
+//			std::cout<<" raw: "<<intToBinaryString(data)<<"\n";
 			std::uint32_t temp = data >> (32 - fStBits - fMtBits - 1);
 			temp &= (1 << (fStBits + fMtBits - 1))-1;
 			temp = gray_decode(temp);
