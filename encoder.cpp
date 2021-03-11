@@ -98,7 +98,7 @@ void SsiPosEncoder::readLoop()
 				std::this_thread::sleep_for(loop_delay);
 				continue;
 			}
-//			std::cout<<" raw: "<<intToBinaryString(data)<<"\n";
+			//std::cout<<" raw: "<<intToBinaryString(data)<<"\n";
 			std::uint32_t temp = data >> (32 - fStBits - fMtBits - 1);
 			temp &= (1 << (fStBits + fMtBits - 1))-1;
 			temp = gray_decode(temp);
