@@ -132,8 +132,8 @@ void SsiPosEncoder::readLoop()
 
 			int posDiff = st - fLastPos;
 			
-			if (std::abs(posDiff) > (1<<(fStBits-1))) {
-				posDiff -= sgn(posDiff)*(1<<(fStBits-1));
+			if (std::abs(posDiff) > ((1<<(fStBits)))-1) {
+				posDiff -= sgn(posDiff)*((1<<(fStBits))-1);
 			}
 			double speed = static_cast<double>(posDiff) / (1<<fStBits);
 			auto diffTime { currentReadOutTime - lastReadOutTime };
