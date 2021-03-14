@@ -109,7 +109,8 @@ class PiRT : public INDI::Telescope
 	
 	void updateMotorStatus();
 	void measureMotorCurrentOffsets();
-	
+	void updateMonitoring();
+
     ILight ScopeStatusL[5];
     ILightVectorProperty ScopeStatusLP;
     INumber HorN[2];
@@ -139,6 +140,9 @@ class PiRT : public INDI::Telescope
 	INumber MotorCurrentLimitN[2];
 	INumberVectorProperty MotorCurrentLimitNP;
 
+	INumber VoltageMonitorN[2];
+	INumberVectorProperty VoltageMonitorNP;
+	
 	INumber AxisAbsTurnsN[2];
 	INumberVectorProperty AxisAbsTurnsNP;
 	
