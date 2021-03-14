@@ -52,7 +52,7 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirec
 	// set pin directions
 	if ( fPins.Dir >= 0 ) { 
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), true);
-		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), false);
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), (fInverted) ? !fCurrentDir : fCurrentDir);
 	}
 	if ( hasDualDir() ) {
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirA), true);
@@ -115,9 +115,7 @@ void MotorDriver::threadLoop()
 			//fMutex.lock();
 			if (fTargetDutyCycle != fCurrentDutyCycle) {
 				fCurrentDutyCycle += ramp_increment * sgn( fTargetDutyCycle - fCurrentDutyCycle );
-				if ( 	( std::abs(fCurrentDutyCycle) > std::abs(fTargetDutyCycle) )
-					||  ( std::abs(fTargetDutyCycle-fCurrentDutyCycle) < ramp_increment	) )
-				{
+				if ( std::abs(fTargetDutyCycle-fCurrentDutyCycle) < ramp_increment ) {
 					fCurrentDutyCycle = fTargetDutyCycle;
 				}
 				setSpeed(fCurrentDutyCycle);
@@ -142,7 +140,7 @@ void MotorDriver::setSpeed(float speed_ratio) {
 	const bool dir { (speed_ratio < 0.) };
 	// set pins
 	if ( dir != fCurrentDir ) {
-		if ( fPins.Dir>=0 ) fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), (fInverted) ? dir : !dir);
+		if ( fPins.Dir>=0 ) fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), (fInverted) ? !dir : dir);
 		if ( hasDualDir() ) {
 			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirA), (fInverted) ? !dir : dir);
 			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirB), (fInverted) ? dir : !dir);
