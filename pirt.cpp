@@ -47,20 +47,23 @@ class TCP;
 
 constexpr unsigned int SSI_BAUD_RATE { 500000 };
 constexpr unsigned int POLL_INTERVAL_MS { 250 };
-constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { -152 /*152./9.*/ };
+constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152 /*152./9.*/ };
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 20. };
-constexpr double MAX_AZ_OVERTURN { 0.25 };
+constexpr double MAX_AZ_OVERTURN { 0.5 }; //< maximum overturn in Az in revolutions at both ends
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 
-constexpr double POS_ACCURACY_COARSE { 5.0 };
-constexpr double POS_ACCURACY_FINE { 0.2 };
-constexpr double TRACK_ACCURACY { 0.075 };
+constexpr double POS_ACCURACY_COARSE { 3.0 };
+constexpr double POS_ACCURACY_FINE { 0.1 };
+constexpr double TRACK_ACCURACY { 0.017 }; // one arc minute
 constexpr double MIN_AZ_MOTOR_THROTTLE { 0.05 };
 constexpr double MIN_EL_MOTOR_THROTTLE { 0.15 };
 
-const HorCoords DefaultParkPosition { 0., 90. };
+constexpr bool AZ_DIR_INVERT { true };
+constexpr bool ALT_DIR_INVERT { false };
+
+const HorCoords DefaultParkPosition { 180., 89. };
 const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
 	{ 	{ INDI::Telescope::LOCATION_LATITUDE, 50.03 },
 		{ INDI::Telescope::LOCATION_LONGITUDE, 8.57 },
@@ -425,6 +428,8 @@ bool PiRT::SetTrackEnabled(bool enabled) {
 	}
 	if (enabled) {
 		targetEquatorialCoords = Hor2Equ(currentHorizontalCoords);
+	} else {
+		Abort();
 	}
 	fIsTracking = enabled;
 	return true;
@@ -437,9 +442,21 @@ bool PiRT::Park() {
 		return false;
 	}
 	
-	TrackState = SCOPE_PARKING;
 	targetHorizontalCoords = DefaultParkPosition;
+
+	char AzStr[64]={0}, AltStr[64]={0};
+
+    // Parse the Az/Alt into strings
+    fs_sexa(AzStr, targetHorizontalCoords.Az.value(), 2, 3600);
+    fs_sexa(AltStr, targetHorizontalCoords.Alt.value(), 2, 3600);
+
+    // Mark state as parking
+	TrackState = SCOPE_PARKING;
 	TargetCoordSystem = SYSTEM_HOR;
+
+    // Inform client we are slewing to a new position
+    DEBUGF(INDI::Logger::DBG_SESSION, "Slewing to Park Pos ( Az: %s - Alt: %s )", AzStr, AltStr);
+
 	
 	return true;
 }
@@ -450,6 +467,7 @@ bool PiRT::UnPark() {
         DEBUG(INDI::Logger::DBG_ERROR, "Scope already unparked.");
 		return false;
 	}
+	SetParked(false);
 	
 	TrackState = SCOPE_IDLE;
 	
@@ -514,20 +532,20 @@ bool PiRT::Connect()
 //	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
 ///	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.DirA=23, az_motor_pins.DirB=24 };
 	PiRaTe::MotorDriver::Pins az_motor_pins;
-	az_motor_pins.Pwm=12; az_motor_pins.DirA=23; az_motor_pins.DirB=24; /* az_motor_pins.Enable=25; */
+	az_motor_pins.Pwm=12; az_motor_pins.DirA=23; az_motor_pins.DirB=24; az_motor_pins.Enable=25;
 	PiRaTe::MotorDriver::Pins el_motor_pins;
-	el_motor_pins.Pwm=13; el_motor_pins.DirA=5; el_motor_pins.DirB=6; /* el_motor_pins.Enable=26; */
+	el_motor_pins.Pwm=13; el_motor_pins.DirA=5; el_motor_pins.DirB=6; el_motor_pins.Enable=26;
 	
 	//	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.DirA=23, az_motor_pins.DirB=24 };
 //	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
 ///	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6, el_motor_pins.Enable=26 };
 //	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6 };
-	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, false, nullptr ) );
+	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, AZ_DIR_INVERT, nullptr ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
-	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, false, nullptr ) );
+	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, ALT_DIR_INVERT, nullptr ) );
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
@@ -636,7 +654,13 @@ bool PiRT::Goto(double ra, double dec)
 ***************************************************************************************/
 bool PiRT::GotoHor(double az, double alt)
 {
-    if ( alt < 0. ) {
+	if (isParked())
+	{
+		DEBUG(INDI::Logger::DBG_WARNING, "Please unpark the mount before issuing any motion/sync commands.");
+		return false;
+	}
+
+	if ( alt < 0. ) {
       DEBUG(INDI::Logger::DBG_WARNING, "Error: Target below horizon");
       return false;
     }
@@ -673,6 +697,59 @@ bool PiRT::Abort()
 	targetEquatorialCoords = Hor2Equ( currentHorizontalCoords );
 	return true;
 }
+
+bool PiRT::MoveNS(INDI_DIR_NS dir, TelescopeMotionCommand command)
+{
+    if (command != MOTION_START) {
+		el_motor->stop();
+		return true;
+	}
+	constexpr float speed = 0.2;
+	switch (dir) {
+		case DIRECTION_SOUTH:
+			el_motor->move(-speed);
+			break;
+		case DIRECTION_NORTH:
+			el_motor->move(speed);
+			break;
+		default:
+			el_motor->stop();
+			break;
+	}
+	return true;
+    //IUResetSwitch(&MovementNSSP);
+    MovementNSSP.s = IPS_BUSY;
+    IDSetSwitch(&MovementNSSP, nullptr);
+    return false;
+}
+
+bool PiRT::MoveWE(INDI_DIR_WE dir, TelescopeMotionCommand command)
+{
+    if (command != MOTION_START) {
+		az_motor->stop();
+		return true;
+	}
+	constexpr float speed = 0.15;
+	switch (dir) {
+		case DIRECTION_WEST:
+			az_motor->move(-speed);
+			break;
+		case DIRECTION_EAST:
+			az_motor->move(speed);
+			break;
+		default:
+			az_motor->stop();
+			break;
+	}
+	return true;
+
+    IUResetSwitch(&MovementWESP);
+    MovementWESP.s = IPS_IDLE;
+    IDSetSwitch(&MovementWESP, nullptr);
+    return false;
+}
+
+
 
 void PiRT::Hor2Equ(const HorCoords& hor_coords, double* ra, double* dec) {
 	Hor2Equ(hor_coords.Az.value(), hor_coords.Alt.value(), ra, dec);
@@ -828,7 +905,7 @@ bool PiRT::ReadScopeStatus()
 
 		AxisAbsTurnsN[0].value = azAbsTurns;
 		AxisAbsTurnsN[1].value = altAbsTurns;
-		if ( std::abs(azAbsTurns) > 1. + MAX_AZ_OVERTURN ) {
+		if ( std::abs(azAbsTurns) > 0.5 + MAX_AZ_OVERTURN ) {
 			AxisAbsTurnsNP.s = IPS_ALERT;
 		} else {
 			AxisAbsTurnsNP.s = IPS_OK;
@@ -923,20 +1000,28 @@ bool PiRT::ReadScopeStatus()
 			dx = targetHorizontalCoords.Az.value() - currentHorizontalCoords.Az.value();
 			dy = targetHorizontalCoords.Alt.value() - currentHorizontalCoords.Alt.value();
 			
-			if ( dx > 180. ) {
-				dx -= 360.; 
-			} else if ( dx < -180. ) {
-				dx += 360.;
-			}
+			if ( dx > 180. ) { dx -= 360.; }
+			else if ( dx < -180. ) { dx += 360.; }
 			
-			if ( dy > 180. ) {
-				dy -= 360.;
-			} else if ( dy < -180. ) {
-				dy += 360.;
-			}
+			// this should never happen
+			if ( dy > 180. ) { dy -= 360.; } 
+			else if ( dy < -180. ) { dy += 360.; }
 			
+/*
+			DEBUGF(INDI::Logger::DBG_SESSION, "trg  Az=%f Alt=%f", targetHorizontalCoords.Az.value(), targetHorizontalCoords.Alt.value());
+			DEBUGF(INDI::Logger::DBG_SESSION, "curr Az=%f Alt=%f", currentHorizontalCoords.Az.value(), currentHorizontalCoords.Alt.value());
+			DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
+*/
+			// check, if the absolute position of the target is beyond te allowable limit
 			if ( !isInAbsoluteTurnRange( azAbsTurns + dx/360. ) ) {
-				dx = ( dx>0. ) ? -180. : 180.;
+//				DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
+				// if not, we still must be sure to turn into the right direction toward the allowable range
+				// e.g. if we are currently far in the forbidden range, make sure to not go further in
+				const double alt_dx = ( dx > 0. ) ? ( dx - 360. ) : ( dx + 360. );
+				if ( std::abs( azAbsTurns + dx/360. ) > std::abs( azAbsTurns + alt_dx/360. ) ) {
+					dx = alt_dx;
+				}
+//				DEBUGF(INDI::Logger::DBG_SESSION, "allowed dx=%f dy=%f", dx, dy);
 			}
 
 			if ( std::abs(dx) > POS_ACCURACY_COARSE ) {
@@ -980,7 +1065,8 @@ bool PiRT::ReadScopeStatus()
 				// Let's set state to Idle, Tracking or Parked
 				if ( TrackState == SCOPE_PARKING) {
 					fIsTracking = false;
-					TrackState = SCOPE_PARKED;
+					//TrackState = SCOPE_PARKED;
+					SetParked(true);
 				}
 				Abort();
 			}
@@ -988,7 +1074,7 @@ bool PiRT::ReadScopeStatus()
 		case SCOPE_PARKED:
 		case SCOPE_IDLE:
 		default:
-			Abort();
+			//Abort();
 			break;
 	}
     

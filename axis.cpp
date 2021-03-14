@@ -34,6 +34,7 @@ RotAxis& RotAxis::operator=(double a_value) {
 
 void RotAxis::setValue(double val) { 
 	double princ_val = reduceToPrincipal( val / fRefUnit );
+	if ( fMin < 0. && princ_val > 0.5 ) princ_val -= 1; 
 	unsigned int backfolding_iterations { 10 };
 	while ( backfolding_iterations-- && adjustToRange( princ_val) ) {
 			if (fGimbalFlipFn) fGimbalFlipFn();
@@ -44,7 +45,7 @@ void RotAxis::setValue(double val) {
 
 auto RotAxis::reduceToPrincipal(double arg) -> double {
 	while (arg > 1.) arg -= 1.;
-	while (arg < -1.) arg += 1.;
+	while (arg < 0.) arg += 1.;
 	return arg;
 }
 
