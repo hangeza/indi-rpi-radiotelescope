@@ -51,6 +51,8 @@ add_executable(
 	gpioif.cpp
 	encoder.cpp
 	motordriver.cpp
+	i2cdevice.cpp
+	ads1115.cpp
     pirt.cpp
 )
 

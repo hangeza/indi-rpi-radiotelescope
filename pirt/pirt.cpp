@@ -36,7 +36,7 @@
 #include <encoder.h>
 #include <gpioif.h>
 #include <motordriver.h>
-
+#include <ads1115.h>
 
 namespace Connection
 {
@@ -59,6 +59,8 @@ constexpr double POS_ACCURACY_FINE { 0.1 };
 constexpr double TRACK_ACCURACY { 0.017 }; // one arc minute
 constexpr double MIN_AZ_MOTOR_THROTTLE { 0.05 };
 constexpr double MIN_EL_MOTOR_THROTTLE { 0.15 };
+constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 2. }; //< absolute motor current limit for Az motor in Ampere
+constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 1.5 }; //< absolute motor current limit for Alt motor in Ampere
 
 constexpr bool AZ_DIR_INVERT { true };
 constexpr bool ALT_DIR_INVERT { false };
@@ -69,8 +71,7 @@ const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
 		{ INDI::Telescope::LOCATION_LONGITUDE, 8.57 },
 		{ INDI::Telescope::LOCATION_ELEVATION, 180. } };
 
-#define MAX_ELEVATION_EXCESS 100.0
-
+constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
 
 static std::unique_ptr<PiRT> pirt(new PiRT());
 
@@ -254,6 +255,16 @@ bool PiRT::initProperties()
     IUFillNumberVector(&MotorStatusNP, MotorStatusN, 2, getDeviceName(), "MOTOR_STATUS", "Motor Status", "Motors",
            IP_RO, 60, IPS_IDLE);
 	
+	IUFillNumber(&MotorCurrentN[0], "AZ_MOTOR_CURRENT", "Az", "%4.2f A", 0, 0, 0, 0);
+	IUFillNumber(&MotorCurrentN[1], "ALT_MOTOR_CURRENT", "Alt", "%4.2f A", 0, 0, 0, 0);
+    IUFillNumberVector(&MotorCurrentNP, MotorCurrentN, 2, getDeviceName(), "MOTOR_CURRENT", "Motor Currents", "Motors",
+           IP_RO, 60, IPS_IDLE);
+
+	IUFillNumber(&MotorCurrentLimitN[0], "AZ_MOTOR_CURRENT_LIMIT", "Az", "%4.2f A", 0, 0, 0, AZ_MOTOR_CURRENT_LIMIT_DEFAULT);
+	IUFillNumber(&MotorCurrentLimitN[1], "ALT_MOTOR_CURRENT_LIMIT", "Alt", "%4.2f A", 0, 0, 0, ALT_MOTOR_CURRENT_LIMIT_DEFAULT);
+    IUFillNumberVector(&MotorCurrentLimitNP, MotorCurrentLimitN, 2, getDeviceName(), "MOTOR_CURRENT_LIMITS", "Motor Current Limits", "Motors",
+           IP_RW, 60, IPS_IDLE);
+
 	addDebugControl();
 
 	return true;
@@ -276,7 +287,9 @@ bool PiRT::updateProperties()
 		defineProperty(&AzEncoderNP);
 		defineProperty(&ElEncoderNP);
 		defineProperty(&MotorStatusNP);
+		defineProperty(&MotorCurrentNP);
 		defineProperty(&AxisAbsTurnsNP);
+		defineProperty(&MotorCurrentLimitNP);
 		deleteProperty(EncoderBitRateNP.name);
 		//defineProperty(&TrackingSP);
     } else {
@@ -287,8 +300,10 @@ bool PiRT::updateProperties()
 		deleteProperty(AzEncoderNP.name);
 		deleteProperty(ElEncoderNP.name);
 		deleteProperty(MotorStatusNP.name);
+		deleteProperty(MotorCurrentNP.name);
 		deleteProperty(AxisAbsTurnsNP.name);
 		defineProperty(&EncoderBitRateNP);
+		deleteProperty(MotorCurrentLimitNP.name);
 	}
     
     return true;
@@ -410,7 +425,16 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 			DEBUGF(DBG_SCOPE, "Setting El axis turns ratio to %5.4f rev.", axisRatio[1]);
 			DEBUGF(DBG_SCOPE, "Setting El axis offset %5.4f rev.", axisOffset[1]);
 			return true;
+		} else if(!strcmp(name, MotorCurrentLimitNP.name)) {
+			// set motor current limit
+			MotorCurrentLimitNP.s = IPS_OK;
+			MotorCurrentLimitN[0].value = values[0];
+			MotorCurrentLimitN[1].value = values[1];
+			IDSetNumber(&MotorCurrentLimitNP, nullptr);
+			DEBUGF(DBG_SCOPE, "Setting motor current limits to %5.3f A (Az) and %5.3f A (Alt)", MotorCurrentLimitN[0].value, MotorCurrentLimitN[1].value);
+			return true;
 		}
+		
 	}	
 	//  Nobody has claimed this, so forward it to the base class method
 	return INDI::Telescope::ISNewNumber(dev,name,values,names,n);
@@ -549,6 +573,20 @@ bool PiRT::Connect()
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
+	}
+	
+	adc.reset( new ADS1115() );
+	if ( adc != nullptr && adc->devicePresent() ) {
+		adc->setPga(ADS1115::PGA4V);
+		adc->setRate(ADS1115::RATE250);
+		double v1 = adc->readVoltage(0);
+		double v2 = adc->readVoltage(1);
+		double v3 = adc->readVoltage(2);
+		double v4 = adc->readVoltage(3);
+		
+		measureMotorCurrentOffsets();
+		
+		DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 	}
 
 	INDI::Telescope::Connect();
@@ -850,6 +888,47 @@ bool PiRT::isInAbsoluteTurnRange(double absRev) {
 	return false;
 }
 
+void PiRT::updateMotorStatus() {
+	if ( (az_motor->hasFaultSense() && az_motor->isFault()) 
+		|| (el_motor->hasFaultSense() && el_motor->isFault()) ) {
+		MotorStatusNP.s=IPS_ALERT;
+	} else {
+		MotorStatusNP.s=IPS_OK;
+	}
+	MotorStatusN[0].value = 100. * az_motor->currentSpeed();
+	MotorStatusN[1].value = 100. * el_motor->currentSpeed();
+	IDSetNumber(&MotorStatusNP, nullptr);
+
+	if ( adc != nullptr && adc->devicePresent() ) {
+		double v1 = adc->readVoltage(0);
+		double v2 = adc->readVoltage(1);
+		
+		MotorCurrentN[0].value = ( v1 - fMotorCurrentOffsets[0] ) * MOTOR_CURRENT_FACTOR;
+		MotorCurrentN[1].value = ( v2 - fMotorCurrentOffsets[1] ) * MOTOR_CURRENT_FACTOR;
+		
+		if ( MotorCurrentN[0].value > MotorCurrentLimitN[0].value || MotorCurrentN[1].value > MotorCurrentLimitN[1].value ) {
+			MotorCurrentNP.s=IPS_ALERT;
+		} else MotorCurrentNP.s=IPS_OK;
+		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+	} else {
+		MotorCurrentNP.s=IPS_IDLE;
+	}
+	IDSetNumber(&MotorCurrentNP, nullptr);
+}
+
+void PiRT::measureMotorCurrentOffsets() {
+	if ( adc == nullptr || !adc->devicePresent() ) return;
+	constexpr unsigned int Niter { 10 };
+	double v1 { 0. };
+	double v2 { 0. };
+	for (unsigned int i = 0; i<Niter; i++) {
+		v1 += adc->readVoltage(0);
+		v2 += adc->readVoltage(1);
+	}
+	fMotorCurrentOffsets[0] = v1/Niter;
+	fMotorCurrentOffsets[1] = v2/Niter;
+}
+
 /**************************************************************************************
 ** Client is asking us to report telescope status
 ***************************************************************************************/
@@ -922,15 +1001,7 @@ bool PiRT::ReadScopeStatus()
 	}
 	
 	// update motor status
-	if ( (az_motor->hasFaultSense() && az_motor->isFault()) 
-		|| (el_motor->hasFaultSense() && el_motor->isFault()) ) {
-		MotorStatusNP.s=IPS_ALERT;
-	} else {
-		MotorStatusNP.s=IPS_OK;
-	}
-	MotorStatusN[0].value = 100. * az_motor->currentSpeed();
-	MotorStatusN[1].value = 100. * el_motor->currentSpeed();
-	IDSetNumber(&MotorStatusNP, nullptr);
+	updateMotorStatus();
 	
 	// time since last update
     dt  = tv.tv_sec - ltv.tv_sec + 1e-6*(tv.tv_usec - ltv.tv_usec);
@@ -1073,6 +1144,9 @@ bool PiRT::ReadScopeStatus()
 			break;
 		case SCOPE_PARKED:
 		case SCOPE_IDLE:
+			if ( std::abs(az_motor->currentSpeed()) < 0.001 && std::abs(el_motor->currentSpeed()) < 0.001 ) {
+				measureMotorCurrentOffsets();
+			}
 		default:
 			//Abort();
 			break;
