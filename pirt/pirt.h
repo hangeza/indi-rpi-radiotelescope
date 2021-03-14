@@ -23,7 +23,7 @@
 
 #include "inditelescope.h"
 #include "axis.h"
-//#include "motordriver.h"
+#include <rpi_temperatures.h>
 
 struct HorCoords {
 	HorCoords() { Alt.registerGimbalFlipCallback( [this]() { this->Az.gimbalFlip(); } ); }
@@ -52,6 +52,7 @@ class GPIO;
 namespace PiRaTe {
 	class SsiPosEncoder;
 	class MotorDriver;
+	//class RpiTemperatureMonitor;
 }
 class ADS1115;
 
@@ -110,6 +111,7 @@ class PiRT : public INDI::Telescope
 	void updateMotorStatus();
 	void measureMotorCurrentOffsets();
 	void updateMonitoring();
+	void updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item );
 
     ILight ScopeStatusL[5];
     ILightVectorProperty ScopeStatusLP;
@@ -143,6 +145,9 @@ class PiRT : public INDI::Telescope
 	INumber VoltageMonitorN[2];
 	INumberVectorProperty VoltageMonitorNP;
 	
+	INumber TempMonitorN[64];
+	INumberVectorProperty TempMonitorNP;
+	
 	INumber AxisAbsTurnsN[2];
 	INumberVectorProperty AxisAbsTurnsNP;
 	
@@ -162,6 +167,7 @@ class PiRT : public INDI::Telescope
 	std::unique_ptr<PiRaTe::MotorDriver> az_motor { nullptr };
 	std::unique_ptr<PiRaTe::MotorDriver> el_motor { nullptr };
 	std::shared_ptr<ADS1115> adc { nullptr };
+	std::shared_ptr<PiRaTe::RpiTemperatureMonitor> tempMonitor { nullptr };
 	HorCoords currentHorizontalCoords { 0. , 90. };
 	HorCoords targetHorizontalCoords { 0. , 90. };
 	EquCoords targetEquatorialCoords { 0. , 0. };

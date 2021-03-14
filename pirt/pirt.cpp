@@ -37,6 +37,7 @@
 #include <gpioif.h>
 #include <motordriver.h>
 #include <ads1115.h>
+//#include <rpi_temperatures.h>
 
 namespace Connection
 {
@@ -272,6 +273,11 @@ bool PiRT::initProperties()
     IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, 2, getDeviceName(), "VOLTAGE_MONITOR", "System Voltages", "Monitoring",
            IP_RO, 60, IPS_IDLE);
 
+    
+	IUFillNumber(&TempMonitorN[0], "TEMP_SYSTEM", "CPU", "%4.2f °C", 0, 0, 0, 0);
+	IUFillNumberVector(&TempMonitorNP, TempMonitorN, 1, getDeviceName(), "TEMPERATURE_MONITOR", "Temperatures", "Monitoring",
+           IP_RO, 60, IPS_IDLE);
+
 	addDebugControl();
 
 	return true;
@@ -298,6 +304,7 @@ bool PiRT::updateProperties()
 		defineProperty(&AxisAbsTurnsNP);
 		defineProperty(&MotorCurrentLimitNP);
 		defineProperty(&VoltageMonitorNP);
+		defineProperty(&TempMonitorNP);
 		deleteProperty(EncoderBitRateNP.name);
 		//defineProperty(&TrackingSP);
     } else {
@@ -313,6 +320,7 @@ bool PiRT::updateProperties()
 		defineProperty(&EncoderBitRateNP);
 		deleteProperty(MotorCurrentLimitNP.name);
 		deleteProperty(VoltageMonitorNP.name);
+		deleteProperty(TempMonitorNP.name);
 	}
     
     return true;
@@ -601,6 +609,20 @@ bool PiRT::Connect()
 		deleteProperty(MotorCurrentLimitNP.name);
 		deleteProperty(VoltageMonitorNP.name);
 	}
+	
+	tempMonitor.reset( new PiRaTe::RpiTemperatureMonitor() );
+	if (tempMonitor != nullptr) {
+		tempMonitor->registerTempReadyCallback( [this](PiRaTe::RpiTemperatureMonitor::TemperatureItem item) { this->updateTemperatures(item); } );
+	}
+/*	
+	if (tempMonitor != nullptr) {
+		DEBUGF( INDI::Logger::DBG_SESSION, "found %d temperature sensor sources.", tempMonitor->nrSources() );
+		for ( unsigned int i=0; i < tempMonitor->nrSources(); i++ ){
+			auto item = tempMonitor->getTemperatureItem(i);
+			DEBUGF( INDI::Logger::DBG_SESSION, " source %s: %f", item.id.c_str(), item.temperature );
+		}
+	}
+*/
 
 	INDI::Telescope::Connect();
 	return true;
@@ -941,6 +963,19 @@ void PiRT::updateMonitoring() {
 		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 		IDSetNumber(&VoltageMonitorNP, nullptr);
 	}
+/*
+	if (tempMonitor != nullptr) {
+		DEBUGF( INDI::Logger::DBG_SESSION, "found %d temperature sensor sources.", tempMonitor->nrSources() );
+		for ( unsigned int i=0; i < tempMonitor->nrSources(); i++ ){
+			auto item = tempMonitor->getTemperatureItem(i);
+			DEBUGF( INDI::Logger::DBG_SESSION, " source %s: %f", item.id.c_str(), item.temperature );
+		}
+	}
+*/
+}
+
+void PiRT::updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item ) {
+	DEBUGF( INDI::Logger::DBG_SESSION, " temp measurement from source %s: %f", item.id.c_str(), item.temperature );
 }
 
 void PiRT::measureMotorCurrentOffsets() {

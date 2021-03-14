@@ -53,6 +53,7 @@ add_executable(
 	motordriver.cpp
 	i2cdevice.cpp
 	ads1115.cpp
+	rpi_temperatures.cpp
     pirt.cpp
 )
 
