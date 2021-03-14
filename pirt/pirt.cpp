@@ -72,6 +72,8 @@ const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
 		{ INDI::Telescope::LOCATION_ELEVATION, 180. } };
 
 constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
+constexpr double VOLTAGE_MONITORING_RATIO[2] = { 11., 11. };
+
 
 static std::unique_ptr<PiRT> pirt(new PiRT());
 
@@ -265,6 +267,11 @@ bool PiRT::initProperties()
     IUFillNumberVector(&MotorCurrentLimitNP, MotorCurrentLimitN, 2, getDeviceName(), "MOTOR_CURRENT_LIMITS", "Motor Current Limits", "Motors",
            IP_RW, 60, IPS_IDLE);
 
+	IUFillNumber(&VoltageMonitorN[0], "VOLTAGE_5V", "+5V", "%4.2f V", 0, 0, 0, 0);
+	IUFillNumber(&VoltageMonitorN[1], "VOLTAGE_24V", "+24V", "%4.2f V", 0, 0, 0, 0);
+    IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, 2, getDeviceName(), "VOLTAGE_MONITOR", "System Voltages", "Monitoring",
+           IP_RO, 60, IPS_IDLE);
+
 	addDebugControl();
 
 	return true;
@@ -290,6 +297,7 @@ bool PiRT::updateProperties()
 		defineProperty(&MotorCurrentNP);
 		defineProperty(&AxisAbsTurnsNP);
 		defineProperty(&MotorCurrentLimitNP);
+		defineProperty(&VoltageMonitorNP);
 		deleteProperty(EncoderBitRateNP.name);
 		//defineProperty(&TrackingSP);
     } else {
@@ -304,6 +312,7 @@ bool PiRT::updateProperties()
 		deleteProperty(AxisAbsTurnsNP.name);
 		defineProperty(&EncoderBitRateNP);
 		deleteProperty(MotorCurrentLimitNP.name);
+		deleteProperty(VoltageMonitorNP.name);
 	}
     
     return true;
@@ -587,6 +596,10 @@ bool PiRT::Connect()
 		measureMotorCurrentOffsets();
 		
 		DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+	} else {
+		deleteProperty(MotorCurrentNP.name);
+		deleteProperty(MotorCurrentLimitNP.name);
+		deleteProperty(VoltageMonitorNP.name);
 	}
 
 	INDI::Telescope::Connect();
@@ -910,10 +923,24 @@ void PiRT::updateMotorStatus() {
 			MotorCurrentNP.s=IPS_ALERT;
 		} else MotorCurrentNP.s=IPS_OK;
 		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+		IDSetNumber(&MotorCurrentNP, nullptr);
 	} else {
-		MotorCurrentNP.s=IPS_IDLE;
+		//MotorCurrentNP.s=IPS_IDLE;
 	}
-	IDSetNumber(&MotorCurrentNP, nullptr);
+}
+
+void PiRT::updateMonitoring() {
+	if ( adc != nullptr && adc->devicePresent() ) {
+		double v3 = adc->readVoltage(2);
+		double v4 = adc->readVoltage(3);
+		
+		VoltageMonitorN[0].value = v3 * VOLTAGE_MONITORING_RATIO[0];
+		VoltageMonitorN[1].value = v4 * VOLTAGE_MONITORING_RATIO[1];
+		
+		VoltageMonitorNP.s=IPS_OK;
+		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+		IDSetNumber(&VoltageMonitorNP, nullptr);
+	}
 }
 
 void PiRT::measureMotorCurrentOffsets() {
@@ -1003,6 +1030,9 @@ bool PiRT::ReadScopeStatus()
 	// update motor status
 	updateMotorStatus();
 	
+	// update monitoring variables
+	updateMonitoring();
+
 	// time since last update
     dt  = tv.tv_sec - ltv.tv_sec + 1e-6*(tv.tv_usec - ltv.tv_usec);
     ltv = tv;
