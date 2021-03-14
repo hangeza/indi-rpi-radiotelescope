@@ -46,7 +46,7 @@ class TCP;
 }
 
 constexpr unsigned int SSI_BAUD_RATE { 500000 };
-constexpr unsigned int POLL_INTERVAL_MS { 250 };
+constexpr unsigned int POLL_INTERVAL_MS { 200 };
 constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152 /*152./9.*/ };
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 20. };
 constexpr double MAX_AZ_OVERTURN { 0.5 }; //< maximum overturn in Az in revolutions at both ends
