@@ -49,7 +49,7 @@ public:
 
     MotorDriver()=delete;
 
-    MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertedPwm=false, std::shared_ptr<ADS1115> adc = nullptr);
+    MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirection=false, std::shared_ptr<ADS1115> adc = nullptr);
 	
     ~MotorDriver();
 

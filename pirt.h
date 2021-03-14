@@ -95,6 +95,8 @@ class PiRT : public INDI::Telescope
 	bool SetTrackEnabled(bool enabled) override;
 	bool Park() override;
 	bool UnPark() override;
+	bool MoveNS(INDI_DIR_NS dir, TelescopeMotionCommand command) override;
+	bool MoveWE(INDI_DIR_WE dir, TelescopeMotionCommand command) override;
 	
   private:
     void Hor2Equ(double az, double alt, double* ra, double* dec);

@@ -31,8 +31,8 @@ template <typename T> constexpr int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
-MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertedPwm, std::shared_ptr<ADS1115> adc)
-	: fGpio { gpio }, fPins { pins }, fAdc { adc }, fCurrentDir { false }, fInverted { invertedPwm }
+MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirection, std::shared_ptr<ADS1115> adc)
+	: fGpio { gpio }, fPins { pins }, fAdc { adc }, fCurrentDir { false }, fInverted { invertDirection }
 {
 	if (fGpio == nullptr) {
 		std::cerr<<"Error: no valid GPIO instance.\n";
@@ -57,14 +57,15 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertedPwm
 	if ( hasDualDir() ) {
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirA), true);
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirB), true);
-		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirA), fCurrentDir);
-		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirB), !fCurrentDir);
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirA), (fInverted) ? !fCurrentDir : fCurrentDir);
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirB), (fInverted) ? fCurrentDir : !fCurrentDir);
 	}
 	
 	//fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Pwm), true);
 	
 	if ( fPins.Enable >= 0 ) {
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Enable), true);
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), true);
 	}
 	if ( fPins.Fault >= 0 ) {
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Fault), false);
@@ -138,13 +139,13 @@ auto MotorDriver::isFault() -> bool {
 }
 
 void MotorDriver::setSpeed(float speed_ratio) {
-	bool dir = (speed_ratio < 0);
+	const bool dir { (speed_ratio < 0.) };
 	// set pins
 	if ( dir != fCurrentDir ) {
-		if ( fPins.Dir>=0 ) fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), dir);
+		if ( fPins.Dir>=0 ) fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), (fInverted) ? dir : !dir);
 		if ( hasDualDir() ) {
-			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirA), dir);
-			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirB), !dir);
+			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirA), (fInverted) ? !dir : dir);
+			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirB), (fInverted) ? dir : !dir);
 		}
 		fCurrentDir = dir;
 	}
@@ -153,13 +154,10 @@ void MotorDriver::setSpeed(float speed_ratio) {
 	if ( (static_cast<unsigned int>(fPins.Pwm) == HW_PWM1_PIN) || (static_cast<unsigned int>(fPins.Pwm) == HW_PWM2_PIN) ) {
 		// use hardware pwm
 		duty_cycle = 1000000U * abs_speed_ratio;
-		if ( fInverted ) duty_cycle = 1000000U - duty_cycle;
-		//if (duty_cycle == 0) duty_cycle++;
 		int res = fGpio->hw_pwm_set_value(static_cast<unsigned int>(fPins.Pwm), fPwmFreq, duty_cycle);
 		return;
 	}
 	duty_cycle = abs_speed_ratio * fPwmRange;
-	if ( fInverted ) duty_cycle = fPwmRange - duty_cycle;
 	int res = fGpio->pwm_set_value(static_cast<unsigned int>(fPins.Pwm), duty_cycle);
 }
 
