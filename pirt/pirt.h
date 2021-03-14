@@ -53,6 +53,7 @@ namespace PiRaTe {
 	class SsiPosEncoder;
 	class MotorDriver;
 }
+class ADS1115;
 
 
 class PiRT : public INDI::Telescope
@@ -106,6 +107,9 @@ class PiRT : public INDI::Telescope
 	EquCoords Hor2Equ(const HorCoords& hor_coords);
 	bool isInAbsoluteTurnRange(double absRev);
 	
+	void updateMotorStatus();
+	void measureMotorCurrentOffsets();
+	
     ILight ScopeStatusL[5];
     ILightVectorProperty ScopeStatusLP;
     INumber HorN[2];
@@ -129,6 +133,12 @@ class PiRT : public INDI::Telescope
 	INumber MotorStatusN[2];
 	INumberVectorProperty MotorStatusNP;
 
+	INumber MotorCurrentN[2];
+	INumberVectorProperty MotorCurrentNP;
+
+	INumber MotorCurrentLimitN[2];
+	INumberVectorProperty MotorCurrentLimitNP;
+
 	INumber AxisAbsTurnsN[2];
 	INumberVectorProperty AxisAbsTurnsNP;
 	
@@ -147,9 +157,10 @@ class PiRT : public INDI::Telescope
 	std::unique_ptr<PiRaTe::SsiPosEncoder> el_encoder { nullptr };
 	std::unique_ptr<PiRaTe::MotorDriver> az_motor { nullptr };
 	std::unique_ptr<PiRaTe::MotorDriver> el_motor { nullptr };
-	//PiRaTe::RotAxis az_axis { 0., 360., 360. };
-	//PiRaTe::RotAxis el_axis { -90., 90., 360. };
+	std::shared_ptr<ADS1115> adc { nullptr };
 	HorCoords currentHorizontalCoords { 0. , 90. };
 	HorCoords targetHorizontalCoords { 0. , 90. };
 	EquCoords targetEquatorialCoords { 0. , 0. };
+	
+	double fMotorCurrentOffsets[2] = { 0. , 0. };
 };
