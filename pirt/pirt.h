@@ -108,6 +108,7 @@ class PiRT : public INDI::Telescope
 	EquCoords Hor2Equ(const HorCoords& hor_coords);
 	bool isInAbsoluteTurnRange(double absRev);
 	
+	void updatePosition();
 	void updateMotorStatus();
 	void measureMotorCurrentOffsets();
 	void updateMonitoring();

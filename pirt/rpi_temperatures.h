@@ -24,6 +24,7 @@ public:
 		std::string name { "N/A" };
 		std::string id { "0" };
 		unsigned int hwMonIndex { };
+		unsigned int sourceIndex { };
 		std::string value_device_path { "" };
 		double temperature { };
 		bool valid { false };

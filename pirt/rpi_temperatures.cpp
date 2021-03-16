@@ -104,8 +104,11 @@ void RpiTemperatureMonitor::threadLoop()
 	while (fActiveLoop) {
 		auto currentTime = std::chrono::system_clock::now();
 		
-		for ( auto &item: fItemList ) {
+		
+//		for ( auto &item: fItemList ) {
+		for ( unsigned int sourceIndex = 0; sourceIndex < fItemList.size(); sourceIndex++ ) {
 			const std::lock_guard<std::mutex> lock(fMutex);
+			auto item = fItemList.at(sourceIndex);
 			std::ifstream tempfile( item.value_device_path );
 			if ( !tempfile.is_open() ) {
 				item.valid = false;
@@ -115,6 +118,7 @@ void RpiTemperatureMonitor::threadLoop()
 			tempfile >> temperature;
 			item.temperature = temperature / 1000.;
 			item.valid = true;
+			item.sourceIndex = sourceIndex;
 			if (fTempReadyFn) fTempReadyFn(item);
 			//fUpdated = true;
 		}
