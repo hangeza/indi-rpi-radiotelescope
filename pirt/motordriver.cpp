@@ -16,6 +16,7 @@ namespace PiRaTe {
 	
 constexpr std::chrono::milliseconds loop_delay { 10 };
 constexpr std::chrono::milliseconds ramp_time { 1000 };
+constexpr std::size_t adc_measurement_rate_loop_cycles { 100 };
 constexpr double ramp_increment { static_cast<double>(loop_delay.count())/ramp_time.count() };
 constexpr unsigned int HW_PWM1_PIN { 12 };
 constexpr unsigned int HW_PWM2_PIN { 13 };
@@ -78,8 +79,9 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirec
 	// initialize ADC if one was supplied in the argument list
 	if ( fAdc != nullptr && fAdc->devicePresent() ) {
 		fAdc->setPga(ADS1115::PGA4V);
-		fAdc->setRate(ADS1115::RATE250);
+		fAdc->setRate(ADS1115::RATE860);
 		fAdc->setAGC(true);
+		const std::lock_guard<std::mutex> lock(fMutex);
 		measureVoltageOffset();
 	}
 	
@@ -114,6 +116,7 @@ MotorDriver::~MotorDriver()
 // this is the background thread loop
 void MotorDriver::threadLoop()
 {
+	std::size_t cycle_counter { adc_measurement_rate_loop_cycles };
 	auto lastReadOutTime = std::chrono::system_clock::now();
 	bool errorFlag = true;
 	while (fActiveLoop) {
@@ -134,28 +137,46 @@ void MotorDriver::threadLoop()
 			}
 			//fMutex.unlock();
 		}
-		if ( hasAdc() ) {
-			// read current from adc
-			double voltage = fAdc->readVoltage(fAdcChannel);
-			fCurrent = ( voltage - fVoltageOffset ) * MOTOR_CURRENT_FACTOR;
+		if ( hasAdc() && !cycle_counter-- ) {
+			double voltage { 0. };
+			if ( bool readout_guard = true ) {
+				//std::lock_guard<std::mutex> lock(fMutex);
+				// read current from adc
+				fMutex.lock();
+				voltage = fAdc->readVoltage(fAdcChannel);
+				fMutex.unlock();
+			}
+			if ( std::abs(fCurrentDutyCycle) < ramp_increment ) fOffsetBuffer.add(voltage);
+			double _current = ( voltage - fOffsetBuffer.mean() ) * MOTOR_CURRENT_FACTOR;
+			fMutex.lock();
+			fCurrent = _current;
 			fUpdated = true;
+			fMutex.unlock();
+			cycle_counter = adc_measurement_rate_loop_cycles;
 		}
 		std::this_thread::sleep_for(loop_delay);
 	}
 }
 
 void MotorDriver::measureVoltageOffset() {
+
+	for (unsigned int i=0; i<10; i++) {
+		double voltage = fAdc->readVoltage(fAdcChannel);
+		fOffsetBuffer.add(voltage);
+	}
+/*	
 	constexpr unsigned int Niter { 10 };
 	double adc_voltage { 0. };
 	for (unsigned int i = 0; i<Niter; i++) {
 		adc_voltage += fAdc->readVoltage(fAdcChannel);
 	}
 	fVoltageOffset = adc_voltage/Niter;
+*/
 }
 
 auto MotorDriver::readCurrent() -> double 
 { 
-	const std::lock_guard<std::mutex> lock(fMutex);
+	std::lock_guard<std::mutex> lock(fMutex);
 	fUpdated = false;
 	return (fCurrent);
 }

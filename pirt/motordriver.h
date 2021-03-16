@@ -17,6 +17,7 @@
 #include <mutex>
 
 #include "gpioif.h"
+#include "utility.h"
 
 class GPIO;
 class ADS1115;
@@ -25,6 +26,8 @@ namespace PiRaTe {
 
 constexpr unsigned int DEFAULT_PWM_FREQ { 20000 };
 
+//template <typename T, std::size_t N>
+//class Ringbuffer;
 
 class MotorDriver {
 public:
@@ -87,12 +90,14 @@ public:
 	bool fCurrentDir { false };
 	bool fInverted { false };
 	std::uint8_t fAdcChannel { 0 };
-	double fVoltageOffset { 0. };
+	//double fVoltageOffset { 0. };
 	double fCurrent { 0. };
 
     std::unique_ptr<std::thread> fThread { nullptr };
 
 	std::mutex fMutex;
+	
+	Ringbuffer<double, 10> fOffsetBuffer { };
 
 };
 

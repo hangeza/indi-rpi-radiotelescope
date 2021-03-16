@@ -2,6 +2,7 @@
 #define _ADS1115_H_
 
 #include "i2cdevice.h"
+#include <mutex>
 
 // ADC ADS1x13/4/5 sampling readout delay
 #define READ_WAIT_DELAY_INIT 10
@@ -56,7 +57,8 @@ protected:
 	unsigned int fReadWaitDelay;	// conversion wait time in us
 	bool fAGC {false };	// software agc which switches over to a better pga setting if voltage too low/high
 	bool fDiffMode { false };	// measure differential input signals (true) or single ended (false=default)
-
+	std::mutex fMutex { };
+	
 	inline virtual void init() {
 		fPga[0] = fPga[1] = fPga[2] = fPga[3] = PGA4V;
 		fReadWaitDelay = READ_WAIT_DELAY_INIT;

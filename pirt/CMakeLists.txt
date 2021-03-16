@@ -54,6 +54,7 @@ add_executable(
 	i2cdevice.cpp
 	ads1115.cpp
 	rpi_temperatures.cpp
+	voltage_monitor.cpp
     pirt.cpp
 )
 

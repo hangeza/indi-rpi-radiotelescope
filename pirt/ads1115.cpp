@@ -13,6 +13,8 @@ int16_t ADS1115::readADC(unsigned int channel)
 							//  uint8_t fDataRate = 0x01; // 16 SPS
 	uint8_t fDataRate = fRate & 0x07;
 
+	
+	std::lock_guard<std::mutex> lock(fMutex);
 	startTimer();
 
 	// These three bytes are written to the ADS1115 to set the config register and start a conversion 
