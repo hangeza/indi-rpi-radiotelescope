@@ -8,6 +8,8 @@
 
 #include "motordriver.h"
 
+#include <ads1115.h>
+
 #define DEFAULT_VERBOSITY 1
 
 namespace PiRaTe {
@@ -17,6 +19,7 @@ constexpr std::chrono::milliseconds ramp_time { 1000 };
 constexpr double ramp_increment { static_cast<double>(loop_delay.count())/ramp_time.count() };
 constexpr unsigned int HW_PWM1_PIN { 12 };
 constexpr unsigned int HW_PWM2_PIN { 13 };
+constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
 
 // helper functions for compilation with c++11
 // remove, when compiling with c++14 and add std:: to the lines where these functions are used
@@ -31,8 +34,8 @@ template <typename T> constexpr int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
-MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirection, std::shared_ptr<ADS1115> adc)
-	: fGpio { gpio }, fPins { pins }, fAdc { adc }, fCurrentDir { false }, fInverted { invertDirection }
+MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirection, std::shared_ptr<ADS1115> adc, std::uint8_t adc_channel)
+	: fGpio { gpio }, fPins { pins }, fAdc { adc }, fCurrentDir { false }, fInverted { invertDirection }, fAdcChannel { adc_channel }
 {
 	if (fGpio == nullptr) {
 		std::cerr<<"Error: no valid GPIO instance.\n";
@@ -71,6 +74,15 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirec
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Fault), false);
 		fGpio->set_gpio_pullup(static_cast<unsigned int>(fPins.Fault));
 	}	
+	
+	// initialize ADC if one was supplied in the argument list
+	if ( fAdc != nullptr && fAdc->devicePresent() ) {
+		fAdc->setPga(ADS1115::PGA4V);
+		fAdc->setRate(ADS1115::RATE250);
+		fAdc->setAGC(true);
+		measureVoltageOffset();
+	}
+	
 	fActiveLoop=true;
 // since C++14 using std::make_unique
 	// fThread = std::make_unique<std::thread>( [this]() { this->readLoop(); } );
@@ -124,10 +136,28 @@ void MotorDriver::threadLoop()
 		}
 		if ( hasAdc() ) {
 			// read current from adc
+			double voltage = fAdc->readVoltage(fAdcChannel);
+			fCurrent = ( voltage - fVoltageOffset ) * MOTOR_CURRENT_FACTOR;
 			fUpdated = true;
 		}
 		std::this_thread::sleep_for(loop_delay);
 	}
+}
+
+void MotorDriver::measureVoltageOffset() {
+	constexpr unsigned int Niter { 10 };
+	double adc_voltage { 0. };
+	for (unsigned int i = 0; i<Niter; i++) {
+		adc_voltage += fAdc->readVoltage(fAdcChannel);
+	}
+	fVoltageOffset = adc_voltage/Niter;
+}
+
+auto MotorDriver::readCurrent() -> double 
+{ 
+	const std::lock_guard<std::mutex> lock(fMutex);
+	fUpdated = false;
+	return (fCurrent);
 }
 
 auto MotorDriver::isFault() -> bool {
@@ -161,16 +191,7 @@ void MotorDriver::setSpeed(float speed_ratio) {
 
 void MotorDriver::move(float speed_ratio) {
 	const std::lock_guard<std::mutex> lock(fMutex);
-//	fMutex.lock();
 	fTargetDutyCycle = clamp(speed_ratio, -1.f, 1.f);
-//	fMutex.unlock();
-/*
-	if (hasEnable()) {
-		if ( std::abs(speed_ratio) < 1e-3 ) {
-			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), true);
-		} else fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), false);
-	}
-*/
 }
 
 void MotorDriver::stop() {
@@ -197,9 +218,7 @@ void MotorDriver::setPwmFrequency(unsigned int freq)
 
 auto MotorDriver::currentSpeed() -> float {
 	const std::lock_guard<std::mutex> lock(fMutex);
-	//fMutex.lock();
 	const float speed = fCurrentDutyCycle;
-	//fMutex.unlock();
 	return speed;
 }
 

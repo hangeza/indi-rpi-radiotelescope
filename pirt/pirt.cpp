@@ -51,6 +51,7 @@ constexpr unsigned int POLL_INTERVAL_MS { 200 };
 constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152 /*152./9.*/ };
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 20. };
 constexpr double MAX_AZ_OVERTURN { 0.5 }; //< maximum overturn in Az in revolutions at both ends
+constexpr double MAX_ALT_OVERTURN { 5./360. }; //< maximum overturn in Alt in revolutions at both ends
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
@@ -65,6 +66,10 @@ constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 1.5 }; //< absolute motor cur
 
 constexpr bool AZ_DIR_INVERT { true };
 constexpr bool ALT_DIR_INVERT { false };
+
+constexpr std::uint8_t MOTOR_ADC_ADDR { 0x48 };
+constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x4a };
+
 
 const HorCoords DefaultParkPosition { 180., 89. };
 const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
@@ -305,7 +310,13 @@ bool PiRT::updateProperties()
 		defineProperty(&MotorCurrentLimitNP);
 		defineProperty(&VoltageMonitorNP);
 		defineProperty(&TempMonitorNP);
+		
 		deleteProperty(EncoderBitRateNP.name);
+		IUFillNumberVector(&EncoderBitRateNP, &EncoderBitRateN, 1, getDeviceName(), "ENC_SPI_SETTINGS", "SPI Interface", "Encoders",
+           IP_RO, 60, IPS_IDLE);
+		defineProperty(&EncoderBitRateNP);
+		IDSetNumber(&EncoderBitRateNP, nullptr);
+		//deleteProperty(EncoderBitRateNP.name);
 		//defineProperty(&TrackingSP);
     } else {
 		deleteProperty(ScopeStatusLP.name);
@@ -317,10 +328,17 @@ bool PiRT::updateProperties()
 		deleteProperty(MotorStatusNP.name);
 		deleteProperty(MotorCurrentNP.name);
 		deleteProperty(AxisAbsTurnsNP.name);
-		defineProperty(&EncoderBitRateNP);
 		deleteProperty(MotorCurrentLimitNP.name);
 		deleteProperty(VoltageMonitorNP.name);
 		deleteProperty(TempMonitorNP.name);
+
+		deleteProperty(EncoderBitRateNP.name);
+		IUFillNumberVector(&EncoderBitRateNP, &EncoderBitRateN, 1, getDeviceName(), "ENC_SPI_SETTINGS", "SPI Interface", "Encoders",
+           IP_RW, 60, IPS_IDLE);
+		defineProperty(&EncoderBitRateNP);
+		IDSetNumber(&EncoderBitRateNP, nullptr);
+
+//		defineProperty(&EncoderBitRateNP);
 	}
     
     return true;
@@ -462,7 +480,6 @@ bool PiRT::SetTrackMode(uint8_t mode) {
 }
 
 bool PiRT::SetTrackEnabled(bool enabled) {
-	// TODO: do sth here to enable the tracking loop
 	if ( enabled && TrackState == SCOPE_PARKED ) {
         DEBUG(INDI::Logger::DBG_ERROR, "Scope in park position - tracking is prohibited.");
 		return false;
@@ -477,7 +494,6 @@ bool PiRT::SetTrackEnabled(bool enabled) {
 }
 
 bool PiRT::Park() {
-	// TODO: do sth here to start the parking operation
 	if ( TrackState == SCOPE_PARKED ) {
         DEBUG(INDI::Logger::DBG_ERROR, "Scope already parked.");
 		return false;
@@ -497,13 +513,11 @@ bool PiRT::Park() {
 
     // Inform client we are slewing to a new position
     DEBUGF(INDI::Logger::DBG_SESSION, "Slewing to Park Pos ( Az: %s - Alt: %s )", AzStr, AltStr);
-
 	
 	return true;
 }
 
 bool PiRT::UnPark() {
-	// TODO: do sth here to start the parking operation
 	if ( TrackState != SCOPE_PARKED ) {
         DEBUG(INDI::Logger::DBG_ERROR, "Scope already unparked.");
 		return false;
@@ -592,10 +606,11 @@ bool PiRT::Connect()
 		return false;
 	}
 	
-	adc.reset( new ADS1115() );
+	adc.reset( new ADS1115(MOTOR_ADC_ADDR) );
 	if ( adc != nullptr && adc->devicePresent() ) {
 		adc->setPga(ADS1115::PGA4V);
 		adc->setRate(ADS1115::RATE250);
+		adc->setAGC(true);
 		double v1 = adc->readVoltage(0);
 		double v2 = adc->readVoltage(1);
 		double v3 = adc->readVoltage(2);
@@ -603,13 +618,15 @@ bool PiRT::Connect()
 		
 		measureMotorCurrentOffsets();
 		
-		DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+		DEBUGF(INDI::Logger::DBG_SESSION, "ADC values ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 	} else {
 		deleteProperty(MotorCurrentNP.name);
 		deleteProperty(MotorCurrentLimitNP.name);
 		deleteProperty(VoltageMonitorNP.name);
 	}
 	
+	TempMonitorNP.nnp = 0;
+	IDSetNumber(&TempMonitorNP, nullptr);
 	tempMonitor.reset( new PiRaTe::RpiTemperatureMonitor() );
 	if (tempMonitor != nullptr) {
 		tempMonitor->registerTempReadyCallback( [this](PiRaTe::RpiTemperatureMonitor::TemperatureItem item) { this->updateTemperatures(item); } );
@@ -938,8 +955,8 @@ void PiRT::updateMotorStatus() {
 		double v1 = adc->readVoltage(0);
 		double v2 = adc->readVoltage(1);
 		
-		MotorCurrentN[0].value = ( v1 - fMotorCurrentOffsets[0] ) * MOTOR_CURRENT_FACTOR;
-		MotorCurrentN[1].value = ( v2 - fMotorCurrentOffsets[1] ) * MOTOR_CURRENT_FACTOR;
+		MotorCurrentN[0].value = ( v1 - fMotorCurrentOffsets[0] ) * MOTOR_CURRENT_FACTOR + 0.005;
+		MotorCurrentN[1].value = ( v2 - fMotorCurrentOffsets[1] ) * MOTOR_CURRENT_FACTOR + 0.005;
 		
 		if ( MotorCurrentN[0].value > MotorCurrentLimitN[0].value || MotorCurrentN[1].value > MotorCurrentLimitN[1].value ) {
 			MotorCurrentNP.s=IPS_ALERT;
@@ -963,19 +980,25 @@ void PiRT::updateMonitoring() {
 		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 		IDSetNumber(&VoltageMonitorNP, nullptr);
 	}
-/*
-	if (tempMonitor != nullptr) {
-		DEBUGF( INDI::Logger::DBG_SESSION, "found %d temperature sensor sources.", tempMonitor->nrSources() );
-		for ( unsigned int i=0; i < tempMonitor->nrSources(); i++ ){
-			auto item = tempMonitor->getTemperatureItem(i);
-			DEBUGF( INDI::Logger::DBG_SESSION, " source %s: %f", item.id.c_str(), item.temperature );
-		}
-	}
-*/
 }
 
 void PiRT::updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item ) {
-	DEBUGF( INDI::Logger::DBG_SESSION, " temp measurement from source %s: %f", item.id.c_str(), item.temperature );
+	if (!isConnected()) return;
+//	DEBUGF( INDI::Logger::DBG_SESSION, " temp measurement from source %s: %f", item.id.c_str(), item.temperature );
+	int source = item.sourceIndex;
+	if ( source < TempMonitorNP.nnp ) {
+		TempMonitorN[source].value = item.temperature;
+		IDSetNumber(&TempMonitorNP, nullptr);
+		return;
+	} 
+	deleteProperty(TempMonitorNP.name);
+	
+	IUFillNumber(&TempMonitorN[source], ("TEMPERATURE"+std::to_string(source)).c_str(), (item.name+":"+item.id).c_str(), "%4.2f \xB0 C", 0, 0, 0, item.temperature);
+	IUFillNumberVector(&TempMonitorNP, TempMonitorN, source+1, getDeviceName(), "TEMPERATURE_MONITOR", "Temperatures", "Monitoring",
+           IP_RO, 60, IPS_IDLE);
+	
+	defineProperty(&TempMonitorNP);
+	IDSetNumber(&TempMonitorNP, nullptr);
 }
 
 void PiRT::measureMotorCurrentOffsets() {
@@ -990,6 +1013,57 @@ void PiRT::measureMotorCurrentOffsets() {
 	fMotorCurrentOffsets[0] = v1/Niter;
 	fMotorCurrentOffsets[1] = v2/Niter;
 }
+
+void PiRT::updatePosition() {
+	double azAbsTurns { 0. };
+	double altAbsTurns { 0. };
+    
+	if ( az_encoder == nullptr || el_encoder == nullptr ) {
+		if ( az_encoder == nullptr ) AzEncoderNP.s = IPS_ALERT;
+		if ( el_encoder == nullptr ) ElEncoderNP.s = IPS_ALERT;
+		return;
+	} 
+	// read pos encoders
+    if ( az_encoder->isUpdated() || el_encoder->isUpdated() ) {
+		AzEncoderN[0].value = az_encoder->absolutePosition();
+		AzEncoderN[1].value = static_cast<double>(az_encoder->position());
+		AzEncoderN[2].value = static_cast<double>(az_encoder->nrTurns());
+		AzEncoderN[3].value = az_encoder->bitErrorCount();
+		AzEncoderN[4].value = az_encoder->lastReadOutDuration().count();
+		//DEBUGF(INDI::Logger::DBG_SESSION, "Az Encoder values: st=%d mt=%u t_ro=%u us", st, mt, us);
+		AzEncoderNP.s = (az_encoder->statusOk())? IPS_OK : IPS_ALERT;
+		IDSetNumber(&AzEncoderNP, nullptr);
+		ElEncoderN[0].value = el_encoder->absolutePosition();
+		ElEncoderN[1].value = static_cast<double>(el_encoder->position());
+		ElEncoderN[2].value = static_cast<double>(el_encoder->nrTurns());
+		ElEncoderN[3].value = el_encoder->bitErrorCount();
+		ElEncoderN[4].value = el_encoder->lastReadOutDuration().count();
+		ElEncoderNP.s = (el_encoder->statusOk())? IPS_OK : IPS_ALERT;
+		IDSetNumber(&ElEncoderNP, nullptr);
+
+		const double az_revolutions { az_encoder->absolutePosition() };
+		const double el_revolutions { el_encoder->absolutePosition() };
+
+		azAbsTurns = ( az_revolutions / axisRatio[0] ) + axisOffset[0] / 360.;
+		altAbsTurns = ( el_revolutions / axisRatio[1] ) + axisOffset[1] / 360.;
+
+		AxisAbsTurnsN[0].value = azAbsTurns;
+		AxisAbsTurnsN[1].value = altAbsTurns;
+		if ( std::abs(azAbsTurns) > 0.5 + MAX_AZ_OVERTURN || 
+			 std::abs(altAbsTurns) > 0.25 + MAX_ALT_OVERTURN ) 
+		{
+			AxisAbsTurnsNP.s = IPS_ALERT;
+		} else {
+			AxisAbsTurnsNP.s = IPS_OK;
+		}
+		IDSetNumber(&AxisAbsTurnsNP, nullptr);
+	
+		currentHorizontalCoords.Az.setValue( 360. * azAbsTurns );
+		currentHorizontalCoords.Alt.setValue( 360. * altAbsTurns );
+		//DEBUG(INDI::Logger::DBG_SESSION, "encoders updated");
+	}
+}
+
 
 /**************************************************************************************
 ** Client is asking us to report telescope status
@@ -1014,54 +1088,15 @@ bool PiRT::ReadScopeStatus()
       IDSetNumber(&LocationNP, NULL);
     }
 
-	//DEBUG(INDI::Logger::DBG_SESSION, "before encoder readout");
+    //DEBUG(INDI::Logger::DBG_SESSION, "before encoder readout");
 	double azAbsTurns { 0. };
 	double altAbsTurns { 0. };
-    // read pos encoders
-    if ( az_encoder->isUpdated() || el_encoder->isUpdated() ) {
-		unsigned int st = az_encoder->position();
-		int mt = az_encoder->nrTurns();
 
-		AzEncoderN[0].value = az_encoder->absolutePosition();
-		AzEncoderN[1].value = static_cast<double>(st);
-		AzEncoderN[2].value = static_cast<double>(mt);
-		AzEncoderN[3].value = az_encoder->bitErrorCount();
-		AzEncoderN[4].value = az_encoder->lastReadOutDuration().count();
-		//DEBUGF(INDI::Logger::DBG_SESSION, "Az Encoder values: st=%d mt=%u t_ro=%u us", st, mt, us);
-		AzEncoderNP.s = (az_encoder->statusOk())? IPS_OK : IPS_ALERT;
-		IDSetNumber(&AzEncoderNP, nullptr);
-		ElEncoderN[0].value = el_encoder->absolutePosition();
-		ElEncoderN[1].value = static_cast<double>(el_encoder->position());
-		ElEncoderN[2].value = static_cast<double>(el_encoder->nrTurns());
-		ElEncoderN[3].value = el_encoder->bitErrorCount();
-		ElEncoderN[4].value = el_encoder->lastReadOutDuration().count();
-		ElEncoderNP.s = (el_encoder->statusOk())? IPS_OK : IPS_ALERT;
-		IDSetNumber(&ElEncoderNP, nullptr);
+	// read pos encoders and update the horizontal coordinates, absolute turn values and properties
+	updatePosition();
+	azAbsTurns = AxisAbsTurnsN[0].value;
+	altAbsTurns = AxisAbsTurnsN[1].value;
 
-		const double az_revolutions { az_encoder->absolutePosition() };
-		const double el_revolutions { el_encoder->absolutePosition() };
-
-		azAbsTurns = ( az_revolutions / axisRatio[0] ) + axisOffset[0] / 360.;
-		altAbsTurns = ( el_revolutions / axisRatio[1] ) + axisOffset[1] / 360.;
-
-		AxisAbsTurnsN[0].value = azAbsTurns;
-		AxisAbsTurnsN[1].value = altAbsTurns;
-		if ( std::abs(azAbsTurns) > 0.5 + MAX_AZ_OVERTURN ) {
-			AxisAbsTurnsNP.s = IPS_ALERT;
-		} else {
-			AxisAbsTurnsNP.s = IPS_OK;
-		}
-		IDSetNumber(&AxisAbsTurnsNP, nullptr);
-	
-		currentHorizontalCoords.Az.setValue( 360. * azAbsTurns );
-		currentHorizontalCoords.Alt.setValue( 360. * altAbsTurns );
-		//DEBUG(INDI::Logger::DBG_SESSION, "encoders updated");
-	} else {
-		//DEBUG(INDI::Logger::DBG_SESSION, "no encoder update");
-		azAbsTurns = AxisAbsTurnsN[0].value;
-		altAbsTurns = AxisAbsTurnsN[1].value;
-	}
-	
 	// update motor status
 	updateMotorStatus();
 	
