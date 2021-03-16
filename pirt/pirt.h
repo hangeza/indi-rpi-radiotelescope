@@ -22,8 +22,9 @@
 #pragma once
 
 #include "inditelescope.h"
-#include "axis.h"
+#include <axis.h>
 #include <rpi_temperatures.h>
+#include <voltage_monitor.h>
 
 struct HorCoords {
 	HorCoords() { Alt.registerGimbalFlipCallback( [this]() { this->Az.gimbalFlip(); } ); }
@@ -143,7 +144,7 @@ class PiRT : public INDI::Telescope
 	INumber MotorCurrentLimitN[2];
 	INumberVectorProperty MotorCurrentLimitNP;
 
-	INumber VoltageMonitorN[2];
+	INumber VoltageMonitorN[64];
 	INumberVectorProperty VoltageMonitorNP;
 	
 	INumber TempMonitorN[64];
@@ -174,4 +175,5 @@ class PiRT : public INDI::Telescope
 	EquCoords targetEquatorialCoords { 0. , 0. };
 	
 	double fMotorCurrentOffsets[2] = { 0. , 0. };
+	std::vector<std::shared_ptr<PiRaTe::VoltageMonitor>> voltageMonitors { };
 };

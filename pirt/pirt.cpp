@@ -70,6 +70,29 @@ constexpr bool ALT_DIR_INVERT { false };
 constexpr std::uint8_t MOTOR_ADC_ADDR { 0x48 };
 constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x4a };
 
+struct i2cVoltage {
+	i2cVoltage( std::string a_name, double a_nominal, double a_min, double a_max, double a_divider_ratio, double a_value, std::uint8_t a_adc_address, std::uint8_t a_adc_channel)
+		: 	name { std::move(a_name) },
+			nominal { a_nominal },
+			min { a_min },
+			max { a_max },
+			divider_ratio { a_divider_ratio },
+			value { a_value },
+			adc_address { a_adc_address },
+			adc_channel { a_adc_channel }
+	{}
+	std::string name {};
+	double nominal { 0. };
+	double min { };
+	double max { };
+	double divider_ratio { 1. };
+	double value { 0. };
+	std::uint8_t adc_address { 0x00 };
+	std::uint8_t adc_channel { };
+};
+
+const std::vector<i2cVoltage> voltage_defs { { "+5V", 5., 4.5, 5.5, 11., 0., MOTOR_ADC_ADDR, 2 },
+											 { "+24V", 24., 22., 26., 11., 0., MOTOR_ADC_ADDR, 3 } };
 
 const HorCoords DefaultParkPosition { 180., 89. };
 const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
@@ -273,14 +296,13 @@ bool PiRT::initProperties()
     IUFillNumberVector(&MotorCurrentLimitNP, MotorCurrentLimitN, 2, getDeviceName(), "MOTOR_CURRENT_LIMITS", "Motor Current Limits", "Motors",
            IP_RW, 60, IPS_IDLE);
 
-	IUFillNumber(&VoltageMonitorN[0], "VOLTAGE_5V", "+5V", "%4.2f V", 0, 0, 0, 0);
-	IUFillNumber(&VoltageMonitorN[1], "VOLTAGE_24V", "+24V", "%4.2f V", 0, 0, 0, 0);
-    IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, 2, getDeviceName(), "VOLTAGE_MONITOR", "System Voltages", "Monitoring",
+	IUFillNumber(&VoltageMonitorN[0], "VOLTAGE", "+0V", "%4.2f V", 0, 0, 0, 0);
+    IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, 0, getDeviceName(), "VOLTAGE_MONITOR", "Voltages", "Monitoring",
            IP_RO, 60, IPS_IDLE);
 
     
 	IUFillNumber(&TempMonitorN[0], "TEMP_SYSTEM", "CPU", "%4.2f °C", 0, 0, 0, 0);
-	IUFillNumberVector(&TempMonitorNP, TempMonitorN, 1, getDeviceName(), "TEMPERATURE_MONITOR", "Temperatures", "Monitoring",
+	IUFillNumberVector(&TempMonitorNP, TempMonitorN, 0, getDeviceName(), "TEMPERATURE_MONITOR", "Temperatures", "Monitoring",
            IP_RO, 60, IPS_IDLE);
 
 	addDebugControl();
@@ -583,6 +605,26 @@ bool PiRT::Connect()
 	el_encoder->setStBitWidth(ElEncSettingN[0].value);
 	el_encoder->setMtBitWidth(ElEncSettingN[1].value);
 
+	
+	adc.reset( new ADS1115(MOTOR_ADC_ADDR) );
+	if ( adc != nullptr && adc->devicePresent() ) {
+		adc->setPga(ADS1115::PGA4V);
+		adc->setRate(ADS1115::RATE250);
+		adc->setAGC(true);
+		double v1 = adc->readVoltage(0);
+		double v2 = adc->readVoltage(1);
+		double v3 = adc->readVoltage(2);
+		double v4 = adc->readVoltage(3);
+		
+		//measureMotorCurrentOffsets();
+		
+		DEBUGF(INDI::Logger::DBG_SESSION, "ADC values ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+	} else {
+		deleteProperty(MotorCurrentNP.name);
+		deleteProperty(MotorCurrentLimitNP.name);
+		//deleteProperty(VoltageMonitorNP.name);
+	}
+
 //	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
 //	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
 ///	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.DirA=23, az_motor_pins.DirB=24 };
@@ -595,34 +637,15 @@ bool PiRT::Connect()
 //	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
 ///	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6, el_motor_pins.Enable=26 };
 //	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6 };
-	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, AZ_DIR_INVERT, nullptr ) );
+	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, AZ_DIR_INVERT, adc, 0 ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
-	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, ALT_DIR_INVERT, nullptr ) );
+	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, ALT_DIR_INVERT, adc, 1 ) );
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
-	}
-	
-	adc.reset( new ADS1115(MOTOR_ADC_ADDR) );
-	if ( adc != nullptr && adc->devicePresent() ) {
-		adc->setPga(ADS1115::PGA4V);
-		adc->setRate(ADS1115::RATE250);
-		adc->setAGC(true);
-		double v1 = adc->readVoltage(0);
-		double v2 = adc->readVoltage(1);
-		double v3 = adc->readVoltage(2);
-		double v4 = adc->readVoltage(3);
-		
-		measureMotorCurrentOffsets();
-		
-		DEBUGF(INDI::Logger::DBG_SESSION, "ADC values ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
-	} else {
-		deleteProperty(MotorCurrentNP.name);
-		deleteProperty(MotorCurrentLimitNP.name);
-		deleteProperty(VoltageMonitorNP.name);
 	}
 	
 	TempMonitorNP.nnp = 0;
@@ -631,16 +654,23 @@ bool PiRT::Connect()
 	if (tempMonitor != nullptr) {
 		tempMonitor->registerTempReadyCallback( [this](PiRaTe::RpiTemperatureMonitor::TemperatureItem item) { this->updateTemperatures(item); } );
 	}
-/*	
-	if (tempMonitor != nullptr) {
-		DEBUGF( INDI::Logger::DBG_SESSION, "found %d temperature sensor sources.", tempMonitor->nrSources() );
-		for ( unsigned int i=0; i < tempMonitor->nrSources(); i++ ){
-			auto item = tempMonitor->getTemperatureItem(i);
-			DEBUGF( INDI::Logger::DBG_SESSION, " source %s: %f", item.id.c_str(), item.temperature );
+
+	voltageMonitors.clear();
+	int voltage_index = 0;
+	for ( auto item: voltage_defs ) {
+		if ( adc != nullptr && adc->devicePresent() ) {
+			std::shared_ptr<PiRaTe::VoltageMonitor> mon( new PiRaTe::VoltageMonitor( adc, item.adc_channel, item.nominal, item.divider_ratio ) );
+			voltageMonitors.emplace_back( std::move(mon) );
+			deleteProperty(VoltageMonitorNP.name);
+			IUFillNumber(&VoltageMonitorN[voltage_index], ("VOLTAGE"+std::to_string(voltage_index)).c_str(), (item.name).c_str(), "%4.2f V", item.min, item.max, 0, 0.);
+			IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, voltage_index+1, getDeviceName(), "VOLTAGE_MONITOR", "System Voltages", "Monitoring",
+				IP_RO, 60, IPS_IDLE);
+			defineProperty(&VoltageMonitorNP);
+			voltage_index++;
 		}
 	}
-*/
-
+	
+	
 	INDI::Telescope::Connect();
 	return true;
 }
@@ -951,24 +981,44 @@ void PiRT::updateMotorStatus() {
 	MotorStatusN[1].value = 100. * el_motor->currentSpeed();
 	IDSetNumber(&MotorStatusNP, nullptr);
 
-	if ( adc != nullptr && adc->devicePresent() ) {
-		double v1 = adc->readVoltage(0);
-		double v2 = adc->readVoltage(1);
-		
-		MotorCurrentN[0].value = ( v1 - fMotorCurrentOffsets[0] ) * MOTOR_CURRENT_FACTOR + 0.005;
-		MotorCurrentN[1].value = ( v2 - fMotorCurrentOffsets[1] ) * MOTOR_CURRENT_FACTOR + 0.005;
-		
+	if ( az_motor->hasAdc() || el_motor->hasAdc())
+	{
+		MotorCurrentNP.s=IPS_OK;
+		if ( az_motor->hasAdc() ) {
+			MotorCurrentN[0].value = az_motor->readCurrent() + 0.005;
+		} else {
+			MotorCurrentNP.s=IPS_BUSY;
+		}
+		if ( el_motor->hasAdc() ) {
+			MotorCurrentN[1].value = el_motor->readCurrent() + 0.005;
+		} else {
+			MotorCurrentNP.s=IPS_BUSY;
+		}
 		if ( MotorCurrentN[0].value > MotorCurrentLimitN[0].value || MotorCurrentN[1].value > MotorCurrentLimitN[1].value ) {
 			MotorCurrentNP.s=IPS_ALERT;
-		} else MotorCurrentNP.s=IPS_OK;
+		}
 		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 		IDSetNumber(&MotorCurrentNP, nullptr);
-	} else {
-		//MotorCurrentNP.s=IPS_IDLE;
 	}
 }
 
 void PiRT::updateMonitoring() {
+	if (voltageMonitors.empty()) return;
+	int voltage_index = 0;
+	bool outsideRange { false };
+	for ( auto monitor: voltageMonitors ) {
+		double meanVoltage = monitor->meanVoltage();
+		if ( meanVoltage < VoltageMonitorN[voltage_index].min || meanVoltage > VoltageMonitorN[voltage_index].max ) {
+			outsideRange = true;
+		}
+		VoltageMonitorN[voltage_index].value = meanVoltage;
+		voltage_index++;
+	}
+	if (outsideRange) VoltageMonitorNP.s=IPS_ALERT;
+	else VoltageMonitorNP.s = IPS_OK;
+	
+	IDSetNumber(&VoltageMonitorNP, nullptr);
+/*
 	if ( adc != nullptr && adc->devicePresent() ) {
 		double v3 = adc->readVoltage(2);
 		double v4 = adc->readVoltage(3);
@@ -980,6 +1030,7 @@ void PiRT::updateMonitoring() {
 		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 		IDSetNumber(&VoltageMonitorNP, nullptr);
 	}
+*/
 }
 
 void PiRT::updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item ) {
@@ -1244,9 +1295,11 @@ bool PiRT::ReadScopeStatus()
 			break;
 		case SCOPE_PARKED:
 		case SCOPE_IDLE:
+/*
 			if ( std::abs(az_motor->currentSpeed()) < 0.001 && std::abs(el_motor->currentSpeed()) < 0.001 ) {
 				measureMotorCurrentOffsets();
 			}
+*/
 		default:
 			//Abort();
 			break;
