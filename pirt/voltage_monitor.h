@@ -24,17 +24,19 @@ class ADS1115;
 
 namespace PiRaTe {
 
-class VoltageMonitor {
+class Ads1115VoltageMonitor {
 public:
-    VoltageMonitor()=delete;
+    Ads1115VoltageMonitor()=delete;
 
-    VoltageMonitor( std::shared_ptr<ADS1115> adc,
-					std::uint8_t adc_channel,
-					double nominal_voltage = 0.,
-					double divider_ratio = 1.
-					);
+    Ads1115VoltageMonitor(	std::string name,
+							std::shared_ptr<ADS1115> adc,
+							std::uint8_t adc_channel,
+							double nominalVoltage,
+							double divider_ratio = 1.,
+							double max_abs_tolerance = 0.1
+							);
 	
-    ~VoltageMonitor();
+    ~Ads1115VoltageMonitor();
 
 	[[nodiscard]] auto isFault() -> bool;
     [[nodiscard]] auto isInitialized() const -> bool { return fActiveLoop; }
@@ -42,7 +44,12 @@ public:
     [[nodiscard]] auto currentVoltage() -> double;
     [[nodiscard]] auto meanVoltage() -> double;
 	[[nodiscard]] auto nominalVoltage() const -> double { return fNominalVoltage; }
-	void registerVoltageReadyCallback(std::function<void(double)> fn) {	fVoltageReadyFn = fn;	}
+	[[nodiscard]] auto lowLimit() const -> double { return fLoLimit; }
+	[[nodiscard]] auto highLimit() const -> double { return fHiLimit; }
+	[[nodiscard]] auto dividerRatio() const -> double { return fDividerRatio; }
+	[[nodiscard]] auto name() const -> std::string { return fName; }
+
+	void registerVoltageReadyCallback(std::function<void(double)> fn) {	fVoltageReadyFn = fn; }
 
   private:
     void threadLoop();
@@ -59,8 +66,12 @@ public:
 	double fVoltage { 0. };
 	Ringbuffer<double, 100> fBuffer { };
 
+	std::string fName { "GND" };
 	double fNominalVoltage { 0. };
+	double fLoLimit { -0.001 };
+	double fHiLimit { 0.001 };
 	double fDividerRatio { 1. };
+	
 };
 
 } // namespace PiRaTe

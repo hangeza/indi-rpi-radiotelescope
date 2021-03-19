@@ -46,6 +46,12 @@ public:
 	static unsigned int getGlobalNrBytesRead() { return fGlobalNrBytesRead; }
 	static unsigned int getGlobalNrBytesWritten() { return fGlobalNrBytesWritten; }
 	static std::vector<i2cDevice*>& getGlobalDeviceList() { return fGlobalDeviceList; }
+	static i2cDevice* findDevice(uint8_t slaveAddress) {
+		for ( auto device: fGlobalDeviceList ) {
+			if ( device != nullptr && device->getAddress() == slaveAddress) return device;
+		}
+		return nullptr;
+	}
 	virtual bool devicePresent();
 	uint8_t getStatus() const { return fMode; }
 	void lock(bool locked=true) { if (locked) fMode |= MODE_LOCKED; else fMode &= ~MODE_LOCKED; } 

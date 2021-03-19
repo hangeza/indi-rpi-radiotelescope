@@ -29,8 +29,17 @@ template <typename T> constexpr int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
-VoltageMonitor::VoltageMonitor(std::shared_ptr<ADS1115> adc, std::uint8_t adc_channel, double nominal_voltage, double divider_ratio)
-	: fAdc { adc }, fAdcChannel { adc_channel }, fNominalVoltage { nominal_voltage }, fDividerRatio { divider_ratio }
+Ads1115VoltageMonitor::Ads1115VoltageMonitor(std::string name, 
+											 std::shared_ptr<ADS1115> adc, 
+											 std::uint8_t adc_channel, 
+											 double nominalVoltage,
+											 double divider_ratio,
+											 double max_abs_tolerance)
+	: 	fName { std::move(name) }, 
+		fAdc { adc }, 
+		fAdcChannel { adc_channel }, 
+		fNominalVoltage { nominalVoltage },
+		fDividerRatio { divider_ratio }
 {
 	// initialize ADC if one was supplied in the argument list
 	if ( fAdc != nullptr && fAdc->devicePresent() ) {
@@ -40,7 +49,8 @@ VoltageMonitor::VoltageMonitor(std::shared_ptr<ADS1115> adc, std::uint8_t adc_ch
 	} else {
 		return;
 	}
-	
+	fLoLimit = fNominalVoltage - max_abs_tolerance;
+	fHiLimit = fNominalVoltage + max_abs_tolerance;
 	fActiveLoop=true;
 // since C++14 using std::make_unique
 	// fThread = std::make_unique<std::thread>( [this]() { this->readLoop(); } );
@@ -49,7 +59,7 @@ VoltageMonitor::VoltageMonitor(std::shared_ptr<ADS1115> adc, std::uint8_t adc_ch
 	fThread = std::move(thread);
 }
 
-VoltageMonitor::~VoltageMonitor()
+Ads1115VoltageMonitor::~Ads1115VoltageMonitor()
 {
 	if (!fActiveLoop) return;
 	fActiveLoop = false;
@@ -58,7 +68,7 @@ VoltageMonitor::~VoltageMonitor()
 
 
 // this is the background thread loop
-void VoltageMonitor::threadLoop()
+void Ads1115VoltageMonitor::threadLoop()
 {
 	auto lastReadOutTime = std::chrono::system_clock::now();
 	bool errorFlag = true;
@@ -84,14 +94,14 @@ void VoltageMonitor::threadLoop()
 }
 
 
-auto VoltageMonitor::currentVoltage() -> double 
+auto Ads1115VoltageMonitor::currentVoltage() -> double 
 { 
 	std::lock_guard<std::mutex> lock(fMutex);
 	fUpdated = false;
 	return (fVoltage);
 }
 
-auto VoltageMonitor::meanVoltage() -> double 
+auto Ads1115VoltageMonitor::meanVoltage() -> double 
 { 
 	std::lock_guard<std::mutex> lock(fMutex);
 	fUpdated = false;

@@ -59,8 +59,8 @@ constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 constexpr double POS_ACCURACY_COARSE { 3.0 };
 constexpr double POS_ACCURACY_FINE { 0.1 };
 constexpr double TRACK_ACCURACY { 0.017 }; // one arc minute
-constexpr double MIN_AZ_MOTOR_THROTTLE { 0.05 };
-constexpr double MIN_EL_MOTOR_THROTTLE { 0.15 };
+constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.05 };
+constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.15 };
 constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 2. }; //< absolute motor current limit for Az motor in Ampere
 constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 1.5 }; //< absolute motor current limit for Alt motor in Ampere
 
@@ -70,29 +70,25 @@ constexpr bool ALT_DIR_INVERT { false };
 constexpr std::uint8_t MOTOR_ADC_ADDR { 0x48 };
 constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x4a };
 
-struct i2cVoltage {
-	i2cVoltage( std::string a_name, double a_nominal, double a_min, double a_max, double a_divider_ratio, double a_value, std::uint8_t a_adc_address, std::uint8_t a_adc_channel)
+struct I2cVoltageDef {
+	I2cVoltageDef( std::string a_name, double a_nominal, double a_divider_ratio, std::uint8_t a_adc_address, std::uint8_t a_adc_channel)
 		: 	name { std::move(a_name) },
 			nominal { a_nominal },
-			min { a_min },
-			max { a_max },
 			divider_ratio { a_divider_ratio },
-			value { a_value },
 			adc_address { a_adc_address },
 			adc_channel { a_adc_channel }
 	{}
 	std::string name {};
 	double nominal { 0. };
-	double min { };
-	double max { };
 	double divider_ratio { 1. };
-	double value { 0. };
 	std::uint8_t adc_address { 0x00 };
-	std::uint8_t adc_channel { };
+	std::uint8_t adc_channel { 0 };
 };
 
-const std::vector<i2cVoltage> voltage_defs { { "+5V", 5., 4.5, 5.5, 11., 0., MOTOR_ADC_ADDR, 2 },
-											 { "+24V", 24., 22., 26., 11., 0., MOTOR_ADC_ADDR, 3 } };
+const std::vector<I2cVoltageDef> voltage_defs { { "+5V", 5., 11., MOTOR_ADC_ADDR, 2 },
+												{ "+24V", 24., 11., MOTOR_ADC_ADDR, 3 },
+												{ "+12V", 12., 11., VOLTAGE_MONITOR_ADC_ADDR, 0 },
+												{ "+3.3V", 3.3, 11., VOLTAGE_MONITOR_ADC_ADDR, 1 } };
 
 const HorCoords DefaultParkPosition { 180., 89. };
 const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
@@ -101,7 +97,7 @@ const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
 		{ INDI::Telescope::LOCATION_ELEVATION, 180. } };
 
 constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
-constexpr double VOLTAGE_MONITORING_RATIO[2] = { 11., 11. };
+//constexpr double VOLTAGE_MONITORING_RATIO[2] = { 11., 11. };
 
 
 static std::unique_ptr<PiRT> pirt(new PiRT());
@@ -277,7 +273,7 @@ bool PiRT::initProperties()
 	axisRatio[1] = DEFAULT_EL_AXIS_TURNS_RATIO;
 
 	IUFillNumber(&AxisAbsTurnsN[0], "AZ_AXIS_TURNS", "Az", "%5.4f rev", 0, 0, 0, 0);
-	IUFillNumber(&AxisAbsTurnsN[1], "EL_AXIS_TURNS", "Alt", "%5.4f rev", 0, 0, 0, 0);
+	IUFillNumber(&AxisAbsTurnsN[1], "ALT_AXIS_TURNS", "Alt", "%5.4f rev", 0, 0, 0, 0);
     IUFillNumberVector(&AxisAbsTurnsNP, AxisAbsTurnsN, 2, getDeviceName(), "AXIS_ABSOLUTE_TURNS", "Absolute Axis Turns", "Axes",
            IP_RO, 60, IPS_IDLE);
 	
@@ -285,6 +281,11 @@ bool PiRT::initProperties()
 	IUFillNumber(&MotorStatusN[1], "ALT_MOTOR_SPEED", "Alt", "%4.0f %%", -100, 100, 0, 0);
     IUFillNumberVector(&MotorStatusNP, MotorStatusN, 2, getDeviceName(), "MOTOR_STATUS", "Motor Status", "Motors",
            IP_RO, 60, IPS_IDLE);
+
+	IUFillNumber(&MotorThresholdN[0], "AZ_MOTOR_THRESHOLD", "Az", "%4.0f %%", 0, 100, 0, MIN_AZ_MOTOR_THROTTLE_DEFAULT * 100);
+	IUFillNumber(&MotorThresholdN[1], "ALT_MOTOR_THRESHOLD", "Alt", "%4.0f %%", 0, 100, 0, MIN_ALT_MOTOR_THROTTLE_DEFAULT * 100);
+    IUFillNumberVector(&MotorThresholdNP, MotorThresholdN, 2, getDeviceName(), "MOTOR_THRESHOLD", "Motor Thresholds", "Motors",
+           IP_RW, 60, IPS_IDLE);
 	
 	IUFillNumber(&MotorCurrentN[0], "AZ_MOTOR_CURRENT", "Az", "%4.2f A", 0, 0, 0, 0);
 	IUFillNumber(&MotorCurrentN[1], "ALT_MOTOR_CURRENT", "Alt", "%4.2f A", 0, 0, 0, 0);
@@ -327,6 +328,7 @@ bool PiRT::updateProperties()
 		defineProperty(&AzEncoderNP);
 		defineProperty(&ElEncoderNP);
 		defineProperty(&MotorStatusNP);
+		defineProperty(&MotorThresholdNP);
 		defineProperty(&MotorCurrentNP);
 		defineProperty(&AxisAbsTurnsNP);
 		defineProperty(&MotorCurrentLimitNP);
@@ -348,6 +350,7 @@ bool PiRT::updateProperties()
 		deleteProperty(AzEncoderNP.name);
 		deleteProperty(ElEncoderNP.name);
 		deleteProperty(MotorStatusNP.name);
+		deleteProperty(MotorThresholdNP.name);
 		deleteProperty(MotorCurrentNP.name);
 		deleteProperty(AxisAbsTurnsNP.name);
 		deleteProperty(MotorCurrentLimitNP.name);
@@ -490,6 +493,14 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 			IDSetNumber(&MotorCurrentLimitNP, nullptr);
 			DEBUGF(DBG_SCOPE, "Setting motor current limits to %5.3f A (Az) and %5.3f A (Alt)", MotorCurrentLimitN[0].value, MotorCurrentLimitN[1].value);
 			return true;
+		} else if(!strcmp(name, MotorThresholdNP.name)) {
+			// set motor thresholds
+			MotorThresholdNP.s = IPS_OK;
+			MotorThresholdN[0].value = values[0];
+			MotorThresholdN[1].value = values[1];
+			IDSetNumber(&MotorThresholdNP, nullptr);
+			DEBUGF(DBG_SCOPE, "Setting motor thresholds to %4.0f %% (Az) and %4.0f %% (Alt)", MotorThresholdN[0].value, MotorThresholdN[1].value);
+			return true;
 		}
 		
 	}	
@@ -606,7 +617,9 @@ bool PiRT::Connect()
 	el_encoder->setMtBitWidth(ElEncSettingN[1].value);
 
 	
-	adc.reset( new ADS1115(MOTOR_ADC_ADDR) );
+	// instantiate first ADS115
+	std::shared_ptr<ADS1115> adc { new ADS1115(MOTOR_ADC_ADDR) };
+//	adc.reset( new ADS1115(MOTOR_ADC_ADDR) );
 	if ( adc != nullptr && adc->devicePresent() ) {
 		adc->setPga(ADS1115::PGA4V);
 		adc->setRate(ADS1115::RATE250);
@@ -617,14 +630,29 @@ bool PiRT::Connect()
 		double v4 = adc->readVoltage(3);
 		
 		//measureMotorCurrentOffsets();
-		
-		DEBUGF(INDI::Logger::DBG_SESSION, "ADC values ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+		i2cDeviceMap.emplace( std::make_pair( MOTOR_ADC_ADDR, std::move (adc) ) );
+		DEBUGF(INDI::Logger::DBG_SESSION, "ADC1 values ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 	} else {
 		deleteProperty(MotorCurrentNP.name);
 		deleteProperty(MotorCurrentLimitNP.name);
 		//deleteProperty(VoltageMonitorNP.name);
 	}
-
+	// instantiate second ADS115
+	adc.reset( new ADS1115(VOLTAGE_MONITOR_ADC_ADDR) );
+	if ( adc != nullptr && adc->devicePresent() ) {
+		adc->setPga(ADS1115::PGA4V);
+		adc->setRate(ADS1115::RATE250);
+		adc->setAGC(true);
+		double v1 = adc->readVoltage(0);
+		double v2 = adc->readVoltage(1);
+		double v3 = adc->readVoltage(2);
+		double v4 = adc->readVoltage(3);
+		
+		//measureMotorCurrentOffsets();
+		i2cDeviceMap.emplace( std::make_pair( VOLTAGE_MONITOR_ADC_ADDR, std::move (adc) ) );
+		DEBUGF(INDI::Logger::DBG_SESSION, "ADC2 values ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+	}
+	
 //	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
 //	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
 ///	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.DirA=23, az_motor_pins.DirB=24 };
@@ -637,12 +665,12 @@ bool PiRT::Connect()
 //	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
 ///	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6, el_motor_pins.Enable=26 };
 //	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6 };
-	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, AZ_DIR_INVERT, adc, 0 ) );
+	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, AZ_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 0 ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
-	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, ALT_DIR_INVERT, adc, 1 ) );
+	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, ALT_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 1 ) );
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
@@ -657,17 +685,24 @@ bool PiRT::Connect()
 
 	voltageMonitors.clear();
 	int voltage_index = 0;
+	
 	for ( auto item: voltage_defs ) {
-		if ( adc != nullptr && adc->devicePresent() ) {
-			std::shared_ptr<PiRaTe::VoltageMonitor> mon( new PiRaTe::VoltageMonitor( adc, item.adc_channel, item.nominal, item.divider_ratio ) );
+		
+		//if ( adc != nullptr && adc->devicePresent() ) {
+			auto it = i2cDeviceMap.find( item.adc_address );
+			if (  it == i2cDeviceMap.end() ) continue;
+			std::shared_ptr<ADS1115> adc( std::dynamic_pointer_cast<ADS1115>(it->second) );
+			std::shared_ptr<PiRaTe::Ads1115VoltageMonitor> mon( 
+				new PiRaTe::Ads1115VoltageMonitor( item.name, adc, item.adc_channel, item.nominal, item.divider_ratio, item.nominal/10. )
+			);
 			voltageMonitors.emplace_back( std::move(mon) );
 			deleteProperty(VoltageMonitorNP.name);
-			IUFillNumber(&VoltageMonitorN[voltage_index], ("VOLTAGE"+std::to_string(voltage_index)).c_str(), (item.name).c_str(), "%4.2f V", item.min, item.max, 0, 0.);
+			IUFillNumber(&VoltageMonitorN[voltage_index], ("VOLTAGE"+std::to_string(voltage_index)).c_str(), (item.name).c_str(), "%4.2f V", item.nominal*0.9 , item.nominal*1.1, 0, 0.);
 			IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, voltage_index+1, getDeviceName(), "VOLTAGE_MONITOR", "System Voltages", "Monitoring",
 				IP_RO, 60, IPS_IDLE);
 			defineProperty(&VoltageMonitorNP);
 			voltage_index++;
-		}
+		//}
 	}
 	
 	
@@ -1006,17 +1041,24 @@ void PiRT::updateMonitoring() {
 	if (voltageMonitors.empty()) return;
 	int voltage_index = 0;
 	bool outsideRange { false };
+	VoltageMonitorNP.s=IPS_IDLE;
 	for ( auto monitor: voltageMonitors ) {
-		double meanVoltage = monitor->meanVoltage();
-		if ( meanVoltage < VoltageMonitorN[voltage_index].min || meanVoltage > VoltageMonitorN[voltage_index].max ) {
-			outsideRange = true;
+		if ( !monitor->isInitialized() ) {
+			VoltageMonitorN[voltage_index].value = 0.;
+			VoltageMonitorNP.s=IPS_ALERT;
+		} else {
+			double meanVoltage = monitor->meanVoltage();
+			if ( meanVoltage < VoltageMonitorN[voltage_index].min || meanVoltage > VoltageMonitorN[voltage_index].max ) {
+				outsideRange = true;
+			}
+			VoltageMonitorN[voltage_index].value = meanVoltage;
 		}
-		VoltageMonitorN[voltage_index].value = meanVoltage;
 		voltage_index++;
 	}
-	if (outsideRange) VoltageMonitorNP.s=IPS_ALERT;
-	else VoltageMonitorNP.s = IPS_OK;
-	
+	if ( VoltageMonitorNP.s != IPS_ALERT ) {
+		if (outsideRange) VoltageMonitorNP.s=IPS_BUSY;
+		else VoltageMonitorNP.s = IPS_OK;
+	}
 	IDSetNumber(&VoltageMonitorNP, nullptr);
 /*
 	if ( adc != nullptr && adc->devicePresent() ) {
@@ -1050,19 +1092,6 @@ void PiRT::updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem it
 	
 	defineProperty(&TempMonitorNP);
 	IDSetNumber(&TempMonitorNP, nullptr);
-}
-
-void PiRT::measureMotorCurrentOffsets() {
-	if ( adc == nullptr || !adc->devicePresent() ) return;
-	constexpr unsigned int Niter { 10 };
-	double v1 { 0. };
-	double v2 { 0. };
-	for (unsigned int i = 0; i<Niter; i++) {
-		v1 += adc->readVoltage(0);
-		v2 += adc->readVoltage(1);
-	}
-	fMotorCurrentOffsets[0] = v1/Niter;
-	fMotorCurrentOffsets[1] = v2/Niter;
 }
 
 void PiRT::updatePosition() {
@@ -1250,24 +1279,24 @@ bool PiRT::ReadScopeStatus()
 				az_motor->move((dx>=0)?1.:-1.);
 			} else if ( std::abs(dx) > POS_ACCURACY_FINE ) {				
 				double mot = dx/POS_ACCURACY_COARSE;
-				if (std::abs(mot) < MIN_AZ_MOTOR_THROTTLE) {
-					mot = (dx>0.) ? MIN_AZ_MOTOR_THROTTLE : -MIN_AZ_MOTOR_THROTTLE;
+				if (std::abs(mot) < MotorThresholdN[0].value/100.) {
+					mot = (dx>0.) ? MotorThresholdN[0].value/100. : -MotorThresholdN[0].value/100.;
 				}
 				az_motor->move( mot );
 			} else if ( std::abs(dx) > TRACK_ACCURACY ) {
-				az_motor->move( (dx>0.) ? MIN_AZ_MOTOR_THROTTLE : -MIN_AZ_MOTOR_THROTTLE );
+				az_motor->move( (dx>0.) ? MotorThresholdN[0].value/100. : -MotorThresholdN[0].value/100. );
 			} else az_motor->stop();
 
 			if ( std::abs(dy) > POS_ACCURACY_COARSE ) {
 				el_motor->move((dy>=0)?1.:-1.);
 			} else if ( std::abs(dy) > POS_ACCURACY_FINE ) {				
 				double mot = dy/POS_ACCURACY_COARSE;
-				if (std::abs(mot) < MIN_EL_MOTOR_THROTTLE) {
-					mot = (dy>0.) ? MIN_EL_MOTOR_THROTTLE : -MIN_EL_MOTOR_THROTTLE;
+				if (std::abs(mot) < MotorThresholdN[1].value/100.) {
+					mot = (dy>0.) ? MotorThresholdN[1].value/100. : -MotorThresholdN[1].value/100.;
 				}
 				el_motor->move( mot );
 			} else if ( std::abs(dy) > TRACK_ACCURACY ) {
-				el_motor->move( (dy>0.) ? MIN_EL_MOTOR_THROTTLE : -MIN_EL_MOTOR_THROTTLE );
+				el_motor->move( (dy>0.) ? MotorThresholdN[1].value/100. : -MotorThresholdN[1].value/100. );
 			} else el_motor->stop();
 
 			// Let's check if we reached target position for both axes

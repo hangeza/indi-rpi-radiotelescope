@@ -26,6 +26,10 @@
 #include <rpi_temperatures.h>
 #include <voltage_monitor.h>
 
+#include <map>
+
+class i2cDevice;
+
 struct HorCoords {
 	HorCoords() { Alt.registerGimbalFlipCallback( [this]() { this->Az.gimbalFlip(); } ); }
 	HorCoords(double az, double alt) {
@@ -111,7 +115,6 @@ class PiRT : public INDI::Telescope
 	
 	void updatePosition();
 	void updateMotorStatus();
-	void measureMotorCurrentOffsets();
 	void updateMonitoring();
 	void updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item );
 
@@ -137,6 +140,9 @@ class PiRT : public INDI::Telescope
 
 	INumber MotorStatusN[2];
 	INumberVectorProperty MotorStatusNP;
+
+	INumber MotorThresholdN[2];
+	INumberVectorProperty MotorThresholdNP;
 
 	INumber MotorCurrentN[2];
 	INumberVectorProperty MotorCurrentNP;
@@ -168,12 +174,12 @@ class PiRT : public INDI::Telescope
 	std::unique_ptr<PiRaTe::SsiPosEncoder> el_encoder { nullptr };
 	std::unique_ptr<PiRaTe::MotorDriver> az_motor { nullptr };
 	std::unique_ptr<PiRaTe::MotorDriver> el_motor { nullptr };
-	std::shared_ptr<ADS1115> adc { nullptr };
+	std::map<std::uint8_t, std::shared_ptr<i2cDevice>> i2cDeviceMap { };
 	std::shared_ptr<PiRaTe::RpiTemperatureMonitor> tempMonitor { nullptr };
 	HorCoords currentHorizontalCoords { 0. , 90. };
 	HorCoords targetHorizontalCoords { 0. , 90. };
 	EquCoords targetEquatorialCoords { 0. , 0. };
 	
 	double fMotorCurrentOffsets[2] = { 0. , 0. };
-	std::vector<std::shared_ptr<PiRaTe::VoltageMonitor>> voltageMonitors { };
+	std::vector<std::shared_ptr<PiRaTe::Ads1115VoltageMonitor>> voltageMonitors { };
 };
