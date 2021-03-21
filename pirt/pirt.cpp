@@ -1,22 +1,14 @@
 /*
-   INDI Developers Manual
-   Tutorial #2
-
-   "Simple Telescope Driver"
-
-   We develop a simple telescope simulator.
-
-   Refer to README, which contains instruction on how to build this driver, and use it
-   with an INDI-compatible client.
+   INDI Raspberry Pi based mount driver.
+   The driver itself acts as a telescope mount reading the positions from SSI-based absolute encoders from
+   the on-board SPI interfaces and driving DC motors via PWM over GPIO pins
+   "Pi Radiotelescope Driver"
 
 */
 
 /** \file pirt.cpp
-    \brief Construct a basic INDI telescope device that simulates GOTO commands.
-    \author Jasem Mutlaq
-
-    \example pirt.cpp
-    A simple GOTO telescope that simulator slewing operation.
+    \brief A customized INDI telescope device with full functionality of a telescope mount.
+    \author Hans-Georg Zaunick
 */
 
 #include "pirt.h"
@@ -59,45 +51,65 @@ constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 constexpr double POS_ACCURACY_COARSE { 3.0 };
 constexpr double POS_ACCURACY_FINE { 0.1 };
 constexpr double TRACK_ACCURACY { 0.017 }; // one arc minute
-constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.05 };
-constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.15 };
+
+constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.06 };
+constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.14 };
 constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 2. }; //< absolute motor current limit for Az motor in Ampere
 constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 1.5 }; //< absolute motor current limit for Alt motor in Ampere
-
+constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
 constexpr bool AZ_DIR_INVERT { true };
 constexpr bool ALT_DIR_INVERT { false };
+constexpr PiRaTe::MotorDriver::Pins AZ_MOTOR_PINS { 
+	.Pwm=12,
+	.Dir=-1,
+	.DirA=23,
+	.DirB=24,
+	.Enable=25,
+	.Fault=-1	};
+	
+constexpr PiRaTe::MotorDriver::Pins ALT_MOTOR_PINS { 
+	.Pwm=13,
+	.Dir=-1,
+	.DirA=5,
+	.DirB=6,
+	.Enable=26,
+	.Fault=-1	};
 
 constexpr std::uint8_t MOTOR_ADC_ADDR { 0x48 };
-constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x4a };
+constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x49 };
 
-struct I2cVoltageDef {
-	I2cVoltageDef( std::string a_name, double a_nominal, double a_divider_ratio, std::uint8_t a_adc_address, std::uint8_t a_adc_channel)
-		: 	name { std::move(a_name) },
-			nominal { a_nominal },
-			divider_ratio { a_divider_ratio },
-			adc_address { a_adc_address },
-			adc_channel { a_adc_channel }
-	{}
-	std::string name {};
-	double nominal { 0. };
-	double divider_ratio { 1. };
-	std::uint8_t adc_address { 0x00 };
-	std::uint8_t adc_channel { 0 };
+struct Relay {
+	std::string name;
+	unsigned int gpio_pin;
+	bool inverted;
 };
 
-const std::vector<I2cVoltageDef> voltage_defs { { "+5V", 5., 11., MOTOR_ADC_ADDR, 2 },
-												{ "+24V", 24., 11., MOTOR_ADC_ADDR, 3 },
-												{ "+12V", 12., 11., VOLTAGE_MONITOR_ADC_ADDR, 0 },
-												{ "+3.3V", 3.3, 11., VOLTAGE_MONITOR_ADC_ADDR, 1 } };
+const std::vector<Relay> RelayVector { 	{ "Relay1", 17, true },
+										{ "Relay2", 27, true },
+										{ "Relay3", 22, true },
+										{ "Relay4", 16, true } };
 
-const HorCoords DefaultParkPosition { 180., 89. };
+struct I2cVoltageDef {
+	std::string name;
+	double nominal;
+	double divider_ratio;
+	std::uint8_t adc_address;
+	std::uint8_t adc_channel;
+};
+
+const std::vector<I2cVoltageDef> voltage_defs { { "+3.3V", 3.3, 2., VOLTAGE_MONITOR_ADC_ADDR, 0 },
+												{ "+5V", 5., 2., VOLTAGE_MONITOR_ADC_ADDR, 1 },
+												{ "+12V", 12., 11., VOLTAGE_MONITOR_ADC_ADDR, 2 },
+												{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3 } };
+
+const HorCoords DefaultParkPosition { 180., 89.5 };
+
+// VSTW Radebeul, Google-Maps: 51°06'58.1"N 13°37'17.3"E
 const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
-	{ 	{ INDI::Telescope::LOCATION_LATITUDE, 50.03 },
-		{ INDI::Telescope::LOCATION_LONGITUDE, 8.57 },
-		{ INDI::Telescope::LOCATION_ELEVATION, 180. } };
+	{ 	{ INDI::Telescope::LOCATION_LATITUDE, 51.116139 },
+		{ INDI::Telescope::LOCATION_LONGITUDE, 13.621472 },
+		{ INDI::Telescope::LOCATION_ELEVATION, 200. } };
 
-constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
-//constexpr double VOLTAGE_MONITORING_RATIO[2] = { 11., 11. };
 
 
 static std::unique_ptr<PiRT> pirt(new PiRT());
@@ -290,22 +302,42 @@ bool PiRT::initProperties()
 	IUFillNumber(&MotorCurrentN[0], "AZ_MOTOR_CURRENT", "Az", "%4.2f A", 0, 0, 0, 0);
 	IUFillNumber(&MotorCurrentN[1], "ALT_MOTOR_CURRENT", "Alt", "%4.2f A", 0, 0, 0, 0);
     IUFillNumberVector(&MotorCurrentNP, MotorCurrentN, 2, getDeviceName(), "MOTOR_CURRENT", "Motor Currents", "Motors",
-           IP_RO, 60, IPS_IDLE);
+		IP_RO, 60, IPS_IDLE);
 
 	IUFillNumber(&MotorCurrentLimitN[0], "AZ_MOTOR_CURRENT_LIMIT", "Az", "%4.2f A", 0, 0, 0, AZ_MOTOR_CURRENT_LIMIT_DEFAULT);
 	IUFillNumber(&MotorCurrentLimitN[1], "ALT_MOTOR_CURRENT_LIMIT", "Alt", "%4.2f A", 0, 0, 0, ALT_MOTOR_CURRENT_LIMIT_DEFAULT);
     IUFillNumberVector(&MotorCurrentLimitNP, MotorCurrentLimitN, 2, getDeviceName(), "MOTOR_CURRENT_LIMITS", "Motor Current Limits", "Motors",
-           IP_RW, 60, IPS_IDLE);
+		IP_RW, 60, IPS_IDLE);
 
 	IUFillNumber(&VoltageMonitorN[0], "VOLTAGE", "+0V", "%4.2f V", 0, 0, 0, 0);
     IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, 0, getDeviceName(), "VOLTAGE_MONITOR", "Voltages", "Monitoring",
-           IP_RO, 60, IPS_IDLE);
+		IP_RO, 60, IPS_IDLE);
 
-    
 	IUFillNumber(&TempMonitorN[0], "TEMP_SYSTEM", "CPU", "%4.2f °C", 0, 0, 0, 0);
 	IUFillNumberVector(&TempMonitorNP, TempMonitorN, 0, getDeviceName(), "TEMPERATURE_MONITOR", "Temperatures", "Monitoring",
-           IP_RO, 60, IPS_IDLE);
+		IP_RO, 60, IPS_IDLE);
 
+	
+	for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++) {
+		IUFillSwitch(&RelaySwitchS[relay_index], "SWITCH", "On", ISS_OFF);
+		IUFillSwitchVector(&RelaySwitchSP[relay_index], &RelaySwitchS[relay_index], 1, getDeviceName(), std::string("SWITCH"+std::to_string(relay_index)).c_str(), RelayVector[relay_index].name.c_str(), "Switches",
+			IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
+
+	}	
+/*
+	IUFillSwitch(&RelaySwitchS[0], "SWITCH1", "On", ISS_OFF);
+	IUFillSwitch(&RelaySwitchS[1], "SWITCH2", "On", ISS_OFF);
+	IUFillSwitch(&RelaySwitchS[2], "SWITCH3", "On", ISS_OFF);
+	IUFillSwitch(&RelaySwitchS[3], "SWITCH4", "On", ISS_OFF);
+	IUFillSwitchVector(&RelaySwitchSP[0], &RelaySwitchS[0], 1, getDeviceName(), "RELAY1", RelayVector[0].name.c_str(), "Switches",
+		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
+	IUFillSwitchVector(&RelaySwitchSP[1], &RelaySwitchS[1], 1, getDeviceName(), "RELAY2", RelayVector[1].name.c_str(), "Switches",
+		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
+	IUFillSwitchVector(&RelaySwitchSP[2], &RelaySwitchS[2], 1, getDeviceName(), "RELAY3", RelayVector[2].name.c_str(), "Switches",
+		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
+	IUFillSwitchVector(&RelaySwitchSP[3], &RelaySwitchS[3], 1, getDeviceName(), "RELAY4", RelayVector[3].name.c_str(), "Switches",
+		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
+*/
 	addDebugControl();
 
 	return true;
@@ -325,37 +357,30 @@ bool PiRT::updateProperties()
 		IDSetNumber(&LocationNP, NULL);
 		defineProperty(&HorNP);
 		defineProperty(&JDNP);
-		defineProperty(&AzEncoderNP);
-		defineProperty(&ElEncoderNP);
-		defineProperty(&MotorStatusNP);
-		defineProperty(&MotorThresholdNP);
-		defineProperty(&MotorCurrentNP);
-		defineProperty(&AxisAbsTurnsNP);
-		defineProperty(&MotorCurrentLimitNP);
-		defineProperty(&VoltageMonitorNP);
-		defineProperty(&TempMonitorNP);
-		
+
 		deleteProperty(EncoderBitRateNP.name);
 		IUFillNumberVector(&EncoderBitRateNP, &EncoderBitRateN, 1, getDeviceName(), "ENC_SPI_SETTINGS", "SPI Interface", "Encoders",
            IP_RO, 60, IPS_IDLE);
 		defineProperty(&EncoderBitRateNP);
 		IDSetNumber(&EncoderBitRateNP, nullptr);
+
+		defineProperty(&AzEncoderNP);
+		defineProperty(&ElEncoderNP);
+		defineProperty(&AxisAbsTurnsNP);
+		defineProperty(&MotorStatusNP);
+		defineProperty(&MotorCurrentNP);
+		defineProperty(&MotorThresholdNP);
+		defineProperty(&MotorCurrentLimitNP);
+		defineProperty(&VoltageMonitorNP);
+		defineProperty(&TempMonitorNP);
+		for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++ ) {
+			defineProperty(&RelaySwitchSP[relay_index]);
+		}
 		//deleteProperty(EncoderBitRateNP.name);
-		//defineProperty(&TrackingSP);
     } else {
 		deleteProperty(ScopeStatusLP.name);
 		deleteProperty(HorNP.name);
-		//deleteProperty(TrackingSP.name);
 		deleteProperty(JDNP.name);
-		deleteProperty(AzEncoderNP.name);
-		deleteProperty(ElEncoderNP.name);
-		deleteProperty(MotorStatusNP.name);
-		deleteProperty(MotorThresholdNP.name);
-		deleteProperty(MotorCurrentNP.name);
-		deleteProperty(AxisAbsTurnsNP.name);
-		deleteProperty(MotorCurrentLimitNP.name);
-		deleteProperty(VoltageMonitorNP.name);
-		deleteProperty(TempMonitorNP.name);
 
 		deleteProperty(EncoderBitRateNP.name);
 		IUFillNumberVector(&EncoderBitRateNP, &EncoderBitRateN, 1, getDeviceName(), "ENC_SPI_SETTINGS", "SPI Interface", "Encoders",
@@ -363,6 +388,18 @@ bool PiRT::updateProperties()
 		defineProperty(&EncoderBitRateNP);
 		IDSetNumber(&EncoderBitRateNP, nullptr);
 
+		deleteProperty(AzEncoderNP.name);
+		deleteProperty(ElEncoderNP.name);
+		deleteProperty(AxisAbsTurnsNP.name);
+		deleteProperty(MotorStatusNP.name);
+		deleteProperty(MotorCurrentNP.name);
+		deleteProperty(MotorThresholdNP.name);
+		deleteProperty(MotorCurrentLimitNP.name);
+		deleteProperty(VoltageMonitorNP.name);
+		deleteProperty(TempMonitorNP.name);
+		for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++ ) {
+			deleteProperty(RelaySwitchSP[relay_index].name);
+		}
 //		defineProperty(&EncoderBitRateNP);
 	}
     
@@ -378,9 +415,22 @@ bool PiRT::ISNewSwitch (const char *dev, const char *name, ISState *states, char
 	if(strcmp(dev,getDeviceName())==0)
 	{
 		//  This one is for us
-		//if(!strcmp(name,TrackingSP.name))
-		{
-			//return true;
+		for ( std::size_t relayIndex = 0; relayIndex < RelayVector.size(); relayIndex++ ) {
+			if(!strcmp(name,RelaySwitchSP[relayIndex].name)) {
+				IUUpdateSwitch(&RelaySwitchSP[relayIndex], states, names, n);
+				if ( RelaySwitchS[relayIndex].s == ISS_ON ) {
+					RelaySwitchSP[relayIndex].s = IPS_OK;
+					gpio->set_gpio_state(RelayVector[relayIndex].gpio_pin, !RelayVector[relayIndex].inverted );
+					std::string tempstr { "Relay"+std::to_string(relayIndex+1)+" switch on" };
+					IDSetSwitch( &RelaySwitchSP[relayIndex], tempstr.c_str() );
+				} else {
+					RelaySwitchSP[relayIndex].s = IPS_IDLE;
+					gpio->set_gpio_state(RelayVector[relayIndex].gpio_pin, RelayVector[relayIndex].inverted );
+					std::string tempstr { "Relay"+std::to_string(relayIndex+1)+" switch off" };
+					IDSetSwitch( &RelaySwitchSP[relayIndex], tempstr.c_str() );
+				}
+				return true;
+			}	
 		}
 	}
 	//  Nobody has claimed this, so forward it to the base class' method
@@ -576,7 +626,6 @@ bool PiRT::Connect()
 	const std::string port { tvp->tp[1].text };
 */
 
-//	std::shared_ptr<GPIO> temp_ptr ( new GPIO("localhost") );
 	// before instanciating a new GPIO interface, all objects which carry a reference
 	// to the old gpio object must be invalidated, to make sure
 	// that noone else uses the shared_ptr<GPIO> when it is newly created
@@ -592,90 +641,84 @@ bool PiRT::Connect()
 		return false;
 	}
 	
+	// set the baud rate on the SPI interface for communication with the pos encoders
 	unsigned int bitrate = static_cast<unsigned int>( EncoderBitRateNP.np[0].value );
 	if ( bitrate < 80000 || bitrate > 5000000 ) {
         DEBUG(INDI::Logger::DBG_ERROR, "SSI bitrate out of range (80k...5M)");
 		return false;
 	}
-    DEBUG(INDI::Logger::DBG_SESSION, "Az position encoder ok.");
 
+	// initialize Az pos encoder
 	az_encoder.reset(new PiRaTe::SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, bitrate, 0, GPIO::SPI_MODE::POL1PHA1));
 	if (!az_encoder->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to Az position encoder.");
 		return false;
 	}
-    DEBUG(INDI::Logger::DBG_SESSION, "El position encoder ok.");
+    DEBUG(INDI::Logger::DBG_SESSION, "Az position encoder ok.");
 
 	az_encoder->setStBitWidth(AzEncSettingN[0].value);
 	az_encoder->setMtBitWidth(AzEncSettingN[1].value);
+
+	// initialize Alt pos encoder
 	el_encoder.reset(new PiRaTe::SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, bitrate));
 	if (!el_encoder->isInitialized()) {
-        DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to El position encoder.");
+        DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to Alt position encoder.");
 		return false;
 	}
+    DEBUG(INDI::Logger::DBG_SESSION, "Alt position encoder ok.");
 	el_encoder->setStBitWidth(ElEncSettingN[0].value);
 	el_encoder->setMtBitWidth(ElEncSettingN[1].value);
 
-	
-	// instantiate first ADS115
+	// search for the ADS1115 ADCs at the specified addresses and initialize them
+	// instantiate the first ADS1115 foreseen to read back the motor currents
 	std::shared_ptr<ADS1115> adc { new ADS1115(MOTOR_ADC_ADDR) };
-//	adc.reset( new ADS1115(MOTOR_ADC_ADDR) );
 	if ( adc != nullptr && adc->devicePresent() ) {
 		adc->setPga(ADS1115::PGA4V);
-		adc->setRate(ADS1115::RATE250);
+		adc->setRate(ADS1115::RATE860);
 		adc->setAGC(true);
 		double v1 = adc->readVoltage(0);
 		double v2 = adc->readVoltage(1);
 		double v3 = adc->readVoltage(2);
 		double v4 = adc->readVoltage(3);
 		
-		//measureMotorCurrentOffsets();
 		i2cDeviceMap.emplace( std::make_pair( MOTOR_ADC_ADDR, std::move (adc) ) );
 		DEBUGF(INDI::Logger::DBG_SESSION, "ADC1 values ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 	} else {
+		DEBUGF(INDI::Logger::DBG_ERROR, "ADS1115 at address 0x%02x not found.", MOTOR_ADC_ADDR);
 		deleteProperty(MotorCurrentNP.name);
 		deleteProperty(MotorCurrentLimitNP.name);
-		//deleteProperty(VoltageMonitorNP.name);
 	}
-	// instantiate second ADS115
+	// instantiate second ADS1115 for voltage monitoring
 	adc.reset( new ADS1115(VOLTAGE_MONITOR_ADC_ADDR) );
 	if ( adc != nullptr && adc->devicePresent() ) {
 		adc->setPga(ADS1115::PGA4V);
-		adc->setRate(ADS1115::RATE250);
+		adc->setRate(ADS1115::RATE860);
 		adc->setAGC(true);
 		double v1 = adc->readVoltage(0);
 		double v2 = adc->readVoltage(1);
 		double v3 = adc->readVoltage(2);
 		double v4 = adc->readVoltage(3);
 		
-		//measureMotorCurrentOffsets();
 		i2cDeviceMap.emplace( std::make_pair( VOLTAGE_MONITOR_ADC_ADDR, std::move (adc) ) );
 		DEBUGF(INDI::Logger::DBG_SESSION, "ADC2 values ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
+	} else {
+		DEBUGF(INDI::Logger::DBG_ERROR, "ADS1115 at address 0x%02x not found.", VOLTAGE_MONITOR_ADC_ADDR);
 	}
 	
-//	MotorDriver::Pins az_motor_pins { az_motor_pins.Enable=22, az_motor_pins.Pwm=12, az_motor_pins.Dir=24, az_motor_pins.Fault=5 };
-//	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.Dir=24 };
-///	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.DirA=23, az_motor_pins.DirB=24 };
-	PiRaTe::MotorDriver::Pins az_motor_pins;
-	az_motor_pins.Pwm=12; az_motor_pins.DirA=23; az_motor_pins.DirB=24; az_motor_pins.Enable=25;
-	PiRaTe::MotorDriver::Pins el_motor_pins;
-	el_motor_pins.Pwm=13; el_motor_pins.DirA=5; el_motor_pins.DirB=6; el_motor_pins.Enable=26;
-	
-	//	PiRaTe::MotorDriver::Pins az_motor_pins { az_motor_pins.Pwm=12, az_motor_pins.DirA=23, az_motor_pins.DirB=24 };
-//	MotorDriver::Pins el_motor_pins { el_motor_pins.Enable=23, el_motor_pins.Pwm=13, el_motor_pins.Dir=25, el_motor_pins.Fault=6 };
-///	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6, el_motor_pins.Enable=26 };
-//	PiRaTe::MotorDriver::Pins el_motor_pins { el_motor_pins.Pwm=13, el_motor_pins.DirA=5, el_motor_pins.DirB=6 };
-	az_motor.reset( new PiRaTe::MotorDriver( gpio, az_motor_pins, AZ_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 0 ) );
+	// initialize Az motor driver
+	az_motor.reset( new PiRaTe::MotorDriver( gpio, AZ_MOTOR_PINS, AZ_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 0 ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
-	el_motor.reset( new PiRaTe::MotorDriver( gpio, el_motor_pins, ALT_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 1 ) );
+	// initialize Alt motor driver
+	el_motor.reset( new PiRaTe::MotorDriver( gpio, ALT_MOTOR_PINS, ALT_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 1 ) );
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
 	}
 	
+	// initialize the temperature monitor
 	TempMonitorNP.nnp = 0;
 	IDSetNumber(&TempMonitorNP, nullptr);
 	tempMonitor.reset( new PiRaTe::RpiTemperatureMonitor() );
@@ -683,28 +726,30 @@ bool PiRT::Connect()
 		tempMonitor->registerTempReadyCallback( [this](PiRaTe::RpiTemperatureMonitor::TemperatureItem item) { this->updateTemperatures(item); } );
 	}
 
+	// set up the voltages to be monitored
 	voltageMonitors.clear();
 	int voltage_index = 0;
-	
 	for ( auto item: voltage_defs ) {
-		
-		//if ( adc != nullptr && adc->devicePresent() ) {
-			auto it = i2cDeviceMap.find( item.adc_address );
-			if (  it == i2cDeviceMap.end() ) continue;
-			std::shared_ptr<ADS1115> adc( std::dynamic_pointer_cast<ADS1115>(it->second) );
-			std::shared_ptr<PiRaTe::Ads1115VoltageMonitor> mon( 
-				new PiRaTe::Ads1115VoltageMonitor( item.name, adc, item.adc_channel, item.nominal, item.divider_ratio, item.nominal/10. )
-			);
-			voltageMonitors.emplace_back( std::move(mon) );
-			deleteProperty(VoltageMonitorNP.name);
-			IUFillNumber(&VoltageMonitorN[voltage_index], ("VOLTAGE"+std::to_string(voltage_index)).c_str(), (item.name).c_str(), "%4.2f V", item.nominal*0.9 , item.nominal*1.1, 0, 0.);
-			IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, voltage_index+1, getDeviceName(), "VOLTAGE_MONITOR", "System Voltages", "Monitoring",
-				IP_RO, 60, IPS_IDLE);
-			defineProperty(&VoltageMonitorNP);
-			voltage_index++;
-		//}
+		auto it = i2cDeviceMap.find( item.adc_address );
+		if (  it == i2cDeviceMap.end() ) continue;
+		std::shared_ptr<ADS1115> adc( std::dynamic_pointer_cast<ADS1115>(it->second) );
+		std::shared_ptr<PiRaTe::Ads1115VoltageMonitor> mon( 
+			new PiRaTe::Ads1115VoltageMonitor( item.name, adc, item.adc_channel, item.nominal, item.divider_ratio, item.nominal/10. )
+		);
+		voltageMonitors.emplace_back( std::move(mon) );
+		deleteProperty(VoltageMonitorNP.name);
+		IUFillNumber(&VoltageMonitorN[voltage_index], ("VOLTAGE"+std::to_string(voltage_index)).c_str(), (item.name).c_str(), "%4.2f V", item.nominal*0.9 , item.nominal*1.1, 0, 0.);
+		IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, voltage_index+1, getDeviceName(), "VOLTAGE_MONITOR", "System Voltages", "Monitoring",
+			IP_RO, 60, IPS_IDLE);
+		defineProperty(&VoltageMonitorNP);
+		voltage_index++;
 	}
 	
+	// set up the gpio pins for the relay switches
+	for ( unsigned int i = 0; i<RelayVector.size(); i++ ) {
+		gpio->set_gpio_direction( RelayVector[i].gpio_pin, true );
+		gpio->set_gpio_state( RelayVector[i].gpio_pin, RelayVector[i].inverted );
+	}	
 	
 	INDI::Telescope::Connect();
 	return true;

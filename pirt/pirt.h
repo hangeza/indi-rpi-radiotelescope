@@ -159,6 +159,9 @@ class PiRT : public INDI::Telescope
 	INumber AxisAbsTurnsN[2];
 	INumberVectorProperty AxisAbsTurnsNP;
 	
+	ISwitch RelaySwitchS[16];
+	ISwitchVectorProperty RelaySwitchSP[16];
+	
 	bool fIsTracking { false };
 	
 	double axisRatio[2] { 1., 1. };

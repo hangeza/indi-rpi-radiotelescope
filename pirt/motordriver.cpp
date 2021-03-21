@@ -54,7 +54,7 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirec
 	}
 	
 	// set pin directions
-	if ( fPins.Dir >= 0 ) { 
+	if ( fPins.Dir > 0 ) { 
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), true);
 		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), (fInverted) ? !fCurrentDir : fCurrentDir);
 	}
@@ -67,20 +67,20 @@ MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirec
 	
 	//fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Pwm), true);
 	
-	if ( fPins.Enable >= 0 ) {
+	if ( fPins.Enable > 0 ) {
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Enable), true);
 		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), true);
 	}
-	if ( fPins.Fault >= 0 ) {
+	if ( fPins.Fault > 0 ) {
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Fault), false);
 		fGpio->set_gpio_pullup(static_cast<unsigned int>(fPins.Fault));
 	}	
 	
 	// initialize ADC if one was supplied in the argument list
 	if ( fAdc != nullptr && fAdc->devicePresent() ) {
-		fAdc->setPga(ADS1115::PGA4V);
-		fAdc->setRate(ADS1115::RATE860);
-		fAdc->setAGC(true);
+		//fAdc->setPga(ADS1115::PGA4V);
+		//fAdc->setRate(ADS1115::RATE860);
+		//fAdc->setAGC(true);
 		const std::lock_guard<std::mutex> lock(fMutex);
 		measureVoltageOffset();
 	}
@@ -99,14 +99,14 @@ MotorDriver::~MotorDriver()
 	fActiveLoop = false;
 	if (fThread!=nullptr) fThread->join();
 	if (fGpio != nullptr && fGpio->isInitialized()) {
-		if (fPins.Dir >= 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), false);
-		if (fPins.DirA >= 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirA), false);
-		if (fPins.DirB >= 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirB), false);
+		if (fPins.Dir > 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Dir), false);
+		if (fPins.DirA > 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirA), false);
+		if (fPins.DirB > 0) fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.DirB), false);
 		fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Pwm), false);
-		if ( fPins.Enable >= 0 ) {
+		if ( fPins.Enable > 0 ) {
 			fGpio->set_gpio_direction(static_cast<unsigned int>(fPins.Enable), false);
 		}
-		if ( fPins.Fault >= 0 ) {
+		if ( fPins.Fault > 0 ) {
 			fGpio->set_gpio_pullup(static_cast<unsigned int>(fPins.Fault), false);
 		}
 	}
@@ -191,7 +191,7 @@ void MotorDriver::setSpeed(float speed_ratio) {
 	const bool dir { (speed_ratio < 0.) };
 	// set pins
 	if ( dir != fCurrentDir ) {
-		if ( fPins.Dir>=0 ) fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), (fInverted) ? !dir : dir);
+		if ( fPins.Dir > 0 ) fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Dir), (fInverted) ? !dir : dir);
 		if ( hasDualDir() ) {
 			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirA), (fInverted) ? !dir : dir);
 			fGpio->set_gpio_state(static_cast<unsigned int>(fPins.DirB), (fInverted) ? dir : !dir);

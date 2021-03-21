@@ -43,9 +43,9 @@ Ads1115VoltageMonitor::Ads1115VoltageMonitor(std::string name,
 {
 	// initialize ADC if one was supplied in the argument list
 	if ( fAdc != nullptr && fAdc->devicePresent() ) {
-		fAdc->setPga(ADS1115::PGA4V);
-		fAdc->setRate(ADS1115::RATE860);
-		fAdc->setAGC(true);
+		//fAdc->setPga(ADS1115::PGA4V);
+		//fAdc->setRate(ADS1115::RATE860);
+		//fAdc->setAGC(true);
 	} else {
 		return;
 	}
