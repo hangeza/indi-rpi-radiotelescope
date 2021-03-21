@@ -32,21 +32,12 @@ constexpr unsigned int DEFAULT_PWM_FREQ { 20000 };
 class MotorDriver {
 public:
 	struct Pins {
-		/*
-		Pins(int pwm, int dir, int enable, int fault)
-			: Pwm { pwm }, Dir { dir }, Enable { enable }, Fault { fault }
-			{}
-		*/
-		Pins() = default;
-		Pins(int pwm, int dir)
-			: Pwm { pwm }, Dir { dir }
-			{}
-		int Pwm { -1 };
-		int Dir { -1 };
-		int DirA { -1 };
-		int DirB { -1 };
-		int Enable { -1 };
-		int Fault { -1 };
+		int Pwm;
+		int Dir;
+		int DirA;
+		int DirB;
+		int Enable;
+		int Fault;
     };
 
     MotorDriver()=delete;
@@ -58,8 +49,7 @@ public:
 	
     ~MotorDriver();
 
-    void setPinConfig(Pins pins);
-    [[nodiscard]] auto getPinConfig() const -> Pins;
+    [[nodiscard]] auto getPinConfig() const -> Pins { return fPins; }
 	void setPwmFrequency(unsigned int freq);
 	
 	void move(float speed_ratio);    
@@ -68,9 +58,9 @@ public:
 	[[nodiscard]] auto isFault() -> bool;
     [[nodiscard]] auto isInitialized() const -> bool { return fActiveLoop; }
     [[nodiscard]] auto currentSpeed() -> float;
-	[[nodiscard]] auto hasFaultSense() const -> bool { return (fPins.Fault >= 0); }
-	[[nodiscard]] auto hasEnable() const -> bool { return (fPins.Enable >= 0); }
-	[[nodiscard]] auto hasDualDir() const -> bool { return ( (fPins.DirA >= 0) && (fPins.DirB >= 0)); }
+	[[nodiscard]] auto hasFaultSense() const -> bool { return (fPins.Fault > 0); }
+	[[nodiscard]] auto hasEnable() const -> bool { return (fPins.Enable > 0); }
+	[[nodiscard]] auto hasDualDir() const -> bool { return ( (fPins.DirA > 0) && (fPins.DirB > 0)); }
     [[nodiscard]] auto hasAdc() const -> bool { return (fAdc != nullptr); }
     [[nodiscard]] auto readCurrent() -> double;
   private:
