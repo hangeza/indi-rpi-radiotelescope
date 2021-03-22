@@ -139,11 +139,13 @@ void MotorDriver::threadLoop()
 		}
 		if ( hasAdc() && !cycle_counter-- ) {
 			double voltage { 0. };
+			double conv_time { 0. };
 			if ( bool readout_guard = true ) {
 				//std::lock_guard<std::mutex> lock(fMutex);
 				// read current from adc
 				fMutex.lock();
 				voltage = fAdc->readVoltage(fAdcChannel);
+				conv_time = fAdc->getLastConvTime();
 				fMutex.unlock();
 			}
 			if ( std::abs(fCurrentDutyCycle) < ramp_increment ) fOffsetBuffer.add(voltage);
@@ -153,8 +155,10 @@ void MotorDriver::threadLoop()
 			fUpdated = true;
 			fMutex.unlock();
 			cycle_counter = adc_measurement_rate_loop_cycles;
+			std::this_thread::sleep_for( std::chrono::milliseconds( std::min( loop_delay.count() - static_cast<long long int>(conv_time), 1LL) ) );
+		} else {
+			std::this_thread::sleep_for(loop_delay);
 		}
-		std::this_thread::sleep_for(loop_delay);
 	}
 }
 

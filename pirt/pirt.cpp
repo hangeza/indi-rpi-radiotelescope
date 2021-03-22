@@ -232,7 +232,6 @@ bool PiRT::initProperties()
     LocationN[LOCATION_ELEVATION].value = DefaultLocation.at(LOCATION_ELEVATION);
     LocationNP.s = IPS_OK;
     IDSetNumber(&LocationNP, NULL);
-    //defineLight(&ScopeStatusLP);
 
 	IUFillNumber(&EncoderBitRateN, "SSI_BITRATE", "SSI Bit Rate", "%5.0f Hz", 0, 5000000, 0, SSI_BAUD_RATE);
     IUFillNumberVector(&EncoderBitRateNP, &EncoderBitRateN, 1, getDeviceName(), "ENC_SPI_SETTINGS", "SPI Interface", "Encoders",
@@ -324,22 +323,8 @@ bool PiRT::initProperties()
 			IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
 
 	}	
-/*
-	IUFillSwitch(&RelaySwitchS[0], "SWITCH1", "On", ISS_OFF);
-	IUFillSwitch(&RelaySwitchS[1], "SWITCH2", "On", ISS_OFF);
-	IUFillSwitch(&RelaySwitchS[2], "SWITCH3", "On", ISS_OFF);
-	IUFillSwitch(&RelaySwitchS[3], "SWITCH4", "On", ISS_OFF);
-	IUFillSwitchVector(&RelaySwitchSP[0], &RelaySwitchS[0], 1, getDeviceName(), "RELAY1", RelayVector[0].name.c_str(), "Switches",
-		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
-	IUFillSwitchVector(&RelaySwitchSP[1], &RelaySwitchS[1], 1, getDeviceName(), "RELAY2", RelayVector[1].name.c_str(), "Switches",
-		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
-	IUFillSwitchVector(&RelaySwitchSP[2], &RelaySwitchS[2], 1, getDeviceName(), "RELAY3", RelayVector[2].name.c_str(), "Switches",
-		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
-	IUFillSwitchVector(&RelaySwitchSP[3], &RelaySwitchS[3], 1, getDeviceName(), "RELAY4", RelayVector[3].name.c_str(), "Switches",
-		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
-*/
-	addDebugControl();
 
+	addDebugControl();
 	return true;
 }
 
@@ -1399,7 +1384,6 @@ bool PiRT::ReadScopeStatus()
   
 	double currentRA { 0. }, currentDEC { 0. }; 
 	Hor2Equ(currentHorizontalCoords, &currentRA, &currentDEC);
-	//currentRA*=24./360.;
     
 	char RAStr[64]={0}, DecStr[64]={0};
 
