@@ -25,6 +25,7 @@ class ADS1115;
 namespace PiRaTe {
 
 constexpr unsigned int DEFAULT_PWM_FREQ { 20000 };
+constexpr unsigned int OFFSET_RINGBUFFER_DEPTH { 10 };
 
 //template <typename T, std::size_t N>
 //class Ringbuffer;
@@ -63,7 +64,10 @@ public:
 	[[nodiscard]] auto hasDualDir() const -> bool { return ( (fPins.DirA > 0) && (fPins.DirB > 0)); }
     [[nodiscard]] auto hasAdc() const -> bool { return (fAdc != nullptr); }
     [[nodiscard]] auto readCurrent() -> double;
-  private:
+	void setEnabled(bool enable);
+	[[nodiscard]] auto adc() -> std::shared_ptr<ADS1115>& { return fAdc; }
+
+private:
     void threadLoop();
 	void setSpeed(float speed_ratio);
     void measureVoltageOffset();
@@ -87,8 +91,7 @@ public:
 
 	std::mutex fMutex;
 	
-	Ringbuffer<double, 10> fOffsetBuffer { };
-
+	Ringbuffer<double, OFFSET_RINGBUFFER_DEPTH> fOffsetBuffer { };
 };
 
 } // namespace PiRaTe

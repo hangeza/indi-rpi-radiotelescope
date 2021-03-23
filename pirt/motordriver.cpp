@@ -16,7 +16,7 @@ namespace PiRaTe {
 	
 constexpr std::chrono::milliseconds loop_delay { 10 };
 constexpr std::chrono::milliseconds ramp_time { 1000 };
-constexpr std::size_t adc_measurement_rate_loop_cycles { 50 };
+constexpr std::size_t adc_measurement_rate_loop_cycles { 10 };
 constexpr double ramp_increment { static_cast<double>(loop_delay.count())/ramp_time.count() };
 constexpr unsigned int HW_PWM1_PIN { 12 };
 constexpr unsigned int HW_PWM2_PIN { 13 };
@@ -168,14 +168,6 @@ void MotorDriver::measureVoltageOffset() {
 		double voltage = fAdc->readVoltage(fAdcChannel);
 		fOffsetBuffer.add(voltage);
 	}
-/*	
-	constexpr unsigned int Niter { 10 };
-	double adc_voltage { 0. };
-	for (unsigned int i = 0; i<Niter; i++) {
-		adc_voltage += fAdc->readVoltage(fAdcChannel);
-	}
-	fVoltageOffset = adc_voltage/Niter;
-*/
 }
 
 auto MotorDriver::readCurrent() -> double 
@@ -225,8 +217,12 @@ void MotorDriver::stop() {
 
 void MotorDriver::emergencyStop() {
 	this->move(0.);
+	setEnabled(true);
+}
+
+void MotorDriver::setEnabled(bool enable) {
 	if (hasEnable()) {
-		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), false);
+		fGpio->set_gpio_state(static_cast<unsigned int>(fPins.Enable), enable);
 	}
 }
 
