@@ -14,7 +14,7 @@ namespace PiRaTe {
 
 unsigned int SsiPosEncoder::fNrInstances = 0;
 constexpr std::chrono::milliseconds loop_delay { 50 };
-constexpr double MAX_TURNS_PER_SECOND { 5. };
+constexpr double MAX_TURNS_PER_SECOND { 10. };
 
 template <typename T> constexpr int sgn(T val) {
     return (T(0) < val) - (val < T(0));
@@ -80,7 +80,7 @@ void SsiPosEncoder::readLoop()
 	bool errorFlag { true };
 	auto lastReadOutTime = std::chrono::system_clock::now();
 	while (fActiveLoop) {
-		std::uint32_t data;
+		std::uint32_t data { 0 };
 		auto currentReadOutTime = std::chrono::system_clock::now();
 		bool ok = readDataWord(data);
 		if (!ok) {
@@ -95,6 +95,7 @@ void SsiPosEncoder::readLoop()
 			if ( !(data & (1<<31)) ) {
 				fBitErrors++;
 				errorFlag = true;
+				lastReadOutTime = currentReadOutTime;
 				std::this_thread::sleep_for(loop_delay);
 				continue;
 			}
@@ -116,24 +117,27 @@ void SsiPosEncoder::readLoop()
 			
 			if (errorFlag) {
 				fLastPos=st; fLastTurns=mt;
+				lastReadOutTime = currentReadOutTime;
 				std::this_thread::sleep_for(loop_delay);
 				errorFlag=false;
 				continue;
 			}
 			
 			int turnDiff = mt - fLastTurns;
-			if ( ( std::abs(turnDiff) > 1 ) ) {
+			if ( std::abs(turnDiff) > 1 ) 
+			{
 				//std::cout<<" st diff: "<<posDiff<<"\n";
 				fBitErrors++;
 				errorFlag = true;
+				lastReadOutTime = currentReadOutTime;
 				std::this_thread::sleep_for(loop_delay);
 				continue;
 			}
 
 			int posDiff = st - fLastPos;
 			
-			if (std::abs(posDiff) > ((1<<(fStBits)))-1) {
-				posDiff -= sgn(posDiff)*((1<<(fStBits))-1);
+			if (std::abs(posDiff) > ( 1 << ( fStBits-1 ) ) ) {
+				posDiff -= sgn(posDiff) * ( 1 << ( fStBits ) );
 			}
 			double speed = static_cast<double>(posDiff) / (1<<fStBits);
 			auto diffTime { currentReadOutTime - lastReadOutTime };
@@ -142,6 +146,7 @@ void SsiPosEncoder::readLoop()
 			if ( std::abs(speed) > MAX_TURNS_PER_SECOND ) {
 				fBitErrors++;
 				errorFlag = true;
+				lastReadOutTime = currentReadOutTime;
 				std::this_thread::sleep_for(loop_delay);
 				continue;
 			}
