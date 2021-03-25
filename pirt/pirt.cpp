@@ -43,7 +43,7 @@ constexpr unsigned int POLL_INTERVAL_MS { 200 };
 constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152 /*152./9.*/ };
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 20. };
 constexpr double MAX_AZ_OVERTURN { 0.5 }; //< maximum overturn in Az in revolutions at both ends
-constexpr double MAX_ALT_OVERTURN { 5./360. }; //< maximum overturn in Alt in revolutions at both ends
+constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
@@ -1027,10 +1027,18 @@ void PiRT::Equ2Hor(double ra, double dec, double* az, double* alt) {
   *alt = horcoords.alt;
 }
 
-bool PiRT::isInAbsoluteTurnRange(double absRev) {
+bool PiRT::isInAbsoluteTurnRangeAz(double absRev) {
 	
 	if ( (absRev > -0.5 - MAX_AZ_OVERTURN)
 		&& (absRev < 0.5 + MAX_AZ_OVERTURN) )
+		return true;
+	return false;
+}
+
+bool PiRT::isInAbsoluteTurnRangeAlt(double absRev) {
+	
+	if ( (absRev > 0. - MAX_ALT_OVERTURN)
+		&& (absRev < 0.25 + MAX_ALT_OVERTURN) )
 		return true;
 	return false;
 }
@@ -1278,9 +1286,11 @@ bool PiRT::ReadScopeStatus()
 
 			//PiRaTe::RotAxis diffAz { -180, 180, 360};
 			
+			// calculate the movement vector
 			dx = targetHorizontalCoords.Az.value() - currentHorizontalCoords.Az.value();
 			dy = targetHorizontalCoords.Alt.value() - currentHorizontalCoords.Alt.value();
 			
+			// correct angles to valid range
 			if ( dx > 180. ) { dx -= 360.; }
 			else if ( dx < -180. ) { dx += 360.; }
 			
@@ -1293,8 +1303,8 @@ bool PiRT::ReadScopeStatus()
 			DEBUGF(INDI::Logger::DBG_SESSION, "curr Az=%f Alt=%f", currentHorizontalCoords.Az.value(), currentHorizontalCoords.Alt.value());
 			DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
 */
-			// check, if the absolute position of the target is beyond te allowable limit
-			if ( !isInAbsoluteTurnRange( azAbsTurns + dx/360. ) ) {
+			// check, if the absolute position of the target is beyond the allowable limit
+			if ( !isInAbsoluteTurnRangeAz( azAbsTurns + dx/360. ) ) {
 //				DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
 				// if not, we still must be sure to turn into the right direction toward the allowable range
 				// e.g. if we are currently far in the forbidden range, make sure to not go further in
@@ -1305,6 +1315,8 @@ bool PiRT::ReadScopeStatus()
 //				DEBUGF(INDI::Logger::DBG_SESSION, "allowed dx=%f dy=%f", dx, dy);
 			}
 
+			// do the actual movement
+			// in Az
 			if ( std::abs(dx) > POS_ACCURACY_COARSE ) {
 				az_motor->move((dx>=0)?1.:-1.);
 			} else if ( std::abs(dx) > POS_ACCURACY_FINE ) {				
@@ -1317,6 +1329,7 @@ bool PiRT::ReadScopeStatus()
 				az_motor->move( (dx>0.) ? MotorThresholdN[0].value/100. : -MotorThresholdN[0].value/100. );
 			} else az_motor->stop();
 
+			// in Alt
 			if ( std::abs(dy) > POS_ACCURACY_COARSE ) {
 				el_motor->move((dy>=0)?1.:-1.);
 			} else if ( std::abs(dy) > POS_ACCURACY_FINE ) {				
@@ -1364,7 +1377,37 @@ bool PiRT::ReadScopeStatus()
 			break;
 	}
     
-
+	// check for axis limits and stop movement AND tracking, if motors are moving further into the forbidden range
+	// on the other hand, allow movement into the opposite direction
+	// Az axis
+	if ( azAbsTurns < 0.5 - MAX_AZ_OVERTURN ) {
+		// no more movements towards negative direction allowed
+		if ( az_motor->currentSpeed() < 0. ) {
+			Abort();
+			fIsTracking = false;
+		}
+	} else if ( azAbsTurns > 0.5 + MAX_AZ_OVERTURN ) {
+		// no more movements towards positive direction allowed
+		if ( az_motor->currentSpeed() > 0. ) {
+			Abort();
+			fIsTracking = false;
+		}
+	}
+	// Alt axis
+	if ( altAbsTurns < 0. - MAX_ALT_OVERTURN ) {
+		// no more movements towards negative direction allowed
+		if ( el_motor->currentSpeed() < 0. ) {
+			Abort();
+			fIsTracking = false;
+		}
+	} else if ( altAbsTurns > 0.25 + MAX_ALT_OVERTURN ) {
+		// no more movements towards positive direction allowed
+		if ( el_motor->currentSpeed() > 0. ) {
+			Abort();
+			fIsTracking = false;
+		}
+	}
+	
 	/* update scope status */
 	// update the telescope state lights
 	for (int i=0; i<5; i++) ScopeStatusL[i].s=IPS_IDLE;
