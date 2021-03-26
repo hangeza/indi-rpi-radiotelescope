@@ -118,6 +118,7 @@ class PiRT : public INDI::Telescope
 	void updateMotorStatus();
 	void updateMonitoring();
 	void updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item );
+	auto upTime() const -> std::chrono::duration<long, std::ratio<1>>;
 
     ILight ScopeStatusL[5];
     ILightVectorProperty ScopeStatusLP;
@@ -163,6 +164,9 @@ class PiRT : public INDI::Telescope
 	ISwitch RelaySwitchS[16];
 	ISwitchVectorProperty RelaySwitchSP[16];
 	
+    INumber DriverUpTimeN;
+    INumberVectorProperty DriverUpTimeNP;
+	
 	bool fIsTracking { false };
 	
 	double axisRatio[2] { 1., 1. };
@@ -186,4 +190,5 @@ class PiRT : public INDI::Telescope
 	
 	double fMotorCurrentOffsets[2] = { 0. , 0. };
 	std::vector<std::shared_ptr<PiRaTe::Ads1115VoltageMonitor>> voltageMonitors { };
+	std::chrono::time_point<std::chrono::system_clock> fStartTime { };
 };

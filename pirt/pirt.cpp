@@ -316,6 +316,10 @@ bool PiRT::initProperties()
 	IUFillNumberVector(&TempMonitorNP, TempMonitorN, 0, getDeviceName(), "TEMPERATURE_MONITOR", "Temperatures", "Monitoring",
 		IP_RO, 60, IPS_IDLE);
 
+
+	IUFillNumber(&DriverUpTimeN, "UPTIME", "Uptime", "%5.2f h", 0, 0, 0, 0);
+    IUFillNumberVector(&DriverUpTimeNP, &DriverUpTimeN, 1, getDeviceName(), "DRIVER_UPTIME", "Driver Uptime", "Monitoring",
+           IP_RO, 60, IPS_IDLE);
 	
 	for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++) {
 		IUFillSwitch(&RelaySwitchS[relay_index], "SWITCH", "On", ISS_OFF);
@@ -358,6 +362,8 @@ bool PiRT::updateProperties()
 		defineProperty(&MotorCurrentLimitNP);
 		defineProperty(&VoltageMonitorNP);
 		defineProperty(&TempMonitorNP);
+		defineProperty(&DriverUpTimeNP);
+		
 		for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++ ) {
 			defineProperty(&RelaySwitchSP[relay_index]);
 		}
@@ -382,6 +388,8 @@ bool PiRT::updateProperties()
 		deleteProperty(MotorCurrentLimitNP.name);
 		deleteProperty(VoltageMonitorNP.name);
 		deleteProperty(TempMonitorNP.name);
+		deleteProperty(DriverUpTimeNP.name);
+		
 		for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++ ) {
 			deleteProperty(RelaySwitchSP[relay_index].name);
 		}
@@ -599,6 +607,8 @@ bool PiRT::UnPark() {
 
 bool PiRT::Connect()
 {
+	fStartTime = std::chrono::system_clock::now();
+	
 	ITextVectorProperty *tvp = getText("DEVICE_ADDRESS");
 	if (tvp == nullptr) {
         DEBUG(INDI::Logger::DBG_ERROR, "No address property found.");
@@ -1073,6 +1083,9 @@ void PiRT::updateMotorStatus() {
 		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 		IDSetNumber(&MotorCurrentNP, nullptr);
 	}
+	// update uptime
+	DriverUpTimeN.value = upTime().count()/3600.;
+	IDSetNumber(&DriverUpTimeNP, nullptr);
 }
 
 void PiRT::updateMonitoring() {
@@ -1439,4 +1452,11 @@ bool PiRT::ReadScopeStatus()
 	NewRaDec(currentRA, currentDEC);
 
 	return true;
+}
+
+
+auto PiRT::upTime() const -> std::chrono::duration<long, std::ratio<1>> {
+	auto now { std::chrono::system_clock::now() };
+	auto difftime { now - fStartTime };
+	return std::chrono::duration_cast<std::chrono::seconds>(difftime);
 }
