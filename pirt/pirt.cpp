@@ -1083,9 +1083,6 @@ void PiRT::updateMotorStatus() {
 		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
 		IDSetNumber(&MotorCurrentNP, nullptr);
 	}
-	// update uptime
-	DriverUpTimeN.value = upTime().count()/3600.;
-	IDSetNumber(&DriverUpTimeNP, nullptr);
 }
 
 void PiRT::updateMonitoring() {
@@ -1111,19 +1108,10 @@ void PiRT::updateMonitoring() {
 		else VoltageMonitorNP.s = IPS_OK;
 	}
 	IDSetNumber(&VoltageMonitorNP, nullptr);
-/*
-	if ( adc != nullptr && adc->devicePresent() ) {
-		double v3 = adc->readVoltage(2);
-		double v4 = adc->readVoltage(3);
-		
-		VoltageMonitorN[0].value = v3 * VOLTAGE_MONITORING_RATIO[0];
-		VoltageMonitorN[1].value = v4 * VOLTAGE_MONITORING_RATIO[1];
-		
-		VoltageMonitorNP.s=IPS_OK;
-		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
-		IDSetNumber(&VoltageMonitorNP, nullptr);
-	}
-*/
+
+	// update uptime
+	DriverUpTimeN.value = upTime().count()/3600.;
+	IDSetNumber(&DriverUpTimeNP, nullptr);
 }
 
 void PiRT::updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item ) {
