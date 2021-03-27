@@ -328,6 +328,10 @@ bool PiRT::initProperties()
 
 	}	
 
+	IUFillLight(&WeatherStatusN, "WEATHER_WIND_SPEED", "wind speed", IPS_IDLE);
+    IUFillLightVector(&WeatherStatusNP, &WeatherStatusN, 1, getDeviceName(), "WEATHER_STATUS", "Status", "Monitoring",
+           IPS_IDLE);
+	
 	addDebugControl();
 	return true;
 }
@@ -367,6 +371,9 @@ bool PiRT::updateProperties()
 		for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++ ) {
 			defineProperty(&RelaySwitchSP[relay_index]);
 		}
+		
+		IDSnoopDevice("Weather Watcher", "WEATHER_STATUS");
+		
 		//deleteProperty(EncoderBitRateNP.name);
     } else {
 		deleteProperty(ScopeStatusLP.name);
@@ -549,6 +556,26 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 	}	
 	//  Nobody has claimed this, so forward it to the base class method
 	return INDI::Telescope::ISNewNumber(dev,name,values,names,n);
+}
+
+bool PiRT::ISSnoopDevice(XMLEle *root) {
+	char *dev, *name;
+	XMLEle *ep;
+	int i;
+ 
+	/* check and crack type, device, name and state */
+	if ( crackDN(root, &dev, &name, NULL) < 0 ) return false;
+	if (!strcmp(name, WeatherStatusNP.name)) {
+		(void)crackIPState(findXMLAttValu(root, "state"), &WeatherStatusNP.s);
+		if (WeatherStatusNP.s == IPS_OK)
+			DEBUG(INDI::Logger::DBG_SESSION, "Weather status is ok");
+		else if (WeatherStatusNP.s == IPS_BUSY)
+			DEBUG(INDI::Logger::DBG_SESSION, "Weather status is in warning range");
+		else if (WeatherStatusNP.s == IPS_ALERT)
+			DEBUG(INDI::Logger::DBG_WARNING, "Weather status is critical!");
+		return true;
+	}
+	return INDI::Telescope::ISSnoopDevice(root);
 }
 
 bool PiRT::SetTrackMode(uint8_t mode) {
@@ -1086,6 +1113,10 @@ void PiRT::updateMotorStatus() {
 }
 
 void PiRT::updateMonitoring() {
+	// update uptime
+	DriverUpTimeN.value = upTime().count()/3600.;
+	IDSetNumber(&DriverUpTimeNP, nullptr);
+
 	if (voltageMonitors.empty()) return;
 	int voltage_index = 0;
 	bool outsideRange { false };
@@ -1108,10 +1139,6 @@ void PiRT::updateMonitoring() {
 		else VoltageMonitorNP.s = IPS_OK;
 	}
 	IDSetNumber(&VoltageMonitorNP, nullptr);
-
-	// update uptime
-	DriverUpTimeN.value = upTime().count()/3600.;
-	IDSetNumber(&DriverUpTimeNP, nullptr);
 }
 
 void PiRT::updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item ) {
