@@ -1,22 +1,14 @@
 /*
-   INDI Developers Manual
-   Tutorial #2
-
-   "Simple Telescope Driver"
-
-   We develop a simple telescope simulator.
-
-   Refer to README, which contains instruction on how to build this driver, and use it
-   with an INDI-compatible client.
+   INDI Raspberry Pi based mount driver.
+   The driver itself acts as a telescope mount reading the positions from SSI-based absolute encoders from
+   the on-board SPI interfaces and driving DC motors via PWM over GPIO pins
+   "Pi Radiotelescope Driver"
 
 */
 
 /** \file pirt.h
-    \brief Construct a basic INDI telescope device that simulates GOTO commands.
-    \author HG Zaunick
-
-    \example pirt.h
-    A simple GOTO telescope that simulator slewing operation.
+    \brief A customized INDI telescope device with full functionality of a telescope mount.
+    \author Hans-Georg Zaunick
 */
 
 #pragma once
@@ -84,6 +76,8 @@ class PiRT : public INDI::Telescope
     void TimerHit() override;
     virtual bool ISNewSwitch (const char *dev, const char *name, ISState *states, char *names[], int n) override;
 	virtual bool ISNewNumber(const char *dev, const char *name, double values[], char *names[], int n) override;
+    virtual bool ISSnoopDevice(XMLEle *root) override;
+
 
     [[nodiscard]] auto isTracking() const -> bool;
     
@@ -167,6 +161,9 @@ class PiRT : public INDI::Telescope
     INumber DriverUpTimeN;
     INumberVectorProperty DriverUpTimeNP;
 	
+	ILight WeatherStatusN;
+	ILightVectorProperty WeatherStatusNP;
+	
 	bool fIsTracking { false };
 	
 	double axisRatio[2] { 1., 1. };
@@ -188,7 +185,6 @@ class PiRT : public INDI::Telescope
 	HorCoords targetHorizontalCoords { 0. , 90. };
 	EquCoords targetEquatorialCoords { 0. , 0. };
 	
-	double fMotorCurrentOffsets[2] = { 0. , 0. };
 	std::vector<std::shared_ptr<PiRaTe::Ads1115VoltageMonitor>> voltageMonitors { };
 	std::chrono::time_point<std::chrono::system_clock> fStartTime { };
 };
