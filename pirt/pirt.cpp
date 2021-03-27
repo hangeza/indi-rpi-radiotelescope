@@ -78,16 +78,23 @@ constexpr PiRaTe::MotorDriver::Pins ALT_MOTOR_PINS {
 constexpr std::uint8_t MOTOR_ADC_ADDR { 0x48 };
 constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x49 };
 
-struct Relay {
+struct GpioPin {
 	std::string name;
 	unsigned int gpio_pin;
 	bool inverted;
 };
 
-const std::vector<Relay> RelayVector { 	{ "Relay1", 17, true },
-										{ "Relay2", 27, true },
-										{ "Relay3", 22, true },
-										{ "Relay4", 16, true } };
+const std::vector<GpioPin> GpioOutputVector { 	{ "Relay1", 17, true },
+												{ "Relay2", 27, true },
+												{ "Relay3", 22, true },
+												{ "Relay4", 16, true } };
+
+const std::vector<GpioPin> GpioInputVector {	{ "In1 (BCM8)", 8, false },
+												{ "In2 (BCM7)", 7, false },
+												{ "In3 (BCM0)", 0, false },
+												{ "In4 (BCM1)", 1, false },
+												{ "In5 (BCM10)", 10, false },
+												{ "In6 (BCM20)", 20, false } };
 
 struct I2cVoltageDef {
 	std::string name;
@@ -321,12 +328,17 @@ bool PiRT::initProperties()
     IUFillNumberVector(&DriverUpTimeNP, &DriverUpTimeN, 1, getDeviceName(), "DRIVER_UPTIME", "Driver Uptime", "Monitoring",
            IP_RO, 60, IPS_IDLE);
 	
-	for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++) {
-		IUFillSwitch(&RelaySwitchS[relay_index], "SWITCH", "On", ISS_OFF);
-		IUFillSwitchVector(&RelaySwitchSP[relay_index], &RelaySwitchS[relay_index], 1, getDeviceName(), std::string("SWITCH"+std::to_string(relay_index)).c_str(), RelayVector[relay_index].name.c_str(), "Switches",
-			IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
-
+	for ( std::size_t relay_index = 0; relay_index < GpioOutputVector.size(); relay_index++) {
+		IUFillSwitch(&OutputSwitchS[relay_index], std::string("GPIO_OUT"+std::to_string(relay_index)).c_str(), GpioOutputVector[relay_index].name.c_str(), ISS_OFF);
 	}	
+	IUFillSwitchVector(&OutputSwitchSP, OutputSwitchS, GpioOutputVector.size(), getDeviceName(), "GPIO_OUTPUTS", "Outputs", "Switches",
+		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
+
+	for ( std::size_t input_index = 0; input_index < GpioInputVector.size(); input_index++) {
+		IUFillSwitch(&GpioInputS[input_index], std::string("GPIO_IN"+std::to_string(input_index)).c_str(), GpioInputVector[input_index].name.c_str(), ISS_OFF);
+	}	
+	IUFillSwitchVector(&GpioInputSP, GpioInputS, GpioInputVector.size(), getDeviceName(), "GPIO_INPUTS", "Inputs", "Switches",
+		IP_RO, ISR_NOFMANY, 60, IPS_IDLE);
 
 	IUFillLight(&WeatherStatusN, "WEATHER_WIND_SPEED", "wind speed", IPS_IDLE);
     IUFillLightVector(&WeatherStatusNP, &WeatherStatusN, 1, getDeviceName(), "WEATHER_STATUS", "Status", "Monitoring",
@@ -368,9 +380,8 @@ bool PiRT::updateProperties()
 		defineProperty(&TempMonitorNP);
 		defineProperty(&DriverUpTimeNP);
 		
-		for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++ ) {
-			defineProperty(&RelaySwitchSP[relay_index]);
-		}
+		defineProperty(&OutputSwitchSP);
+		defineProperty(&GpioInputSP);
 		
 		IDSnoopDevice("Weather Watcher", "WEATHER_STATUS");
 		
@@ -397,9 +408,8 @@ bool PiRT::updateProperties()
 		deleteProperty(TempMonitorNP.name);
 		deleteProperty(DriverUpTimeNP.name);
 		
-		for ( std::size_t relay_index = 0; relay_index < RelayVector.size(); relay_index++ ) {
-			deleteProperty(RelaySwitchSP[relay_index].name);
-		}
+		deleteProperty(OutputSwitchSP.name);
+		deleteProperty(GpioInputSP.name);
 //		defineProperty(&EncoderBitRateNP);
 	}
     
@@ -415,23 +425,27 @@ bool PiRT::ISNewSwitch (const char *dev, const char *name, ISState *states, char
 	if(strcmp(dev,getDeviceName())==0)
 	{
 		//  This one is for us
-		for ( std::size_t relayIndex = 0; relayIndex < RelayVector.size(); relayIndex++ ) {
-			if(!strcmp(name,RelaySwitchSP[relayIndex].name)) {
-				IUUpdateSwitch(&RelaySwitchSP[relayIndex], states, names, n);
-				if ( RelaySwitchS[relayIndex].s == ISS_ON ) {
-					RelaySwitchSP[relayIndex].s = IPS_OK;
-					gpio->set_gpio_state(RelayVector[relayIndex].gpio_pin, !RelayVector[relayIndex].inverted );
-					std::string tempstr { "Relay"+std::to_string(relayIndex+1)+" switch on" };
-					IDSetSwitch( &RelaySwitchSP[relayIndex], tempstr.c_str() );
-				} else {
-					RelaySwitchSP[relayIndex].s = IPS_IDLE;
-					gpio->set_gpio_state(RelayVector[relayIndex].gpio_pin, RelayVector[relayIndex].inverted );
-					std::string tempstr { "Relay"+std::to_string(relayIndex+1)+" switch off" };
-					IDSetSwitch( &RelaySwitchSP[relayIndex], tempstr.c_str() );
+		if(!strcmp(name,OutputSwitchSP.name)) {
+			std::string tempstr { "Relay" };
+			for ( std::size_t index = 0; index < n; index++) {
+				if ( OutputSwitchS[index].s != states[index] ) {
+					tempstr += std::to_string(index+1);
+					if ( states[index] == ISS_ON ) {
+						//OutputSwitchSP[relayIndex].s = IPS_OK;
+						gpio->set_gpio_state(GpioOutputVector[index].gpio_pin, !GpioOutputVector[index].inverted );
+						tempstr += " switch on";
+					} else {
+						//OutputSwitchSP[relayIndex].s = IPS_IDLE;
+						gpio->set_gpio_state(GpioOutputVector[index].gpio_pin, GpioOutputVector[index].inverted );
+						tempstr += " switch off";
+					}
 				}
-				return true;
-			}	
-		}
+			}
+			OutputSwitchSP.s = IPS_IDLE;
+			IUUpdateSwitch(&OutputSwitchSP, states, names, n);
+			IDSetSwitch( &OutputSwitchSP, tempstr.c_str() );
+			return true;
+		}	
 	}
 	//  Nobody has claimed this, so forward it to the base class' method
 	return INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
@@ -768,11 +782,16 @@ bool PiRT::Connect()
 	}
 	
 	// set up the gpio pins for the relay switches
-	for ( unsigned int i = 0; i<RelayVector.size(); i++ ) {
-		gpio->set_gpio_direction( RelayVector[i].gpio_pin, true );
-		gpio->set_gpio_state( RelayVector[i].gpio_pin, RelayVector[i].inverted );
+	for ( unsigned int i = 0; i<GpioOutputVector.size(); i++ ) {
+		gpio->set_gpio_direction( GpioOutputVector[i].gpio_pin, true );
+		gpio->set_gpio_state( GpioOutputVector[i].gpio_pin, GpioOutputVector[i].inverted );
 	}	
 	
+	// set up the gpio pins for the digital inputs
+	for ( unsigned int i = 0; i<GpioInputVector.size(); i++ ) {
+		gpio->set_gpio_direction( GpioInputVector[i].gpio_pin, false );
+	}	
+
 	INDI::Telescope::Connect();
 	return true;
 }
@@ -1116,6 +1135,18 @@ void PiRT::updateMonitoring() {
 	// update uptime
 	DriverUpTimeN.value = upTime().count()/3600.;
 	IDSetNumber(&DriverUpTimeNP, nullptr);
+	
+	// update inputs
+	for ( std::size_t index = 0; index < GpioInputVector.size(); index++ ) {
+		bool state = gpio->get_gpio_state( GpioInputVector[index].gpio_pin, nullptr );
+		if (( GpioInputS[index].s == ISS_ON && !state ) ||
+			( GpioInputS[index].s == ISS_OFF && state )	)
+		{
+			// the state of the pin changed
+			GpioInputS[index].s = (state) ? ISS_ON : ISS_OFF;
+			IDSetSwitch( &GpioInputSP, nullptr );
+		}
+	}
 
 	if (voltageMonitors.empty()) return;
 	int voltage_index = 0;

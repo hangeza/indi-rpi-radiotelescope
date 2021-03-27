@@ -155,10 +155,13 @@ class PiRT : public INDI::Telescope
 	INumber AxisAbsTurnsN[2];
 	INumberVectorProperty AxisAbsTurnsNP;
 	
-	ISwitch RelaySwitchS[16];
-	ISwitchVectorProperty RelaySwitchSP[16];
+	ISwitch OutputSwitchS[16];
+	ISwitchVectorProperty OutputSwitchSP;
 	
-    INumber DriverUpTimeN;
+	ISwitch GpioInputS[16];
+	ISwitchVectorProperty GpioInputSP;
+
+	INumber DriverUpTimeN;
     INumberVectorProperty DriverUpTimeNP;
 	
 	ILight WeatherStatusN;
