@@ -1152,7 +1152,7 @@ void PiRT::updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem it
 	} 
 	deleteProperty(TempMonitorNP.name);
 	
-	IUFillNumber(&TempMonitorN[source], ("TEMPERATURE"+std::to_string(source)).c_str(), (item.name+":"+item.id).c_str(), "%4.2f \xB0 C", 0, 0, 0, item.temperature);
+	IUFillNumber(&TempMonitorN[source], ("TEMPERATURE"+std::to_string(source)).c_str(), (item.name+":"+item.id).c_str(), "%4.2f °C", 0, 0, 0, item.temperature);
 	IUFillNumberVector(&TempMonitorNP, TempMonitorN, source+1, getDeviceName(), "TEMPERATURE_MONITOR", "Temperatures", "Monitoring",
            IP_RO, 60, IPS_IDLE);
 	
