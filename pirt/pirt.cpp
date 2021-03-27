@@ -1137,15 +1137,22 @@ void PiRT::updateMonitoring() {
 	IDSetNumber(&DriverUpTimeNP, nullptr);
 	
 	// update inputs
+	bool change_detected { false };
 	for ( std::size_t index = 0; index < GpioInputVector.size(); index++ ) {
-		bool state = gpio->get_gpio_state( GpioInputVector[index].gpio_pin, nullptr );
+		const bool state = gpio->get_gpio_state( GpioInputVector[index].gpio_pin, nullptr );
 		if (( GpioInputS[index].s == ISS_ON && !state ) ||
 			( GpioInputS[index].s == ISS_OFF && state )	)
 		{
 			// the state of the pin changed
+			change_detected = true;
 			GpioInputS[index].s = (state) ? ISS_ON : ISS_OFF;
+			GpioInputSP.s = IPS_OK;
 			IDSetSwitch( &GpioInputSP, nullptr );
 		}
+	}
+	if ( !change_detected && GpioInputSP.s == IPS_OK ) {
+		GpioInputSP.s = IPS_IDLE;
+		IDSetSwitch( &GpioInputSP, nullptr );
 	}
 
 	if (voltageMonitors.empty()) return;
