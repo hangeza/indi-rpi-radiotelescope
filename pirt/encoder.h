@@ -38,7 +38,17 @@ constexpr unsigned int MAX_CONN_ERRORS { 10U };
 class SsiPosEncoder {
   public:
     SsiPosEncoder()=delete;
-    SsiPosEncoder(std::shared_ptr<GPIO> gpio, 
+	/**
+	 * @brief The main constructor
+	 * Initializes an object with the given gpio object pointer and SPI parameters.
+	 * @param gpio shared pointer to an initialized GPIO object
+	 * @param GPIO::SPI_INTERFACE the SPI interface to use (GPIO::SPI_INTERFACE::Main or GPIO::SPI_INTERFACE:Aux)
+	 * @param baudrate the bitrate which the SPI interface should be initialized for
+	 * @param spi_channel the SPI channel to use (which CEx pin is assigned to this SPI device)
+	 * @param GPIO::SPI_MODE the SPI mode to use (GPIO::SPI_MODE::POL0PHA0, GPIO::SPI_MODE::POL0PHA1, GPIO::SPI_MODE::POL1PHA0 or GPIO::SPI_MODE::POL1PHA1)
+	 * @throws std::exception if the supplied gpio object is not initialized or the initialization of the SPI channel fails
+	 */
+	SsiPosEncoder(std::shared_ptr<GPIO> gpio, 
 				  GPIO::SPI_INTERFACE spi_interface,
 				  unsigned int baudrate = SPI_BAUD_DEFAULT,
 				  std::uint8_t spi_channel = 0,  
