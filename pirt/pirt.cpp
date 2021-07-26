@@ -42,8 +42,10 @@ constexpr unsigned int SSI_BAUD_RATE { 500000 };
 constexpr unsigned int POLL_INTERVAL_MS { 200 };
 constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152 /*152./9.*/ };
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 20. };
-constexpr double MAX_AZ_OVERTURN { 0.5 }; //< maximum overturn in Az in revolutions at both ends
+constexpr double MAX_AZ_OVERTURN { 0.25 }; //< maximum overturn in Az in revolutions at both ends
 constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
+constexpr bool AZ_POS_DIR_INVERT { false };
+constexpr bool ALT_POS_DIR_INVERT { false };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
@@ -57,8 +59,8 @@ constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.14 };
 constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 2. }; //< absolute motor current limit for Az motor in Ampere
 constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 1.5 }; //< absolute motor current limit for Alt motor in Ampere
 constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
-constexpr bool AZ_DIR_INVERT { true };
-constexpr bool ALT_DIR_INVERT { false };
+constexpr bool AZ_MOTOR_DIR_INVERT { true };
+constexpr bool ALT_MOTOR_DIR_INVERT { false };
 constexpr PiRaTe::MotorDriver::Pins AZ_MOTOR_PINS { 
 	.Pwm=12,
 	.Dir=-1,
@@ -742,13 +744,13 @@ bool PiRT::Connect()
 	}
 	
 	// initialize Az motor driver
-	az_motor.reset( new PiRaTe::MotorDriver( gpio, AZ_MOTOR_PINS, AZ_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 0 ) );
+	az_motor.reset( new PiRaTe::MotorDriver( gpio, AZ_MOTOR_PINS, AZ_MOTOR_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 0 ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
 	// initialize Alt motor driver
-	el_motor.reset( new PiRaTe::MotorDriver( gpio, ALT_MOTOR_PINS, ALT_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 1 ) );
+	el_motor.reset( new PiRaTe::MotorDriver( gpio, ALT_MOTOR_PINS, ALT_MOTOR_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 1 ) );
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
@@ -1230,7 +1232,9 @@ void PiRT::updatePosition() {
 
 		azAbsTurns = ( az_revolutions / axisRatio[0] ) + axisOffset[0] / 360.;
 		altAbsTurns = ( el_revolutions / axisRatio[1] ) + axisOffset[1] / 360.;
-
+		if ( AZ_POS_DIR_INVERT ) azAbsTurns *= -1.;
+		if ( ALT_POS_DIR_INVERT ) altAbsTurns *= -1.;
+		
 		AxisAbsTurnsN[0].value = azAbsTurns;
 		AxisAbsTurnsN[1].value = altAbsTurns;
 		if ( std::abs(azAbsTurns) > 0.5 + MAX_AZ_OVERTURN || 
@@ -1369,16 +1373,17 @@ bool PiRT::ReadScopeStatus()
 			DEBUGF(INDI::Logger::DBG_SESSION, "curr Az=%f Alt=%f", currentHorizontalCoords.Az.value(), currentHorizontalCoords.Alt.value());
 			DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
 */
+
 			// check, if the absolute position of the target is beyond the allowable limit
 			if ( !isInAbsoluteTurnRangeAz( azAbsTurns + dx/360. ) ) {
-//				DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
+				//DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
 				// if not, we still must be sure to turn into the right direction toward the allowable range
 				// e.g. if we are currently far in the forbidden range, make sure to not go further in
 				const double alt_dx = ( dx > 0. ) ? ( dx - 360. ) : ( dx + 360. );
 				if ( std::abs( azAbsTurns + dx/360. ) > std::abs( azAbsTurns + alt_dx/360. ) ) {
 					dx = alt_dx;
 				}
-//				DEBUGF(INDI::Logger::DBG_SESSION, "allowed dx=%f dy=%f", dx, dy);
+				//DEBUGF(INDI::Logger::DBG_SESSION, "allowed dx=%f dy=%f", dx, dy);
 			}
 
 			// do the actual movement
@@ -1444,16 +1449,18 @@ bool PiRT::ReadScopeStatus()
 	}
     
 	// check for axis limits and stop movement AND tracking, if motors are moving further into the forbidden range
-	// on the other hand, allow movement into the opposite direction
+	// on the other hand, allow movement into the opposite direction only
 	// Az axis
-	if ( azAbsTurns < 0.5 - MAX_AZ_OVERTURN ) {
+	if ( azAbsTurns < -0.6 - MAX_AZ_OVERTURN ) {
 		// no more movements towards negative direction allowed
+		DEBUGF(INDI::Logger::DBG_SESSION, "neg. Az overturn: azAbsTurns=%f limit=%f", azAbsTurns, -0.6-MAX_AZ_OVERTURN);
 		if ( az_motor->currentSpeed() < 0. ) {
 			Abort();
 			fIsTracking = false;
 		}
-	} else if ( azAbsTurns > 0.5 + MAX_AZ_OVERTURN ) {
+	} else if ( azAbsTurns > 0.6 + MAX_AZ_OVERTURN ) {
 		// no more movements towards positive direction allowed
+		DEBUGF(INDI::Logger::DBG_SESSION, "pos. Az overturn: azAbsTurns=%f limit=%f", azAbsTurns, 0.6+MAX_AZ_OVERTURN);
 		if ( az_motor->currentSpeed() > 0. ) {
 			Abort();
 			fIsTracking = false;
