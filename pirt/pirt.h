@@ -158,14 +158,17 @@ class PiRT : public INDI::Telescope
 	ISwitch OutputSwitchS[16];
 	ISwitchVectorProperty OutputSwitchSP;
 	
-	ISwitch GpioInputS[16];
-	ISwitchVectorProperty GpioInputSP;
+	ILight GpioInputL[16];
+	ILightVectorProperty GpioInputLP;
 
 	INumber DriverUpTimeN;
     INumberVectorProperty DriverUpTimeNP;
 	
 	ILight WeatherStatusN;
 	ILightVectorProperty WeatherStatusNP;
+	
+	ISwitch ErrorResetS;
+	ISwitchVectorProperty ErrorResetSP;
 	
 	bool fIsTracking { false };
 	
@@ -174,8 +177,6 @@ class PiRT : public INDI::Telescope
 	
     IPState lastHorState;
     uint8_t DBG_SCOPE { INDI::Logger::DBG_IGNORE };
-	// slew rate, degrees/s
-    static const uint8_t SLEW_RATE = 3;
 	
 	std::shared_ptr<GPIO> gpio { nullptr };
 	std::unique_ptr<PiRaTe::SsiPosEncoder> az_encoder { nullptr };
