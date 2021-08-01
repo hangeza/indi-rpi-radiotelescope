@@ -44,14 +44,14 @@ constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152./9. };
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 1. };
 constexpr double MAX_AZ_OVERTURN { 0.25 }; //< maximum overturn in Az in revolutions at both ends
 constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
-constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
+constexpr double ALT_LIMIT_LOW { -0.5/360. }; //< lower position limit Alt in revolutions
+constexpr double ALT_LIMIT_HI { 100./360. }; //< upper position limit in Alt in revolutions
 constexpr bool AZ_POS_DIR_INVERT { false };
 constexpr bool ALT_POS_DIR_INVERT { true };
 constexpr double DEFAULT_AZ_AXIS_OFFSET { -180. };
 constexpr double DEFAULT_ALT_AXIS_OFFSET { 1.5 };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
-constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 
 constexpr double POS_ACCURACY_COARSE { 3.0 };
 constexpr double POS_ACCURACY_FINE { 0.1 };
