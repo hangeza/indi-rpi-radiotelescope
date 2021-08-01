@@ -40,25 +40,31 @@ class TCP;
 
 constexpr unsigned int SSI_BAUD_RATE { 500000 };
 constexpr unsigned int POLL_INTERVAL_MS { 200 };
-constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152 /*152./9.*/ };
-constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 20. };
-constexpr double MAX_AZ_OVERTURN { 0.5 }; //< maximum overturn in Az in revolutions at both ends
+constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152./9. }; 
+constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 1. };
+constexpr double MAX_AZ_OVERTURN { 0.25 }; //< maximum overturn in Az in revolutions at both ends
 constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
+constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
+constexpr bool AZ_POS_DIR_INVERT { false };
+constexpr bool ALT_POS_DIR_INVERT { true };
+constexpr double DEFAULT_AZ_AXIS_OFFSET { -180. };
+constexpr double DEFAULT_ALT_AXIS_OFFSET { 1.5 };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 
 constexpr double POS_ACCURACY_COARSE { 3.0 };
 constexpr double POS_ACCURACY_FINE { 0.1 };
-constexpr double TRACK_ACCURACY { 0.017 }; // one arc minute
+constexpr double TRACK_ACCURACY { 0.05 }; // 3 arc minutes
+constexpr unsigned int NR_SLEW_RATES { 5 };
 
 constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.06 };
 constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.14 };
-constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 2. }; //< absolute motor current limit for Az motor in Ampere
-constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 1.5 }; //< absolute motor current limit for Alt motor in Ampere
+constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 4. }; //< absolute motor current limit for Az motor in Ampere
+constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 2.5 }; //< absolute motor current limit for Alt motor in Ampere
 constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
-constexpr bool AZ_DIR_INVERT { true };
-constexpr bool ALT_DIR_INVERT { false };
+constexpr bool AZ_MOTOR_DIR_INVERT { true };
+constexpr bool ALT_MOTOR_DIR_INVERT { true };
 constexpr PiRaTe::MotorDriver::Pins AZ_MOTOR_PINS { 
 	.Pwm=12,
 	.Dir=-1,
@@ -92,9 +98,8 @@ const std::vector<GpioPin> GpioOutputVector { 	{ "Relay1", 17, true },
 const std::vector<GpioPin> GpioInputVector {	{ "In1 (BCM8)", 8, false },
 												{ "In2 (BCM7)", 7, false },
 												{ "In3 (BCM0)", 0, false },
-												{ "In4 (BCM1)", 1, false },
-												{ "In5 (BCM10)", 10, false },
-												{ "In6 (BCM20)", 20, false } };
+												{ "In4 (BCM20)", 20, false },
+												{ "In5 (BCM1)", 1, false } };
 
 struct I2cVoltageDef {
 	std::string name;
@@ -200,6 +205,7 @@ PiRT::PiRT()
 			TELESCOPE_HAS_TRACK_MODE |
 			TELESCOPE_CAN_CONTROL_TRACK /*|
 			TELESCOPE_HAS_TRACK_RATE */
+			, NR_SLEW_RATES
 	);
 }
 
@@ -275,20 +281,22 @@ bool PiRT::initProperties()
     IDSetNumber(&ElEncSettingNP, NULL);
 	
 	IUFillNumber(&AzAxisSettingN[0], "AZ_AXIS_RATIO", "Enc-to-Axis turns ratio", "%5.3f", 0.0001, 100000, 0, DEFAULT_AZ_AXIS_TURNS_RATIO);
-	IUFillNumber(&AzAxisSettingN[1], "AZ_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -180., 180., 0, 0);
+	IUFillNumber(&AzAxisSettingN[1], "AZ_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -180., 180., 0, DEFAULT_AZ_AXIS_OFFSET);
     IUFillNumberVector(&AzAxisSettingNP, AzAxisSettingN, 2, getDeviceName(), "AZ_AXIS_SETTING", "Az Axis Settings", "Axes",
            IP_RW, 60, IPS_IDLE);
 	defineProperty(&AzAxisSettingNP);
     IDSetNumber(&AzAxisSettingNP, NULL);
 
 	IUFillNumber(&ElAxisSettingN[0], "EL_AXIS_RATIO", "Enc-to-Axis turns ratio", "%5.3f", 0.0001, 100000, 0, DEFAULT_EL_AXIS_TURNS_RATIO);
-	IUFillNumber(&ElAxisSettingN[1], "EL_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -90., 90., 0, 0);
+	IUFillNumber(&ElAxisSettingN[1], "EL_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -90., 90., 0, DEFAULT_ALT_AXIS_OFFSET);
     IUFillNumberVector(&ElAxisSettingNP, ElAxisSettingN, 2, getDeviceName(), "El_AXIS_SETTING", "El Axis Settings", "Axes",
            IP_RW, 60, IPS_IDLE);
 	defineProperty(&ElAxisSettingNP);
     IDSetNumber(&ElAxisSettingNP, NULL);
 	axisRatio[0] = DEFAULT_AZ_AXIS_TURNS_RATIO;
 	axisRatio[1] = DEFAULT_EL_AXIS_TURNS_RATIO;
+	axisOffset[0] = DEFAULT_AZ_AXIS_OFFSET;
+	axisOffset[1] = DEFAULT_ALT_AXIS_OFFSET;
 
 	IUFillNumber(&AxisAbsTurnsN[0], "AZ_AXIS_TURNS", "Az", "%5.4f rev", 0, 0, 0, 0);
 	IUFillNumber(&AxisAbsTurnsN[1], "ALT_AXIS_TURNS", "Alt", "%5.4f rev", 0, 0, 0, 0);
@@ -335,10 +343,13 @@ bool PiRT::initProperties()
 		IP_RW, ISR_NOFMANY, 60, IPS_IDLE);
 
 	for ( std::size_t input_index = 0; input_index < GpioInputVector.size(); input_index++) {
-		IUFillSwitch(&GpioInputS[input_index], std::string("GPIO_IN"+std::to_string(input_index)).c_str(), GpioInputVector[input_index].name.c_str(), ISS_OFF);
+//		IUFillSwitch(&GpioInputS[input_index], std::string("GPIO_IN"+std::to_string(input_index)).c_str(), GpioInputVector[input_index].name.c_str(), ISS_OFF);
+		IUFillLight(&GpioInputL[input_index], std::string("GPIO_IN"+std::to_string(input_index)).c_str(), GpioInputVector[input_index].name.c_str(), IPS_IDLE);
 	}	
-	IUFillSwitchVector(&GpioInputSP, GpioInputS, GpioInputVector.size(), getDeviceName(), "GPIO_INPUTS", "Inputs", "Switches",
-		IP_RO, ISR_NOFMANY, 60, IPS_IDLE);
+//	IUFillSwitchVector(&GpioInputSP, GpioInputS, GpioInputVector.size(), getDeviceName(), "GPIO_INPUTS", "Inputs", "Switches",
+//		IP_RO, ISR_NOFMANY, 60, IPS_IDLE);
+    IUFillLightVector(&GpioInputLP, GpioInputL, GpioInputVector.size(), getDeviceName(), "GPIO_INPUTS", "Inputs", "Switches", 
+		IPS_IDLE);
 
 	IUFillLight(&WeatherStatusN, "WEATHER_WIND_SPEED", "wind speed", IPS_IDLE);
     IUFillLightVector(&WeatherStatusNP, &WeatherStatusN, 1, getDeviceName(), "WEATHER_STATUS", "Status", "Monitoring",
@@ -381,7 +392,7 @@ bool PiRT::updateProperties()
 		defineProperty(&DriverUpTimeNP);
 		
 		defineProperty(&OutputSwitchSP);
-		defineProperty(&GpioInputSP);
+		defineProperty(&GpioInputLP);
 		
 		IDSnoopDevice("Weather Watcher", "WEATHER_STATUS");
 		
@@ -409,7 +420,7 @@ bool PiRT::updateProperties()
 		deleteProperty(DriverUpTimeNP.name);
 		
 		deleteProperty(OutputSwitchSP.name);
-		deleteProperty(GpioInputSP.name);
+		deleteProperty(GpioInputLP.name);
 //		defineProperty(&EncoderBitRateNP);
 	}
     
@@ -421,10 +432,9 @@ bool PiRT::updateProperties()
 ***************************************************************************************/
 bool PiRT::ISNewSwitch (const char *dev, const char *name, ISState *states, char *names[], int n)
 {
-	//return INDI::Telescope::ISNewSwitch(dev,name,states,names,n);
 	if(strcmp(dev,getDeviceName())==0)
 	{
-		//  This one is for us
+		//  Set output switch (relay switch)
 		if(!strcmp(name,OutputSwitchSP.name)) {
 			std::string tempstr { "Relay" };
 			for ( std::size_t index = 0; index < n; index++) {
@@ -742,13 +752,13 @@ bool PiRT::Connect()
 	}
 	
 	// initialize Az motor driver
-	az_motor.reset( new PiRaTe::MotorDriver( gpio, AZ_MOTOR_PINS, AZ_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 0 ) );
+	az_motor.reset( new PiRaTe::MotorDriver( gpio, AZ_MOTOR_PINS, AZ_MOTOR_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 0 ) );
 	if (!az_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
 	// initialize Alt motor driver
-	el_motor.reset( new PiRaTe::MotorDriver( gpio, ALT_MOTOR_PINS, ALT_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 1 ) );
+	el_motor.reset( new PiRaTe::MotorDriver( gpio, ALT_MOTOR_PINS, ALT_MOTOR_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 1 ) );
 	if (!el_motor->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
@@ -945,7 +955,15 @@ bool PiRT::MoveNS(INDI_DIR_NS dir, TelescopeMotionCommand command)
 		el_motor->stop();
 		return true;
 	}
-	constexpr float speed = 0.2;
+	int speedIndex = IUFindOnSwitchIndex( &SlewRateSP );
+	
+	float speed = 0.;
+	if ( NR_SLEW_RATES < 2 ) { 
+		speed = 1.;
+	} else {
+		speed = 0.01 * ( MotorThresholdN[1].value + (100.-MotorThresholdN[1].value) * speedIndex / ( NR_SLEW_RATES - 1 ) );
+	}
+
 	switch (dir) {
 		case DIRECTION_SOUTH:
 			el_motor->move(-speed);
@@ -958,10 +976,6 @@ bool PiRT::MoveNS(INDI_DIR_NS dir, TelescopeMotionCommand command)
 			break;
 	}
 	return true;
-    //IUResetSwitch(&MovementNSSP);
-    MovementNSSP.s = IPS_BUSY;
-    IDSetSwitch(&MovementNSSP, nullptr);
-    return false;
 }
 
 bool PiRT::MoveWE(INDI_DIR_WE dir, TelescopeMotionCommand command)
@@ -970,24 +984,27 @@ bool PiRT::MoveWE(INDI_DIR_WE dir, TelescopeMotionCommand command)
 		az_motor->stop();
 		return true;
 	}
-	constexpr float speed = 0.15;
+
+	int speedIndex = IUFindOnSwitchIndex( &SlewRateSP );
+	float speed = 0.;
+	if ( NR_SLEW_RATES < 2 ) { 
+		speed = 1.;
+	} else {
+		speed = 0.01 * ( MotorThresholdN[0].value + (100.-MotorThresholdN[0].value) * speedIndex / ( NR_SLEW_RATES - 1 ) );
+	}
+
 	switch (dir) {
 		case DIRECTION_WEST:
-			az_motor->move(-speed);
+			az_motor->move(speed);
 			break;
 		case DIRECTION_EAST:
-			az_motor->move(speed);
+			az_motor->move(-speed);
 			break;
 		default:
 			az_motor->stop();
 			break;
 	}
 	return true;
-
-    IUResetSwitch(&MovementWESP);
-    MovementWESP.s = IPS_IDLE;
-    IDSetSwitch(&MovementWESP, nullptr);
-    return false;
 }
 
 
@@ -1123,7 +1140,14 @@ void PiRT::updateMotorStatus() {
 		} else {
 			MotorCurrentNP.s=IPS_BUSY;
 		}
-		if ( MotorCurrentN[0].value > MotorCurrentLimitN[0].value || MotorCurrentN[1].value > MotorCurrentLimitN[1].value ) {
+		if (   MotorCurrentN[0].value > MotorCurrentLimitN[0].value ) {
+			// Motor current limit exceeded. Stop immediately
+			az_motor->stop();
+			MotorCurrentNP.s=IPS_ALERT;
+		}
+		if ( MotorCurrentN[1].value > MotorCurrentLimitN[1].value ) {
+			// Motor current limit exceeded. Stop immediately
+			el_motor->stop();
 			MotorCurrentNP.s=IPS_ALERT;
 		}
 		//DEBUGF(INDI::Logger::DBG_SESSION, "ADC value ch0: %f V ch1: %f ch3: %f V ch4: %f", v1,v2,v3,v4);
@@ -1140,19 +1164,19 @@ void PiRT::updateMonitoring() {
 	bool change_detected { false };
 	for ( std::size_t index = 0; index < GpioInputVector.size(); index++ ) {
 		const bool state = gpio->get_gpio_state( GpioInputVector[index].gpio_pin, nullptr );
-		if (( GpioInputS[index].s == ISS_ON && !state ) ||
-			( GpioInputS[index].s == ISS_OFF && state )	)
+		if (( GpioInputL[index].s == IPS_OK && !state ) ||
+			( GpioInputL[index].s == IPS_IDLE && state )	)
 		{
 			// the state of the pin changed
 			change_detected = true;
-			GpioInputS[index].s = (state) ? ISS_ON : ISS_OFF;
-			GpioInputSP.s = IPS_OK;
-			IDSetSwitch( &GpioInputSP, nullptr );
+			GpioInputL[index].s = (state) ? IPS_OK : IPS_IDLE;
+			GpioInputLP.s = IPS_OK;
+			IDSetLight( &GpioInputLP, nullptr );
 		}
 	}
-	if ( !change_detected && GpioInputSP.s == IPS_OK ) {
-		GpioInputSP.s = IPS_IDLE;
-		IDSetSwitch( &GpioInputSP, nullptr );
+	if ( !change_detected && GpioInputLP.s == IPS_OK ) {
+		GpioInputLP.s = IPS_IDLE;
+		IDSetLight( &GpioInputLP, nullptr );
 	}
 
 	if (voltageMonitors.empty()) return;
@@ -1230,7 +1254,9 @@ void PiRT::updatePosition() {
 
 		azAbsTurns = ( az_revolutions / axisRatio[0] ) + axisOffset[0] / 360.;
 		altAbsTurns = ( el_revolutions / axisRatio[1] ) + axisOffset[1] / 360.;
-
+		if ( AZ_POS_DIR_INVERT ) azAbsTurns *= -1.;
+		if ( ALT_POS_DIR_INVERT ) altAbsTurns *= -1.;
+		
 		AxisAbsTurnsN[0].value = azAbsTurns;
 		AxisAbsTurnsN[1].value = altAbsTurns;
 		if ( std::abs(azAbsTurns) > 0.5 + MAX_AZ_OVERTURN || 
@@ -1369,16 +1395,17 @@ bool PiRT::ReadScopeStatus()
 			DEBUGF(INDI::Logger::DBG_SESSION, "curr Az=%f Alt=%f", currentHorizontalCoords.Az.value(), currentHorizontalCoords.Alt.value());
 			DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
 */
+
 			// check, if the absolute position of the target is beyond the allowable limit
 			if ( !isInAbsoluteTurnRangeAz( azAbsTurns + dx/360. ) ) {
-//				DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
+				//DEBUGF(INDI::Logger::DBG_SESSION, "initial dx=%f dy=%f", dx, dy);
 				// if not, we still must be sure to turn into the right direction toward the allowable range
 				// e.g. if we are currently far in the forbidden range, make sure to not go further in
 				const double alt_dx = ( dx > 0. ) ? ( dx - 360. ) : ( dx + 360. );
 				if ( std::abs( azAbsTurns + dx/360. ) > std::abs( azAbsTurns + alt_dx/360. ) ) {
 					dx = alt_dx;
 				}
-//				DEBUGF(INDI::Logger::DBG_SESSION, "allowed dx=%f dy=%f", dx, dy);
+				//DEBUGF(INDI::Logger::DBG_SESSION, "allowed dx=%f dy=%f", dx, dy);
 			}
 
 			// do the actual movement
@@ -1444,16 +1471,18 @@ bool PiRT::ReadScopeStatus()
 	}
     
 	// check for axis limits and stop movement AND tracking, if motors are moving further into the forbidden range
-	// on the other hand, allow movement into the opposite direction
+	// on the other hand, allow movement into the opposite direction only
 	// Az axis
-	if ( azAbsTurns < 0.5 - MAX_AZ_OVERTURN ) {
+	if ( azAbsTurns < -0.6 - MAX_AZ_OVERTURN ) {
 		// no more movements towards negative direction allowed
+		DEBUGF(INDI::Logger::DBG_SESSION, "neg. Az overturn: azAbsTurns=%f limit=%f", azAbsTurns, -0.6-MAX_AZ_OVERTURN);
 		if ( az_motor->currentSpeed() < 0. ) {
 			Abort();
 			fIsTracking = false;
 		}
-	} else if ( azAbsTurns > 0.5 + MAX_AZ_OVERTURN ) {
+	} else if ( azAbsTurns > 0.6 + MAX_AZ_OVERTURN ) {
 		// no more movements towards positive direction allowed
+		DEBUGF(INDI::Logger::DBG_SESSION, "pos. Az overturn: azAbsTurns=%f limit=%f", azAbsTurns, 0.6+MAX_AZ_OVERTURN);
 		if ( az_motor->currentSpeed() > 0. ) {
 			Abort();
 			fIsTracking = false;
