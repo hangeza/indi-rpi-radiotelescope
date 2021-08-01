@@ -40,28 +40,31 @@ class TCP;
 
 constexpr unsigned int SSI_BAUD_RATE { 500000 };
 constexpr unsigned int POLL_INTERVAL_MS { 200 };
-constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152 /*152./9.*/ };
-constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 20. };
+constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152./9. }; 
+constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 1. };
 constexpr double MAX_AZ_OVERTURN { 0.25 }; //< maximum overturn in Az in revolutions at both ends
 constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
+constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
 constexpr bool AZ_POS_DIR_INVERT { false };
-constexpr bool ALT_POS_DIR_INVERT { false };
+constexpr bool ALT_POS_DIR_INVERT { true };
+constexpr double DEFAULT_AZ_AXIS_OFFSET { -180. };
+constexpr double DEFAULT_ALT_AXIS_OFFSET { 1.5 };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 constexpr double SLEW_RATE { 5. };        /* slew rate, degrees/s */
 
 constexpr double POS_ACCURACY_COARSE { 3.0 };
 constexpr double POS_ACCURACY_FINE { 0.1 };
-constexpr double TRACK_ACCURACY { 0.017 }; // one arc minute
+constexpr double TRACK_ACCURACY { 0.05 }; // 3 arc minutes
 constexpr unsigned int NR_SLEW_RATES { 5 };
 
 constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.06 };
 constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.14 };
-constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 2. }; //< absolute motor current limit for Az motor in Ampere
-constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 1.5 }; //< absolute motor current limit for Alt motor in Ampere
+constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 4. }; //< absolute motor current limit for Az motor in Ampere
+constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 2.5 }; //< absolute motor current limit for Alt motor in Ampere
 constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
 constexpr bool AZ_MOTOR_DIR_INVERT { true };
-constexpr bool ALT_MOTOR_DIR_INVERT { false };
+constexpr bool ALT_MOTOR_DIR_INVERT { true };
 constexpr PiRaTe::MotorDriver::Pins AZ_MOTOR_PINS { 
 	.Pwm=12,
 	.Dir=-1,
@@ -278,20 +281,22 @@ bool PiRT::initProperties()
     IDSetNumber(&ElEncSettingNP, NULL);
 	
 	IUFillNumber(&AzAxisSettingN[0], "AZ_AXIS_RATIO", "Enc-to-Axis turns ratio", "%5.3f", 0.0001, 100000, 0, DEFAULT_AZ_AXIS_TURNS_RATIO);
-	IUFillNumber(&AzAxisSettingN[1], "AZ_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -180., 180., 0, 0);
+	IUFillNumber(&AzAxisSettingN[1], "AZ_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -180., 180., 0, DEFAULT_AZ_AXIS_OFFSET);
     IUFillNumberVector(&AzAxisSettingNP, AzAxisSettingN, 2, getDeviceName(), "AZ_AXIS_SETTING", "Az Axis Settings", "Axes",
            IP_RW, 60, IPS_IDLE);
 	defineProperty(&AzAxisSettingNP);
     IDSetNumber(&AzAxisSettingNP, NULL);
 
 	IUFillNumber(&ElAxisSettingN[0], "EL_AXIS_RATIO", "Enc-to-Axis turns ratio", "%5.3f", 0.0001, 100000, 0, DEFAULT_EL_AXIS_TURNS_RATIO);
-	IUFillNumber(&ElAxisSettingN[1], "EL_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -90., 90., 0, 0);
+	IUFillNumber(&ElAxisSettingN[1], "EL_AXIS_OFFSET", "Axis Offset", "%5.4f deg", -90., 90., 0, DEFAULT_ALT_AXIS_OFFSET);
     IUFillNumberVector(&ElAxisSettingNP, ElAxisSettingN, 2, getDeviceName(), "El_AXIS_SETTING", "El Axis Settings", "Axes",
            IP_RW, 60, IPS_IDLE);
 	defineProperty(&ElAxisSettingNP);
     IDSetNumber(&ElAxisSettingNP, NULL);
 	axisRatio[0] = DEFAULT_AZ_AXIS_TURNS_RATIO;
 	axisRatio[1] = DEFAULT_EL_AXIS_TURNS_RATIO;
+	axisOffset[0] = DEFAULT_AZ_AXIS_OFFSET;
+	axisOffset[1] = DEFAULT_ALT_AXIS_OFFSET;
 
 	IUFillNumber(&AxisAbsTurnsN[0], "AZ_AXIS_TURNS", "Az", "%5.4f rev", 0, 0, 0, 0);
 	IUFillNumber(&AxisAbsTurnsN[1], "ALT_AXIS_TURNS", "Alt", "%5.4f rev", 0, 0, 0, 0);
@@ -990,10 +995,10 @@ bool PiRT::MoveWE(INDI_DIR_WE dir, TelescopeMotionCommand command)
 
 	switch (dir) {
 		case DIRECTION_WEST:
-			az_motor->move(-speed);
+			az_motor->move(speed);
 			break;
 		case DIRECTION_EAST:
-			az_motor->move(speed);
+			az_motor->move(-speed);
 			break;
 		default:
 			az_motor->stop();
