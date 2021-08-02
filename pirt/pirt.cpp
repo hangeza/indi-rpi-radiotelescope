@@ -48,8 +48,8 @@ constexpr double ALT_LIMIT_LOW { -0.5/360. }; //< lower position limit Alt in re
 constexpr double ALT_LIMIT_HI { 100./360. }; //< upper position limit in Alt in revolutions
 constexpr bool AZ_POS_DIR_INVERT { false };
 constexpr bool ALT_POS_DIR_INVERT { true };
-constexpr double DEFAULT_AZ_AXIS_OFFSET { -180. };
-constexpr double DEFAULT_ALT_AXIS_OFFSET { 1.5 };
+constexpr double DEFAULT_AZ_AXIS_OFFSET { -181.3 };
+constexpr double DEFAULT_ALT_AXIS_OFFSET { 2.0 };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 
@@ -107,12 +107,15 @@ struct I2cVoltageDef {
 	double divider_ratio;
 	std::uint8_t adc_address;
 	std::uint8_t adc_channel;
+	bool broadcast;
 };
 
 const std::vector<I2cVoltageDef> voltage_defs { { "+3.3V", 3.3, 2., VOLTAGE_MONITOR_ADC_ADDR, 0 },
 												{ "+5V", 5., 2., VOLTAGE_MONITOR_ADC_ADDR, 1 },
 												{ "+12V", 12., 11., VOLTAGE_MONITOR_ADC_ADDR, 2 },
-												{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3 } };
+												{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3 },
+												{ "Analog1", 0., 5., MOTOR_ADC_ADDR, 2 },
+												{ "Analog2", 0., 5., MOTOR_ADC_ADDR, 3 } };
 
 const HorCoords DefaultParkPosition { 180., 89.5 };
 
@@ -788,6 +791,7 @@ bool PiRT::Connect()
 		IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, voltage_index+1, getDeviceName(), "VOLTAGE_MONITOR", "System Voltages", "Monitoring",
 			IP_RO, 60, IPS_IDLE);
 		defineProperty(&VoltageMonitorNP);
+		
 		voltage_index++;
 	}
 	
@@ -1110,8 +1114,8 @@ bool PiRT::isInAbsoluteTurnRangeAz(double absRev) {
 
 bool PiRT::isInAbsoluteTurnRangeAlt(double absRev) {
 	
-	if ( (absRev > 0. - MAX_ALT_OVERTURN)
-		&& (absRev < 0.25 + MAX_ALT_OVERTURN) )
+	if ( ( absRev > ALT_LIMIT_HI )
+		&& ( absRev < ALT_LIMIT_HI ) )
 		return true;
 	return false;
 }
@@ -1188,11 +1192,11 @@ void PiRT::updateMonitoring() {
 			VoltageMonitorN[voltage_index].value = 0.;
 			VoltageMonitorNP.s=IPS_ALERT;
 		} else {
-			double meanVoltage = monitor->meanVoltage();
-			if ( meanVoltage < VoltageMonitorN[voltage_index].min || meanVoltage > VoltageMonitorN[voltage_index].max ) {
+			double currentVoltage = monitor->currentVoltage();
+			if ( currentVoltage < VoltageMonitorN[voltage_index].min || currentVoltage > VoltageMonitorN[voltage_index].max ) {
 				outsideRange = true;
 			}
-			VoltageMonitorN[voltage_index].value = meanVoltage;
+			VoltageMonitorN[voltage_index].value = currentVoltage;
 		}
 		voltage_index++;
 	}
@@ -1260,7 +1264,8 @@ void PiRT::updatePosition() {
 		AxisAbsTurnsN[0].value = azAbsTurns;
 		AxisAbsTurnsN[1].value = altAbsTurns;
 		if ( std::abs(azAbsTurns) > 0.5 + MAX_AZ_OVERTURN || 
-			 std::abs(altAbsTurns) > 0.25 + MAX_ALT_OVERTURN ) 
+			 altAbsTurns < ALT_LIMIT_LOW ||
+			 altAbsTurns > ALT_LIMIT_HI )
 		{
 			AxisAbsTurnsNP.s = IPS_ALERT;
 		} else {
@@ -1489,13 +1494,13 @@ bool PiRT::ReadScopeStatus()
 		}
 	}
 	// Alt axis
-	if ( altAbsTurns < 0. - MAX_ALT_OVERTURN ) {
+	if ( altAbsTurns < ALT_LIMIT_LOW ) {
 		// no more movements towards negative direction allowed
 		if ( el_motor->currentSpeed() < 0. ) {
 			Abort();
 			fIsTracking = false;
 		}
-	} else if ( altAbsTurns > 0.25 + MAX_ALT_OVERTURN ) {
+	} else if ( altAbsTurns > ALT_LIMIT_HI ) {
 		// no more movements towards positive direction allowed
 		if ( el_motor->currentSpeed() > 0. ) {
 			Abort();
