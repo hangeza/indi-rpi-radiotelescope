@@ -7,7 +7,7 @@ AVERAGE=50
 # Timeout for waiting until RT reached set position in seconds
 TIMEOUT=300
 #step size in degrees
-STEP_RA_DEFAULT=1.0
+STEP_RA_DEFAULT=0.05
 STEP_DEC_DEFAULT=1.0
 
 cmd_stop='indi_setprop "Pi Radiotelescope.TELESCOPE_ABORT_MOTION.ABORT=On"'
@@ -53,7 +53,7 @@ if [ $# -lt 5 ]; then
   echo "  min_ra, min_dec - coordinate of lower left corner"
   echo "  max_ra, max_dec - coordinate of upper right corner"
   echo "  file - output file name"
-  echo "  step_ra, step_dec - (optional) step size of coordinates in degree (default 1)"
+  echo "  step_ra, step_dec - (optional) step size of coordinates in hours (RA) and degrees (DEC) (default 1)"
   echo "  avg - (optional) take average of avg samples at each point (default 100)"
   exit 1
 fi
@@ -91,10 +91,10 @@ if [ $# -gt 7 ]; then
         AVERAGE=$8
 fi
 
-min_az=$1
-max_az=$2
-min_alt=$3
-max_alt=$4
+min_ra=$1
+max_ra=$2
+min_dec=$3
+max_dec=$4
 
 echo $(eval $cmd_stop)
 
@@ -119,27 +119,27 @@ goto_pos $ra $dec 100
 while [ $(echo "scale=6; $ra <= $max_ra"|bc) -eq 1 ]
 do
    # zuerst nach oben scannen
-   alt=$min_dec
+   dec=$min_dec
    while [ $(echo "scale=6; $dec <= $max_dec"|bc) -eq 1 ]
    do
       echo "ra=" $ra " dec=" $dec
       goto_pos $ra $dec
       echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
 
-      dec=$(echo "scale=6; $alt+$STEP_DEC" | bc)
+      dec=$(echo "scale=6; $dec+$STEP_DEC" | bc)
    done
 
-   az=$(echo "scale=6; $az+$STEP_AZ" | bc)
+   ra=$(echo "scale=7; $ra+$STEP_RA" | bc)
 
    #dann nach unten scannen, um langen Rückfahrvorgang zu vermeiden
-   alt=$max_alt
-   while [ $(echo "scale=6; $alt >= $min_alt"|bc) -eq 1 ]
+   dec=$max_dec
+   while [ $(echo "scale=6; $dec >= $min_dec"|bc) -eq 1 ]
    do
-      echo "az=" $az " alt=" $alt
-      goto_pos $az $alt
+      echo "ra=" $ra " dec=" $dec
+      goto_pos $ra $dec
       echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
 
-      alt=$(echo "scale=6; $alt-$STEP_ALT" | bc)
+      dec=$(echo "scale=6; $dec-$STEP_DEC" | bc)
    done
-   az=$(echo "scale=6; $az+$STEP_AZ" | bc)
+   ra=$(echo "scale=7; $ra+$STEP_RA" | bc)
 done

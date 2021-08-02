@@ -48,8 +48,8 @@ constexpr double ALT_LIMIT_LOW { -0.5/360. }; //< lower position limit Alt in re
 constexpr double ALT_LIMIT_HI { 100./360. }; //< upper position limit in Alt in revolutions
 constexpr bool AZ_POS_DIR_INVERT { false };
 constexpr bool ALT_POS_DIR_INVERT { true };
-constexpr double DEFAULT_AZ_AXIS_OFFSET { -181.3 };
-constexpr double DEFAULT_ALT_AXIS_OFFSET { 2.0 };
+constexpr double DEFAULT_AZ_AXIS_OFFSET { -181.4 };
+constexpr double DEFAULT_ALT_AXIS_OFFSET { 1.7 };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 
@@ -114,8 +114,8 @@ const std::vector<I2cVoltageDef> voltage_defs { { "+3.3V", 3.3, 2., VOLTAGE_MONI
 												{ "+5V", 5., 2., VOLTAGE_MONITOR_ADC_ADDR, 1 },
 												{ "+12V", 12., 11., VOLTAGE_MONITOR_ADC_ADDR, 2 },
 												{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3 },
-												{ "Analog1", 0., 5., MOTOR_ADC_ADDR, 2 },
-												{ "Analog2", 0., 5., MOTOR_ADC_ADDR, 3 } };
+												{ "Analog1", 0., 55.5556, MOTOR_ADC_ADDR, 2 },
+												{ "Analog2", 0., 1., MOTOR_ADC_ADDR, 3 } };
 
 const HorCoords DefaultParkPosition { 180., 89.5 };
 
