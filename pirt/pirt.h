@@ -149,6 +149,9 @@ class PiRT : public INDI::Telescope
 	INumber VoltageMonitorN[64];
 	INumberVectorProperty VoltageMonitorNP;
 	
+	INumber FieldstrengthMonitorN[16];
+	INumberVectorProperty FieldstrengthMonitorNP;
+
 	INumber TempMonitorN[64];
 	INumberVectorProperty TempMonitorNP;
 	

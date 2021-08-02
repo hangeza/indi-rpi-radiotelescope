@@ -1,0 +1,51 @@
+#!/bin/bash
+# show RT position in a loop
+
+cmd_indi="indi_getprop -t 1 -1"
+prop_az="Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ"
+prop_alt="Pi Radiotelescope.HORIZONTAL_EOD_COORD.ALT"
+prop_ra="Pi Radiotelescope.EQUATORIAL_EOD_COORD.RA"
+prop_dec="Pi Radiotelescope.EQUATORIAL_EOD_COORD.DEC"
+prop_temp="Pi Radiotelescope.TEMPERATURE_MONITOR.TEMPERATURE1"
+prop_adc1="Pi Radiotelescope.VOLTAGE_MONITOR.VOLTAGE4"
+prop_adc2="Pi Radiotelescope.VOLTAGE_MONITOR.VOLTAGE5"
+
+
+while true
+do
+
+  indi_props=$($cmd_indi "$prop_ra" "$prop_dec" "$prop_az" "$prop_alt" "$prop_temp" "$prop_adc1" "$prop_adc2" 2>/dev/null)
+  for i in $indi_props; do
+    #echo $i
+    if echo $i | grep -qe 'EQUATORIAL_EOD_COORD.RA'
+    then
+      ra=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
+    fi
+    if echo $i | grep -qe 'EQUATORIAL_EOD_COORD.DEC'
+    then
+      dec=$(echo $i | awk -F"=" '{ printf "%1.2f", strtonum($(NF)) }')
+    fi
+    if echo $i | grep -qe 'HORIZONTAL_EOD_COORD.AZ'
+    then
+      az=$(echo $i | awk -F"=" '{ printf "%1.2f", strtonum($(NF)) }')
+    fi
+    if echo $i | grep -qe 'HORIZONTAL_EOD_COORD.ALT'
+    then
+      alt=$(echo $i | awk -F"=" '{ printf "%1.2f", strtonum($(NF)) }')
+    fi
+    if echo $i | grep -qe 'TEMPERATURE1'
+    then
+      temp=$(echo $i | awk -F"=" '{ printf "%1.1f", strtonum($(NF)) }')
+    fi
+    if echo $i | grep -qe 'VOLTAGE_MONITOR.VOLTAGE4'
+    then
+      adc1=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
+    fi
+    if echo $i | grep -qe 'VOLTAGE_MONITOR.VOLTAGE5'
+    then
+      adc2=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
+    fi
+  done
+  echo -ne "Az=$az" "Alt=$alt" "RA=$ra" "Dec=$dec" "ADC1=$adc1" "ADC2=$adc2" "Temp=$temp" "                           " "\r"
+  sleep 0.5
+done
