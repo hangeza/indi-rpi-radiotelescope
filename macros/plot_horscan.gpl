@@ -1,0 +1,28 @@
+set view map
+set pm3d at b
+set dgrid3d 56,160,4
+unset key
+unset surface
+set xlabel "azimuth / deg"
+set ylabel "altitude / deg"
+set cblabel "rel. power / dB"
+set title "Geostationary Satellites \@ 11 GHz\n 02 Aug 2021, Radio Astronomy Group - Observatory Radebeul (Germany)"
+set palette maxcolors 8192
+#set range cbfix 
+set grid x
+set grid y
+
+set xrange [150:*]
+set yrange [22:36]
+set zrange [40.0:*]
+
+#splot "scan_sats_02082021_1.txt" u 2:3:6 with pm3d, "" u 2:3:6 w lines, "scan_sats_03082021_1.txt" u 2:3:6 with pm3d, "" u 2:3:6 w lines
+splot "scan_sats_02082021_1.txt" u 2:3:6 with pm3d, "scan_sats_03082021_1.txt" u 2:3:6 with pm3d
+
+set terminal postscript eps color lw 1.1 "Helvetica" 15
+set out 'plotfile.eps'
+replot
+set terminal x11
+set size 1,1
+
+pause -1
