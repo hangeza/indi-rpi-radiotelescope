@@ -17,6 +17,7 @@
 #include <axis.h>
 #include <rpi_temperatures.h>
 #include <voltage_monitor.h>
+#include <ads1115_measurement.h>
 
 #include <map>
 
@@ -149,8 +150,10 @@ class PiRT : public INDI::Telescope
 	INumber VoltageMonitorN[64];
 	INumberVectorProperty VoltageMonitorNP;
 	
-	INumber FieldstrengthMonitorN[16];
-	INumberVectorProperty FieldstrengthMonitorNP;
+	INumber VoltageMeasurementN[16];
+	INumberVectorProperty VoltageMeasurementNP;
+	INumber MeasurementIntTimeN;
+    INumberVectorProperty MeasurementIntTimeNP;
 
 	INumber TempMonitorN[64];
 	INumberVectorProperty TempMonitorNP;
@@ -193,5 +196,6 @@ class PiRT : public INDI::Telescope
 	EquCoords targetEquatorialCoords { 0. , 0. };
 	
 	std::vector<std::shared_ptr<PiRaTe::Ads1115VoltageMonitor>> voltageMonitors { };
+	std::vector<std::shared_ptr<PiRaTe::Ads1115Measurement>> voltageMeasurements { };
 	std::chrono::time_point<std::chrono::system_clock> fStartTime { };
 };
