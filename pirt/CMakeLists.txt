@@ -55,6 +55,7 @@ add_executable(
 	ads1115.cpp
 	rpi_temperatures.cpp
 	voltage_monitor.cpp
+	ads1115_measurement.cpp
     pirt.cpp
 )
 

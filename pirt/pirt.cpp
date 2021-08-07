@@ -58,8 +58,8 @@ constexpr double POS_ACCURACY_FINE { 0.1 };
 constexpr double TRACK_ACCURACY { 0.05 }; // 3 arc minutes
 constexpr unsigned int NR_SLEW_RATES { 5 };
 
-constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.06 };
-constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.14 };
+constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.07 };
+constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.15 };
 constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 4. }; //< absolute motor current limit for Az motor in Ampere
 constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 2.5 }; //< absolute motor current limit for Alt motor in Ampere
 constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
@@ -107,15 +107,16 @@ struct I2cVoltageDef {
 	double divider_ratio;
 	std::uint8_t adc_address;
 	std::uint8_t adc_channel;
-	bool broadcast;
+	std::string unit;
 };
 
-const std::vector<I2cVoltageDef> voltage_defs { { "+3.3V", 3.3, 2., VOLTAGE_MONITOR_ADC_ADDR, 0 },
-												{ "+5V", 5., 2., VOLTAGE_MONITOR_ADC_ADDR, 1 },
-												{ "+12V", 12., 11., VOLTAGE_MONITOR_ADC_ADDR, 2 },
-												{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3 },
-												{ "Analog1", 0., 55.5556, MOTOR_ADC_ADDR, 2 },
-												{ "Analog2", 0., 1., MOTOR_ADC_ADDR, 3 } };
+const std::vector<I2cVoltageDef> supply_voltage_defs { 	{ "+3.3V", 3.3, 2., VOLTAGE_MONITOR_ADC_ADDR, 0, "" },
+														{ "+5V", 5., 2., VOLTAGE_MONITOR_ADC_ADDR, 1, "" },
+														{ "+12V", 12., 11., VOLTAGE_MONITOR_ADC_ADDR, 2, "" },
+														{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3, "" } };
+
+const std::vector<I2cVoltageDef> measurement_voltage_defs {	{ "Analog1", 0., 55.5556, MOTOR_ADC_ADDR, 2, "dB" },
+															{ "Analog2", 0., 1., MOTOR_ADC_ADDR, 3, "V" } };
 
 const HorCoords DefaultParkPosition { 180., 89.5 };
 
@@ -330,6 +331,14 @@ bool PiRT::initProperties()
     IUFillNumberVector(&VoltageMonitorNP, VoltageMonitorN, 0, getDeviceName(), "VOLTAGE_MONITOR", "Voltages", "Monitoring",
 		IP_RO, 60, IPS_IDLE);
 
+	IUFillNumber(&VoltageMeasurementN[0], "MEASUREMENT0", "+0V", "%4.2f V", 0, 0, 0, 0);
+    IUFillNumberVector(&VoltageMeasurementNP, VoltageMeasurementN, 0, getDeviceName(), "MEASUREMENTS", "Measurements", "Monitoring",
+		IP_RO, 60, IPS_IDLE);
+	IUFillNumber(&MeasurementIntTimeN, "TIME", "time", "%5.2f s", 0, 0, 0, 1);
+    IUFillNumberVector(&MeasurementIntTimeNP, &MeasurementIntTimeN, 1, getDeviceName(), "INT_TIME", "Integration Time", "Monitoring",
+           IP_RW, 60, IPS_IDLE);
+
+	
 	IUFillNumber(&TempMonitorN[0], "TEMP_SYSTEM", "CPU", "%4.2f °C", 0, 0, 0, 0);
 	IUFillNumberVector(&TempMonitorNP, TempMonitorN, 0, getDeviceName(), "TEMPERATURE_MONITOR", "Temperatures", "Monitoring",
 		IP_RO, 60, IPS_IDLE);
@@ -391,6 +400,8 @@ bool PiRT::updateProperties()
 		defineProperty(&MotorThresholdNP);
 		defineProperty(&MotorCurrentLimitNP);
 		defineProperty(&VoltageMonitorNP);
+		defineProperty(&VoltageMeasurementNP);
+		defineProperty(&MeasurementIntTimeNP);
 		defineProperty(&TempMonitorNP);
 		defineProperty(&DriverUpTimeNP);
 		
@@ -419,6 +430,8 @@ bool PiRT::updateProperties()
 		deleteProperty(MotorThresholdNP.name);
 		deleteProperty(MotorCurrentLimitNP.name);
 		deleteProperty(VoltageMonitorNP.name);
+		deleteProperty(VoltageMeasurementNP.name);
+		deleteProperty(MeasurementIntTimeNP.name);
 		deleteProperty(TempMonitorNP.name);
 		deleteProperty(DriverUpTimeNP.name);
 		
@@ -578,6 +591,19 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 			IDSetNumber(&MotorThresholdNP, nullptr);
 			DEBUGF(DBG_SCOPE, "Setting motor thresholds to %4.0f %% (Az) and %4.0f %% (Alt)", MotorThresholdN[0].value, MotorThresholdN[1].value);
 			return true;
+		} else if ( !strcmp(name, MeasurementIntTimeNP.name) ) {
+			if ( !voltageMeasurements.empty() && values[0] > 0. && values[0] < 1000.) {
+					for ( auto meas: voltageMeasurements ) {
+						meas->setIntTime( std::chrono::milliseconds( static_cast<long int>(values[0]*1000) ) );
+					}
+					MeasurementIntTimeN.value = values[0];
+					IDSetNumber(&MeasurementIntTimeNP, nullptr);
+					MeasurementIntTimeNP.s = IPS_OK;
+					return true;
+			} else {
+				MeasurementIntTimeNP.s = IPS_ALERT;
+				return false;
+			}
 		}
 		
 	}	
@@ -775,10 +801,10 @@ bool PiRT::Connect()
 		tempMonitor->registerTempReadyCallback( [this](PiRaTe::RpiTemperatureMonitor::TemperatureItem item) { this->updateTemperatures(item); } );
 	}
 
-	// set up the voltages to be monitored
+	// set up the supply voltages to be monitored
 	voltageMonitors.clear();
 	int voltage_index = 0;
-	for ( auto item: voltage_defs ) {
+	for ( auto item: supply_voltage_defs ) {
 		auto it = i2cDeviceMap.find( item.adc_address );
 		if (  it == i2cDeviceMap.end() ) continue;
 		std::shared_ptr<ADS1115> adc( std::dynamic_pointer_cast<ADS1115>(it->second) );
@@ -795,6 +821,28 @@ bool PiRT::Connect()
 		voltage_index++;
 	}
 	
+	// set up the measurement voltages to be monitored
+	voltageMeasurements.clear();
+	voltage_index = 0;
+	for ( auto item: measurement_voltage_defs ) {
+		auto it = i2cDeviceMap.find( item.adc_address );
+		if (  it == i2cDeviceMap.end() ) continue;
+		std::shared_ptr<ADS1115> adc( std::dynamic_pointer_cast<ADS1115>(it->second) );
+		std::shared_ptr<PiRaTe::Ads1115Measurement> meas( 
+			new PiRaTe::Ads1115Measurement( item.name, adc, item.adc_channel, item.divider_ratio, std::chrono::milliseconds(10000) )
+		);
+		voltageMeasurements.emplace_back( std::move(meas) );
+		deleteProperty(VoltageMeasurementNP.name);
+		deleteProperty(MeasurementIntTimeNP.name);
+		IUFillNumber(&VoltageMeasurementN[voltage_index], ("MEASUREMENT"+std::to_string(voltage_index)).c_str(), (item.name).c_str(), ("%4.3f "+item.unit).c_str(), 0, 0, 0, 0.);
+		IUFillNumberVector(&VoltageMeasurementNP, VoltageMeasurementN, voltage_index+1, getDeviceName(), "MEASUREMENTS", "Measurements", "Monitoring",
+			IP_RO, 60, IPS_IDLE);
+		defineProperty(&VoltageMeasurementNP);
+		defineProperty(&MeasurementIntTimeNP);
+		
+		voltage_index++;
+	}
+
 	// set up the gpio pins for the relay switches
 	for ( unsigned int i = 0; i<GpioOutputVector.size(); i++ ) {
 		gpio->set_gpio_direction( GpioOutputVector[i].gpio_pin, true );
@@ -1183,28 +1231,49 @@ void PiRT::updateMonitoring() {
 		IDSetLight( &GpioInputLP, nullptr );
 	}
 
-	if (voltageMonitors.empty()) return;
 	int voltage_index = 0;
-	bool outsideRange { false };
-	VoltageMonitorNP.s=IPS_IDLE;
-	for ( auto monitor: voltageMonitors ) {
-		if ( !monitor->isInitialized() ) {
-			VoltageMonitorN[voltage_index].value = 0.;
-			VoltageMonitorNP.s=IPS_ALERT;
-		} else {
-			double currentVoltage = monitor->currentVoltage();
-			if ( currentVoltage < VoltageMonitorN[voltage_index].min || currentVoltage > VoltageMonitorN[voltage_index].max ) {
-				outsideRange = true;
+	if ( !voltageMonitors.empty() ) {
+		bool outsideRange { false };
+		VoltageMonitorNP.s=IPS_IDLE;
+		for ( auto monitor: voltageMonitors ) {
+			if ( !monitor->isInitialized() ) {
+				VoltageMonitorN[voltage_index].value = 0.;
+				VoltageMonitorNP.s=IPS_ALERT;
+			} else {
+				double meanVoltage = monitor->meanVoltage();
+				if ( meanVoltage < VoltageMonitorN[voltage_index].min || meanVoltage > VoltageMonitorN[voltage_index].max ) {
+					outsideRange = true;
+				}
+				VoltageMonitorN[voltage_index].value = meanVoltage;
 			}
-			VoltageMonitorN[voltage_index].value = currentVoltage;
+			voltage_index++;
 		}
-		voltage_index++;
+		if ( VoltageMonitorNP.s != IPS_ALERT ) {
+			if (outsideRange) VoltageMonitorNP.s=IPS_BUSY;
+			else VoltageMonitorNP.s = IPS_OK;
+		}
+		IDSetNumber(&VoltageMonitorNP, nullptr);
 	}
-	if ( VoltageMonitorNP.s != IPS_ALERT ) {
-		if (outsideRange) VoltageMonitorNP.s=IPS_BUSY;
-		else VoltageMonitorNP.s = IPS_OK;
+
+	voltage_index = 0;
+	if ( !voltageMeasurements.empty() ) {
+		VoltageMeasurementNP.s=IPS_IDLE;
+		for ( auto meas: voltageMeasurements ) {
+			if ( !meas->isInitialized() ) {
+				VoltageMeasurementN[voltage_index].value = 0.;
+				VoltageMeasurementNP.s=IPS_ALERT;
+			} else {
+				double meanVoltage = meas->meanValue();
+				VoltageMeasurementN[voltage_index].value = meanVoltage;
+			}
+			voltage_index++;
+		}
+		if ( VoltageMeasurementNP.s != IPS_ALERT ) {
+			VoltageMeasurementNP.s = IPS_OK;
+		}
+		IDSetNumber(&VoltageMeasurementNP, nullptr);
 	}
-	IDSetNumber(&VoltageMonitorNP, nullptr);
+	
 }
 
 void PiRT::updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item ) {
