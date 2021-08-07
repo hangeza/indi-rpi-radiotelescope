@@ -15,8 +15,8 @@ prop_alt="Pi Radiotelescope.HORIZONTAL_EOD_COORD.ALT"
 prop_ra="Pi Radiotelescope.EQUATORIAL_EOD_COORD.RA"
 prop_dec="Pi Radiotelescope.EQUATORIAL_EOD_COORD.DEC"
 prop_temp="Pi Radiotelescope.TEMPERATURE_MONITOR.TEMPERATURE1"
-prop_adc1="Pi Radiotelescope.VOLTAGE_MONITOR.VOLTAGE4"
-prop_adc2="Pi Radiotelescope.VOLTAGE_MONITOR.VOLTAGE5"
+prop_adc1="Pi Radiotelescope.MEASUREMENTS.MEASUREMENT0"
+prop_adc2="Pi Radiotelescope.MEASUREMENTS.MEASUREMENT1"
 cmd_date="date '+%s.%N'"
 
 # make number of measurements
@@ -45,11 +45,11 @@ do
     then
       temp=$(echo $i | awk -F"=" '{ printf "%1.1f", strtonum($(NF)) }')
     fi
-        if echo $i | grep -qe 'VOLTAGE_MONITOR.VOLTAGE4'
+        if echo $i | grep -qe 'MEASUREMENTS.MEASUREMENT0'
     then
       adc1=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
     fi
-    if echo $i | grep -qe 'VOLTAGE_MONITOR.VOLTAGE5'
+    if echo $i | grep -qe 'MEASUREMENTS.MEASUREMENT1'
     then
       adc2=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
     fi
