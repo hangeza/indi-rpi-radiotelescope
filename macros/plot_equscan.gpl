@@ -1,0 +1,28 @@
+set view map
+set pm3d at b
+set dgrid3d 44,63,4
+unset key
+unset surface
+set xlabel "RA / h"
+set ylabel "Dec / deg"
+set cblabel "rel. power / dB"
+set title "Sun \@ 11 GHz\n 02 Aug 2021,1700UTC,Radio Astronomy Group - Observatory Radebeul (Germany)"
+set palette maxcolors 8192
+#set range cbfix 
+set grid x
+set grid y
+
+set xrange [8.3:9.35]
+set yrange [12:23]
+set zrange [40:*]
+
+#splot "scan_sats_02082021_1.txt" u 2:3:6 with pm3d, "" u 2:3:6 w lines, "scan_sats_03082021_1.txt" u 2:3:6 with pm3d, "" u 2:3:6 w lines
+splot "scan_sun_02082021_3" u 4:5:6 with pm3d
+
+set terminal postscript eps color lw 1.1 "Helvetica" 14
+set out 'plotfile.eps'
+replot
+set terminal x11
+set size 1,1
+
+pause -1
