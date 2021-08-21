@@ -2,12 +2,12 @@
 # scan equatorial window in a grid and take measurement at each point
 # 02.08.2021 HGZ
 
-# nr of values to acquire for one point
-AVERAGE=50
+# integration time for measurements
+INT_TIME=1
 # Timeout for waiting until RT reached set position in seconds
 TIMEOUT=300
 #step size in degrees
-STEP_RA_DEFAULT=0.05
+STEP_RA_DEFAULT=0.067
 STEP_DEC_DEFAULT=1.0
 
 cmd_stop='indi_setprop "Pi Radiotelescope.TELESCOPE_ABORT_MOTION.ABORT=On"'
@@ -48,13 +48,13 @@ goto_pos()
 if [ $# -lt 5 ]; then
   echo "Scan equatorial window in a grid and take measurement at each point"
   echo "need at least 5 arguments (equatorial coordinate boundaries and filename) for scan"
-  echo "usage: $0 <min_ra> <max_ra> <min_dec> <max_dec> <file> [<step_ra> <step_dec> <avg>]"
+  echo "usage: $0 <min_ra> <max_ra> <min_dec> <max_dec> <file> [<step_ra> <step_dec> <int_time>]"
   echo " parameters:"
   echo "  min_ra, min_dec - coordinate of lower left corner"
   echo "  max_ra, max_dec - coordinate of upper right corner"
   echo "  file - output file name"
   echo "  step_ra, step_dec - (optional) step size of coordinates in hours (RA) and degrees (DEC) (default 1)"
-  echo "  avg - (optional) take average of avg samples at each point (default 100)"
+  echo "  int_time - (optional) integration time of the measurement in seconds (default 1)"
   exit 1
 fi
 
@@ -66,12 +66,6 @@ fi
 
 if [[ $(echo "scale=6; $4 > 90.0"|bc) -eq 1 ]]; then
   echo "error: max dec out of range"
-  echo "exiting"
-  exit 1
-fi
-
-if [[ $(echo "scale=6; $1 > $2"|bc) -eq 1 ]]; then
-  echo "error: min ra > max ra"
   echo "exiting"
   exit 1
 fi
@@ -88,11 +82,15 @@ if [ $# -gt 6 ]; then
 fi
 
 if [ $# -gt 7 ]; then
-        AVERAGE=$8
+        INT_TIME=$8
 fi
 
 min_ra=$1
 max_ra=$2
+if [[ $(echo "scale=6; $1 > $2"|bc) -eq 1 ]]; then
+  max_ra=$(echo "scale=6; $2+24.0" | bc)
+  echo "corrected max ra to" $max_ra
+fi
 min_dec=$3
 max_dec=$4
 
@@ -104,15 +102,18 @@ echo "eastern boundary = " $min_ra
 echo "western boundary = " $max_ra
 echo "Ra stepsize = " $STEP_RA
 echo "Dec stepsize = " $STEP_DEC
-echo "Averages = " $AVERAGE
+echo "Integration time = " $INT_TIME
 
-#exit 1 
+#exit 0 
 
 ra=$min_ra
 dec=$min_dec
 
 # switch off tracking
 echo -n $(indi_setprop "Pi Radiotelescope.TELESCOPE_TRACK_STATE.TRACK_OFF=On")
+
+#set integration time
+echo -n $(indi_setprop -n "Pi Radiotelescope.INT_TIME.TIME=$INT_TIME")
 
 goto_pos $ra $dec 100
 
@@ -124,6 +125,8 @@ do
    do
       echo "ra=" $ra " dec=" $dec
       goto_pos $ra $dec
+      # wait at least int_time before reading out the averaged measurement
+      sleep $INT_TIME 
       echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
 
       dec=$(echo "scale=6; $dec+$STEP_DEC" | bc)
@@ -137,6 +140,8 @@ do
    do
       echo "ra=" $ra " dec=" $dec
       goto_pos $ra $dec
+      # wait at least int_time before reading out the averaged measurement
+      sleep $INT_TIME
       echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
 
       dec=$(echo "scale=6; $dec-$STEP_DEC" | bc)
