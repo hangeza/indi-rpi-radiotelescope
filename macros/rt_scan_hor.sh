@@ -2,8 +2,8 @@
 # scan horizontal window in a grid and take measurement at each point
 # 05.06.2010 HGZ
 
-# nr of values to acquire for one point
-AVERAGE=50
+# integration time for measurements
+INT_TIME=1
 # Timeout for waiting until RT reached set position in seconds
 TIMEOUT=300
 #step size in degrees
@@ -48,13 +48,13 @@ goto_pos()
 if [ $# -lt 5 ]; then
   echo "Scan Horizontal Window in a grid and take measurement at each point"
   echo "need at least 5 arguments (horizontal coordinate boundaries and filename) for scan"
-  echo "usage: $0 <min_az> <max_az> <min_alt> <max_alt> <file> [<step_az> <step_alt> <avg>]"
+  echo "usage: $0 <min_az> <max_az> <min_alt> <max_alt> <file> [<step_az> <step_alt> <int_time>]"
   echo " parameters:"
   echo "  min_az, min_alt - coordinate of lower left corner"
   echo "  max_az, max_alt - coordinate of upper right corner"
   echo "  file - output file name"
   echo "  step_az, step_alt - (optional) step size of coordinates in degree (default 1)"
-  echo "  avg - (optional) take average of avg samples at each point (default 100)"
+  echo "  int_time - (optional) integration time of the measurement in seconds (default 1)"
   exit 1
 fi
 
@@ -94,7 +94,7 @@ if [ $# -gt 6 ]; then
 fi
 
 if [ $# -gt 7 ]; then
-        AVERAGE=$8
+        INT_TIME=$8
 fi
 
 min_az=$1
@@ -110,7 +110,7 @@ echo "eastern boundary = " $min_az
 echo "western boundary = " $max_az
 echo "Az stepsize = " $STEP_AZ
 echo "Alt stepsize = " $STEP_ALT
-echo "Averages = " $AVERAGE
+echo "Integration time = " $INT_TIME
 
 #exit 1 
 
@@ -120,9 +120,12 @@ alt=$min_alt
 # switch off tracking
 echo -n $(indi_setprop "Pi Radiotelescope.TELESCOPE_TRACK_STATE.TRACK_OFF=On")
 
+#set integration time
+echo -n $(indi_setprop -n "Pi Radiotelescope.INT_TIME.TIME=$INT_TIME")
+
 goto_pos $az $alt 100
 
-while [ $(echo "scale=6; $az <= $max_az"|bc) -eq 1 ]
+while [ $(echo "scale=6; $az < $max_az"|bc) -eq 1 ]
 do
    # zuerst nach oben scannen
    alt=$min_alt
@@ -130,6 +133,8 @@ do
    do
       echo "az=" $az " alt=" $alt
       goto_pos $az $alt
+      # wait at least int_time before reading out the averaged measurement
+      sleep $INT_TIME
       echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
 
       alt=$(echo "scale=6; $alt+$STEP_ALT" | bc)
@@ -143,6 +148,8 @@ do
    do
       echo "az=" $az " alt=" $alt
       goto_pos $az $alt
+      # wait at least int_time before reading out the averaged measurement
+      sleep $INT_TIME
       echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
 
       alt=$(echo "scale=6; $alt-$STEP_ALT" | bc)
