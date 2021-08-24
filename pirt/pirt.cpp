@@ -49,7 +49,7 @@ constexpr double ALT_LIMIT_HI { 100./360. }; //< upper position limit in Alt in 
 constexpr bool AZ_POS_DIR_INVERT { false };
 constexpr bool ALT_POS_DIR_INVERT { true };
 constexpr double DEFAULT_AZ_AXIS_OFFSET { -181.25 };
-constexpr double DEFAULT_ALT_AXIS_OFFSET { 0.6 };
+constexpr double DEFAULT_ALT_AXIS_OFFSET { 0.64 };
 
 constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
 
@@ -61,7 +61,7 @@ constexpr unsigned int NR_SLEW_RATES { 5 };
 constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.07 };
 constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.15 };
 constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 4. }; //< absolute motor current limit for Az motor in Ampere
-constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 2.5 }; //< absolute motor current limit for Alt motor in Ampere
+constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 2.9 }; //< absolute motor current limit for Alt motor in Ampere
 constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
 constexpr bool AZ_MOTOR_DIR_INVERT { true };
 constexpr bool ALT_MOTOR_DIR_INVERT { true };

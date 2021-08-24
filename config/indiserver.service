@@ -1,0 +1,16 @@
+[Unit]
+Description=Indi server
+Requires=pigpiod.service
+BindsTo=pigpiod.service
+After=pigpiod.service sockets.target network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/bin/bash -c 'exec $(which indiserver) -v indi_pirt indi_gpsd indi_watcher_weather'
+ExecStop=/bin/kill $MAINPID
+Restart=always
+TimeoutSec=10
+
+[Install]
+WantedBy=multi-user.target
