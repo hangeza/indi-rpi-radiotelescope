@@ -1,0 +1,18 @@
+# RT TASK
+# v0.1 
+# task file for definition of measurement(s) to be done with radiotelescope
+# priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}
+# mode = {drift|track|equscan|horscan}
+# alt-period : (float hours) time-period after which the conditions are expected identical (e.g. 24h for equatorial features),
+#              0=always repeatable,
+#             -1=can not or shall not be executed at a later time
+#              *=not defined
+# x1,y1: coordinates of the lower left corner of the scanwindow for 2d-scans; coordinates of initial position for drift (coordinates are Hor.) and track (coordinates are equ)
+# meaning of columns:
+# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration
+2010/12/23 00:48:30 drift   1 24 hgz 175    75   *  * * * 250 15 0.02
+2010/12/23 23:26:05 drift   1 24 hgz 180    60   *  * * * 250 15 0.005
+2010/12/23 23:26:45 track   1 24 hgz 180    60   *  * * * 250 15 0.05
+2010/12/23 23:28:00 equscan 3  * hgz  19.5  35  21 45 1 1 100 * 0.02
+2010/12/23 23:29:00 horscan 2  * hgz   0     0 160 45 1 1  50 * 0.1
+2010/12/23 23:31:00 1   2 * hgz   7.5 -20   *  * * * 250 15 0.5
