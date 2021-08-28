@@ -19,7 +19,7 @@ class RTTask
 {
    public:
 		enum TASKSTATE { IDLE=0, WAITING, ACTIVE, FINISHED, STOPPED, CANCELLED, ERROR };
-		enum TASKTYPE { DRIFT=0, TRACK, HORSCAN, EQUSCAN, GOTOHOR, GOTOEQU, PARK, MAINTENANCE };
+		enum TASKTYPE { DRIFT=0, TRACK, HORSCAN, EQUSCAN, GOTOHOR, GOTOEQU, PARK, MAINTENANCE, UNPARK };
 
 		RTTask();
 		RTTask(long id, int priority, const hgz::Time& scheduleTime, double intTime, int refInterval, double altPeriod)
@@ -57,7 +57,7 @@ class RTTask
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel();
-		virtual int Resume()=0;
+//		virtual int Resume()=0;
 
 		virtual TASKTYPE type() const =0;
 
@@ -67,9 +67,9 @@ class RTTask
 
 		// Task State Methods
 		TASKSTATE State() const { return fState; }
-		double Eta() { return fMaxRunTime-fElapsedTime; }
-		double ElapsedTime() { return fElapsedTime; }
-		double MaxRunTime() { return fMaxRunTime; }
+		double Eta() const;
+		double ElapsedTime() const { return fElapsedTime; }
+		double MaxRunTime() const { return fMaxRunTime; }
 		void SetMaxRunTime(double runtime) { fMaxRunTime=runtime; }
 		static int NumTasks() { return fNumTasks; }
 		static bool isActiveTask() { return fAnyActive; }
@@ -137,7 +137,6 @@ class DriftScanTask : public RTTask
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel() { return RTTask::Cancel(); }
-		virtual int Resume() {}
 
 		virtual void Print() const {}
 
@@ -167,7 +166,6 @@ class TrackingTask : public RTTask
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel() { return RTTask::Cancel(); }
-		virtual int Resume() {}
 	private:
 		hgz::SphereCoords fTrackCoords;
 };
@@ -201,7 +199,6 @@ class HorScanTask : public RTTask
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel() { return RTTask::Cancel(); }
-		virtual int Resume() {}
 
 		virtual void Print() const {}
 
@@ -239,7 +236,6 @@ class EquScanTask : public RTTask
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel() { return RTTask::Cancel(); }
-		virtual int Resume() {}
 
 		virtual void Print() const {}
 
@@ -273,7 +269,6 @@ class GotoHorTask : public RTTask
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel() { return RTTask::Cancel(); }
-		virtual int Resume() {}
 
 		virtual void Print() const {}
 
@@ -305,7 +300,6 @@ class GotoEquTask : public RTTask
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel() { return RTTask::Cancel(); }
-		virtual int Resume() {}
 
 		virtual void Print() const {}
 
@@ -334,13 +328,63 @@ class MaintenanceTask : public RTTask
       virtual int Start();
       virtual int Stop();
       virtual int Cancel() { return RTTask::Cancel(); }
-      virtual int Resume() {}
 
       virtual void Print() const {}
 
    private:
 };
 
+/** @class ParkTask
+task to park the telescope
+*/
+class ParkTask : public RTTask
+{
+   public:
+      ParkTask()
+         : RTTask()
+      {}
+      ParkTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
+                  double altPeriod)
+         : RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
+      {}
+      virtual ~ParkTask() {}
+
+      virtual TASKTYPE type() const { return RTTask::PARK; }
+
+      virtual int Start();
+      virtual int Stop();
+      virtual int Cancel() { return RTTask::Cancel(); }
+
+      virtual void Print() const {}
+
+   private:
+};
+
+/** @class UnparkTask
+task to unpark the telescope
+*/
+class UnparkTask : public RTTask
+{
+   public:
+      UnparkTask()
+         : RTTask()
+      {}
+      UnparkTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
+                  double altPeriod)
+         : RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
+      {}
+      virtual ~UnparkTask() {}
+
+      virtual TASKTYPE type() const { return RTTask::UNPARK; }
+
+      virtual int Start();
+      virtual int Stop();
+      virtual int Cancel() { return RTTask::Cancel(); }
+
+      virtual void Print() const {}
+
+   private:
+};
 
 #endif // _RTTASK_H
 
