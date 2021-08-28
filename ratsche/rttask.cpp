@@ -20,11 +20,15 @@
 using namespace std;
 using namespace hgz;
 
-
+const string INDI_PORT { "-p 7624" };
 const string _cmd_driftscan = "./rt_transitscan %f %f %s";
 const string _cmd_tracking = "./rt_track %f %f %s";
 const string _cmd_horscan = "./rt_scan_hor %f %f %f %f %s";
 const string _cmd_equscan = "./rt_scan_equ %f %f %f %f %s";
+const string INDI_DEVICE { "Pi Radiotelescope" };
+const string INDI_PROP_HOR_COORD { INDI_DEVICE+".HORIZONTAL_EOD_COORD" };
+const string INDI_PROP_EQU_COORD { INDI_DEVICE+".EQUATORIAL_EOD_COORD" };
+const string INDI_WAIT_IDLE { "indi_eval "+INDI_PORT+" -w -t 100 '\""+INDI_DEVICE+".SCOPE_STATUS.SCOPE_IDLE\"==1'" };
 
 
 template <class T>
@@ -42,13 +46,13 @@ std::string to_string(T t, std::ios_base & (*f)(std::ios_base&))
 
 int RTTask::fNumTasks=0;
 bool RTTask::fAnyActive=false;
-std::string RTTask::fDataPath="/daten/";
+std::string RTTask::fDataPath="";
 std::string RTTask::fExecutablePath="";
 
 
 RTTask::RTTask()
 {
-   fId=0;
+	fId=0;
 	fNumTasks++;
 }
 
@@ -70,9 +74,8 @@ int RTTask::RunShellCommand(const char *strCommand)
 		//syslog (LOG_DEBUG, "changed PGID to %d (status=%d)", getpid(), pgidstatus);
 		syslog (LOG_DEBUG, "running shell command: %s", strCommand);
 		iStatus = execl("/bin/sh","sh","-c", strCommand, (char*) NULL);
-		exit(iStatus);	// We must exit here,
-							// or we will have multiple
-							// mainlines running...
+		// We must exit here, or we will have multiple mainlines running...
+		exit(iStatus);
 	}
 	else if (iForkId > 0)   // Parent, no error
 	{
@@ -140,6 +143,12 @@ int RTTask::Cancel()
 	return result;
 }
 
+double RTTask::Eta() const
+{ 
+	if (fState==CANCELLED || fState==STOPPED || fState==ERROR || fState == FINISHED) return 0.;
+	return fMaxRunTime-fElapsedTime;
+}
+
 void RTTask::Print() const
 {
    std::cout<<"RT Task:\n";
@@ -149,7 +158,7 @@ void RTTask::Print() const
 
 void RTTask::Process()
 {
-	if (fState==FINISHED || fState==STOPPED || fState==CANCELLED) return;
+	if (fState == FINISHED || fState == STOPPED || fState == CANCELLED || fState == ERROR) return;
 	if (fVerbose>4) cout<<"RTTask::Process()"<<endl;
 	if (fScheduleTime.timestamp()-Time::Now().timestamp()<0. &&
 	    (fScheduleTime.timestamp()+fMaxRunTime*3600.-Time::Now().timestamp())>0.) {
@@ -162,8 +171,9 @@ void RTTask::Process()
 		}
 	} else {
 		if (fState==WAITING) {
-			RTTask::Stop();	// need to call the base-class method only
-									// since the measurement process never took place
+			// need to call the base-class method only
+			// since the measurement process never took place
+			RTTask::Stop();
 			fState=CANCELLED;
 		}
 	}
@@ -174,19 +184,22 @@ void RTTask::Process()
 		if (iDeadId < 0)
 		{
 			// Wait id error
+			syslog (LOG_DEBUG, "waitpid error: %u", iDeadId);
 		}
 		else if (iDeadId > 0)
 		{
 			// child process finished, so just mark the task as finished
+			syslog (LOG_DEBUG, "child proc finished: pid = %u", iDeadId);
 			fPIDList.clear();
 			fAnyActive=false;
 			//RTTask::Stop();	// need to call the base-class method only
 									// since the measurement process finished alone
 			fState=FINISHED;
 			return;
+		} else {
+			// iDeadId == 0, no processes died
+			// do nothing
 		}
-		else  // iDeadId == 0, no processes died
-		{}
 
 		if ((fElapsedTime=(Time::Now().timestamp()-fStartTime.timestamp())/3600.)>fMaxRunTime) {
 			// max. runtime constraint fulfilled; stop the measurement by force
@@ -202,7 +215,6 @@ void RTTask::Process()
 //
 // DriftScanTask
 //
-
 int DriftScanTask::Start()
 {
 	if (fVerbose>3) cout<<"DriftScanTask::Start()"<<endl;
@@ -229,8 +241,6 @@ int DriftScanTask::Start()
 #endif		
 		syslog (LOG_DEBUG, "executing command: %s", cmdstring.c_str());
 		int iStatus = RunShellCommand(cmdstring.c_str());
-//		int iStatus = RunShellCommand("sleep 1000");
-//		int iStatus = RunShellCommand(string("cd "+fExecutablePath+" && rt_doof").c_str());
 		if (iStatus>0) {
 			syslog (LOG_NOTICE, "starting driftscan task with id=%d (pid %d)", this->ID(), iStatus);
 			fPIDList.push_back(iStatus);
@@ -238,6 +248,7 @@ int DriftScanTask::Start()
 		}
 		else {
 			syslog (LOG_ERR, "failed to start driftscan task with id=%d", this->ID());
+			fState = ERROR;
 			result=-1;
 		}
 	}
@@ -285,8 +296,6 @@ int TrackingTask::Start()
 //		sprintf(cmdstr, string("cd "+fExecutablePath+" && "+_cmd_tracking).c_str(), (float)fTrackCoords.Phi(), (float)fTrackCoords.Theta(), string(fDataPath+"/"+fDataFile).c_str() );
 		syslog (LOG_DEBUG, "executing command: %s", cmdstring.c_str());
 		int iStatus = RunShellCommand(cmdstring.c_str());
-//		int iStatus = RunShellCommand("sleep 1000");
-//		int iStatus = RunShellCommand(string("cd "+fExecutablePath+" && rt_doof").c_str());
 		if (iStatus>0) {
 			syslog (LOG_NOTICE, "starting tracking task with id=%d (pid %d)", this->ID(), iStatus);
 			fPIDList.push_back(iStatus);
@@ -294,6 +303,7 @@ int TrackingTask::Start()
 		}
 		else {
 			syslog (LOG_ERR, "failed to start tracking task with id=%d", this->ID());
+			fState = ERROR;
 			result=-1;
 		}
 	}
@@ -354,8 +364,6 @@ int HorScanTask::Start()
 //		sprintf(cmdstr, string("cd "+fExecutablePath+" && "+_cmd_horscan).c_str(), (float)fStartCoords.Phi(), (float)fEndCoords.Phi(), (float)fStartCoords.Theta(), (float)fEndCoords.Theta(), string(fDataPath+"/"+fDataFile).c_str() );
 		syslog (LOG_DEBUG, "executing command: %s", cmdstring.c_str());
 		int iStatus = RunShellCommand(cmdstring.c_str());
-//		int iStatus = RunShellCommand("sleep 1000");
-//		int iStatus = RunShellCommand(string("cd "+fExecutablePath+" && rt_doof").c_str());
 		if (iStatus>0) {
 			syslog (LOG_NOTICE, "starting HorScan task with id=%d (pid %d)", this->ID(), iStatus);
 			fPIDList.push_back(iStatus);
@@ -363,6 +371,7 @@ int HorScanTask::Start()
 		}
 		else {
 			syslog (LOG_ERR, "failed to start HorScan task with id=%d", this->ID());
+			fState = ERROR;
 			result=-1;
 		}
 	}
@@ -421,8 +430,6 @@ int EquScanTask::Start()
 		}
 		syslog (LOG_DEBUG, "executing command: %s", cmdstring.c_str());
 		int iStatus = RunShellCommand(cmdstring.c_str());
-//		int iStatus = RunShellCommand("sleep 1000");
-//		int iStatus = RunShellCommand(string("cd "+fExecutablePath+" && rt_doof").c_str());
 		if (iStatus>0) {
 			syslog (LOG_NOTICE, "starting EquScan task with id=%d (pid %d)", this->ID(), iStatus);
 			fPIDList.push_back(iStatus);
@@ -430,6 +437,7 @@ int EquScanTask::Start()
 		}
 		else {
 			syslog (LOG_ERR, "failed to start EquScan task with id=%d", this->ID());
+			fState = ERROR;
 			result=-1;
 		}
 	}
@@ -454,12 +462,21 @@ int GotoHorTask::Start()
 		// hier code, um messung auszuführen
 		char cmdstr[256];
 		// first, send goto command to indi
-		sprintf(cmdstr,"echo -n $(indi_setprop -p 7273 \"LX200 RT.HORIZONTAL_COORD.AZ;ALT=%f;%f\")",fGotoCoords.Phi(),fGotoCoords.Theta());
+		sprintf(cmdstr,"echo -n $(indi_setprop %s \"%s.AZ;ALT=%f;%f\")", INDI_PORT.c_str(), INDI_PROP_HOR_COORD.c_str(),fGotoCoords.Phi(),fGotoCoords.Theta());
 		int returnvalue = system (cmdstr);
+		syslog (LOG_DEBUG, "executing command: %s , code %d", cmdstr, returnvalue);
+		
+		// wait a bit to let the goto command commence and RT state change from idle to slew
+		usleep( 400000UL );
+		
 		// now, wait until pos reached
+		sprintf( cmdstr, INDI_WAIT_IDLE.c_str() );
+/*
 		sprintf(	cmdstr,
-					"indi_eval -p 7273 -t 2 -w 'abs(\"LX200 RT.HORIZONTAL_COORD.AZ\"-%f)<.085 && abs(\"LX200 RT.HORIZONTAL_COORD.ALT\"-%f)<.085'",
-					(float)fGotoCoords.Phi(), (float)fGotoCoords.Theta());
+					"indi_eval -p 7273 -t 2 -w 'abs(\"%s.AZ\"-%f)<.085 && abs(\"%s.ALT\"-%f)<.085'",
+					INDI_HOR_COORD_PROPERTY.c_str(), (float)fGotoCoords.Phi(), 
+					INDI_HOR_COORD_PROPERTY.c_str(), (float)fGotoCoords.Theta());
+*/
 		syslog (LOG_DEBUG, "executing command: %s", cmdstr);
 		int iStatus = RunShellCommand(cmdstr);
 		if (iStatus>0) {
@@ -469,6 +486,7 @@ int GotoHorTask::Start()
 		}
 		else {
 			syslog (LOG_ERR, "failed to slew to horizontal coordinate, task id=%d", this->ID());
+			fState = ERROR;
 			result=-1;
 		}
 	}
@@ -496,12 +514,20 @@ int GotoEquTask::Start()
 		// hier code, um messung auszuführen
 		char cmdstr[256];
 		// first, send goto command to indi
-		sprintf(cmdstr,"echo -n $(indi_setprop -p 7273 \"LX200 RT.EQUATORIAL_EOD_COORD.RA;DEC=%f;%f\")",fGotoCoords.Phi(),fGotoCoords.Theta());
+		sprintf(cmdstr,"echo -n $(indi_setprop %s \"%s.RA;DEC=%f;%f\")", INDI_PORT.c_str(), INDI_PROP_EQU_COORD.c_str(),fGotoCoords.Phi(),fGotoCoords.Theta());
+//		sprintf(cmdstr,"echo -n $(indi_setprop -p 7273 \"LX200 RT.EQUATORIAL_EOD_COORD.RA;DEC=%f;%f\")",fGotoCoords.Phi(),fGotoCoords.Theta());
 		int returnvalue = system (cmdstr);
+
+		// wait a bit to let the goto command commence and RT state change from idle to slew
+		usleep( 400000UL );
+
 		// now, wait until pos reached
+		sprintf( cmdstr, INDI_WAIT_IDLE.c_str() );
+/*
 		sprintf(	cmdstr,
 					"indi_eval -p 7273 -t 2 -w 'abs(\"LX200 RT.EQUATORIAL_EOD_COORD.RA\"-%f)<.007 && abs(\"LX200 RT.EQUATORIAL_EOD_COORD.DEC\"-%f)<.09'",
 					(float)fGotoCoords.Phi(), (float)fGotoCoords.Theta());
+*/
 		syslog (LOG_DEBUG, "executing command: %s", cmdstr);
 		int iStatus = RunShellCommand(cmdstr);
 		if (iStatus>0) {
@@ -511,6 +537,7 @@ int GotoEquTask::Start()
 		}
 		else {
 			syslog (LOG_ERR, "failed to slew to equatorial coordinate, task id=%d", this->ID());
+			fState = ERROR;
 			result=-1;
 		}
 	}
@@ -562,3 +589,74 @@ int MaintenanceTask::Stop()
    return result;
 }
 
+//
+// ParkTask
+//
+
+int ParkTask::Start()
+{
+   if (fVerbose>3) cout<<"ParkTask::Start()"<<endl;
+   int result=RTTask::Start();
+   if (result==0) {
+      // hier code, um messung auszuführen
+      char cmdstr[256];
+      // first, send goto command to indi
+      sprintf(cmdstr,"sleep %d",int(fMaxRunTime*3600));
+      syslog (LOG_DEBUG, "executing command: %s", cmdstr);
+      int iStatus = RunShellCommand(cmdstr);
+      if (iStatus>0) {
+         syslog (LOG_NOTICE, "starting park task, task id=%d (pid %d)", this->ID(), iStatus);
+         fPIDList.push_back(iStatus);
+         result=0;
+      }
+      else {
+         syslog (LOG_ERR, "failed to start park task, task id=%d", this->ID());
+         result=-1;
+      }
+   }
+   return result;
+}
+
+int ParkTask::Stop()
+{
+   if (fVerbose>3) cout<<"ParkTask::Stop()"<<endl;
+   int result=RTTask::Stop();
+   syslog (LOG_NOTICE, "stopping park task with id=%d", this->ID());
+   return result;
+}
+
+//
+// UnparkTask
+//
+
+int UnparkTask::Start()
+{
+   if (fVerbose>3) cout<<"UnparkTask::Start()"<<endl;
+   int result=RTTask::Start();
+   if (result==0) {
+      // hier code, um messung auszuführen
+      char cmdstr[256];
+      // first, send goto command to indi
+      sprintf(cmdstr,"sleep %d",int(fMaxRunTime*3600));
+      syslog (LOG_DEBUG, "executing command: %s", cmdstr);
+      int iStatus = RunShellCommand(cmdstr);
+      if (iStatus>0) {
+         syslog (LOG_NOTICE, "starting unpark task, task id=%d (pid %d)", this->ID(), iStatus);
+         fPIDList.push_back(iStatus);
+         result=0;
+      }
+      else {
+         syslog (LOG_ERR, "failed to start unpark task, task id=%d", this->ID());
+         result=-1;
+      }
+   }
+   return result;
+}
+
+int UnparkTask::Stop()
+{
+   if (fVerbose>3) cout<<"UnparkTask::Stop()"<<endl;
+   int result=RTTask::Stop();
+   syslog (LOG_NOTICE, "stopping unpark task with id=%d", this->ID());
+   return result;
+}

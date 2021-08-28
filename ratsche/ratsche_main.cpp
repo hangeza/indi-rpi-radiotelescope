@@ -181,7 +181,7 @@ void list_tasks(const vector<task_t>& tasklist) {
 void export_tasks(std::ostream& ostr, const vector<task_t>& tasklist) {
    ostr<<"# RT TASK"<<endl;
    ostr<<"# v0.1"<<endl;
-   ostr<<"# task file for definition of measurement(s) to be done with radiotelescope"<<endl;
+   ostr<<"# task file for definition of measurement(s) to be done with the RT300 radio telescope"<<endl;
    ostr<<"# priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}"<<endl;
    ostr<<"# mode = {drift|track|equscan|horscan}"<<endl;
    ostr<<"# alt-period : (float hours) time-period after which the conditions are expected identical (e.g. 24h for equatorial features)"<<endl;
@@ -295,8 +295,12 @@ int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 			task.type=RTTask::GOTOHOR;
 		} else if (_mode=="gotoequ" || _mode=="GOTOEQU") {
 			task.type=RTTask::GOTOEQU;
-      } else if (_mode=="maintenance" || _mode=="MAINTENANCE") {
-         task.type=RTTask::MAINTENANCE;
+		} else if (_mode=="maintenance" || _mode=="MAINTENANCE") {
+			task.type=RTTask::MAINTENANCE;
+		} else if (_mode=="park" || _mode=="PARK") {
+			task.type=RTTask::PARK;
+		} else if (_mode=="unpark" || _mode=="UNPARK") {
+			task.type=RTTask::UNPARK;
 		} else {
 			errno=0;
 			task.type=strtol(_mode.c_str(),NULL,10);
@@ -505,11 +509,21 @@ RTTask* fromMsgTask(const task_t& msgtask)
 										msgtask.alt_period,
 										hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
 			break;
-      case RTTask::MAINTENANCE:
-         task=new MaintenanceTask(msgtask.id, msgtask.priority,
-                              Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-                              msgtask.alt_period);
-         break;
+		case RTTask::MAINTENANCE:
+			task=new MaintenanceTask(msgtask.id, msgtask.priority,
+										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+										msgtask.alt_period);
+			break;
+		case RTTask::PARK:
+			task=new ParkTask(msgtask.id, msgtask.priority,
+										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+										msgtask.alt_period);
+			break;
+		case RTTask::UNPARK:
+			task=new UnparkTask(msgtask.id, msgtask.priority,
+										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+										msgtask.alt_period);
+			break;
 		default:
 			return NULL;
 			break;
@@ -536,7 +550,7 @@ void processTaskList(vector<RTTask*>& tasklist) {
 			// do the ref intervals differ by more than 5?
 			if (abs(tasklist[first]->RefInterval()-tasklist[second]->RefInterval())>5) continue;
 			// when we reach here, the tasks are considered identical, so remove the second one
-			syslog (LOG_WARNING, "task id %d is identical to id %d. removing the latter one", (int)tasklist[first]->ID(), (int)tasklist[second]->ID());
+			syslog (LOG_WARNING, "task id %d is identical to id %d. removing the latter", (int)tasklist[first]->ID(), (int)tasklist[second]->ID());
 			delete tasklist[second];
 			tasklist.erase(tasklist.begin()+second);
 		}
