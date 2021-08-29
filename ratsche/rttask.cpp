@@ -29,7 +29,9 @@ const string INDI_DEVICE { "Pi Radiotelescope" };
 const string INDI_PROP_HOR_COORD { INDI_DEVICE+".HORIZONTAL_EOD_COORD" };
 const string INDI_PROP_EQU_COORD { INDI_DEVICE+".EQUATORIAL_EOD_COORD" };
 const string INDI_WAIT_IDLE { "indi_eval "+INDI_PORT+" -w -t 100 '\""+INDI_DEVICE+".SCOPE_STATUS.SCOPE_IDLE\"==1'" };
-
+const string INDI_PROP_PARK { INDI_DEVICE+".TELESCOPE_PARK.PARK" };
+const string INDI_PROP_UNPARK { INDI_DEVICE+".TELESCOPE_PARK.UNPARK" };
+const string INDI_WAIT_PARKED { "indi_eval "+INDI_PORT+" -w -t 100 '\""+INDI_DEVICE+".SCOPE_STATUS.SCOPE_PARKED\"==1'" };
 
 template <class T>
 std::string to_string(T t, std::ios_base & (*f)(std::ios_base&))
@@ -204,8 +206,8 @@ void RTTask::Process()
 		if ((fElapsedTime=(Time::Now().timestamp()-fStartTime.timestamp())/3600.)>fMaxRunTime) {
 			// max. runtime constraint fulfilled; stop the measurement by force
 			Stop();
-			if (fVerbose>3) cout<<"RTTask::Process(): stopped task"<<endl;
-			fState=FINISHED;
+			if (fVerbose>3) cout<<"RTTask::Process(): forcefully stopped task - maximum runtime exceeded"<<endl;
+			fState=TIMEOUT;
 			//fElapsedTime=fMaxRunTime;
 		}
 	}
@@ -595,26 +597,30 @@ int MaintenanceTask::Stop()
 
 int ParkTask::Start()
 {
-   if (fVerbose>3) cout<<"ParkTask::Start()"<<endl;
-   int result=RTTask::Start();
-   if (result==0) {
-      // hier code, um messung auszuführen
-      char cmdstr[256];
-      // first, send goto command to indi
-      sprintf(cmdstr,"sleep %d",int(fMaxRunTime*3600));
-      syslog (LOG_DEBUG, "executing command: %s", cmdstr);
-      int iStatus = RunShellCommand(cmdstr);
-      if (iStatus>0) {
-         syslog (LOG_NOTICE, "starting park task, task id=%d (pid %d)", this->ID(), iStatus);
-         fPIDList.push_back(iStatus);
-         result=0;
-      }
-      else {
-         syslog (LOG_ERR, "failed to start park task, task id=%d", this->ID());
-         result=-1;
-      }
-   }
-   return result;
+	if (fVerbose>3) cout<<"ParkTask::Start()"<<endl;
+	int result=RTTask::Start();
+	if (result==0) {
+		char cmdstr[256];
+		// first, send park command to indi
+		sprintf(cmdstr,"echo -n $(indi_setprop %s \"%s=On\")", INDI_PORT.c_str(), INDI_PROP_PARK.c_str());
+		int returnvalue = system (cmdstr);
+		syslog (LOG_DEBUG, "executing command: %s , code %d", cmdstr, returnvalue);
+		
+		// now, wait until scope confirmes that it reached park position
+		sprintf( cmdstr, INDI_WAIT_PARKED.c_str() );
+		syslog (LOG_DEBUG, "executing command: %s", cmdstr);
+		int iStatus = RunShellCommand(cmdstr);
+		if (iStatus>0) {
+			syslog (LOG_NOTICE, "starting park task, task id=%d (pid %d)", this->ID(), iStatus);
+			fPIDList.push_back(iStatus);
+			result=0;
+		}
+		else {
+			syslog (LOG_ERR, "failed to start park task, task id=%d", this->ID());
+			result=-1;
+		}
+	}
+	return result;
 }
 
 int ParkTask::Stop()
@@ -631,26 +637,29 @@ int ParkTask::Stop()
 
 int UnparkTask::Start()
 {
-   if (fVerbose>3) cout<<"UnparkTask::Start()"<<endl;
-   int result=RTTask::Start();
-   if (result==0) {
-      // hier code, um messung auszuführen
-      char cmdstr[256];
-      // first, send goto command to indi
-      sprintf(cmdstr,"sleep %d",int(fMaxRunTime*3600));
-      syslog (LOG_DEBUG, "executing command: %s", cmdstr);
-      int iStatus = RunShellCommand(cmdstr);
-      if (iStatus>0) {
-         syslog (LOG_NOTICE, "starting unpark task, task id=%d (pid %d)", this->ID(), iStatus);
-         fPIDList.push_back(iStatus);
-         result=0;
-      }
-      else {
-         syslog (LOG_ERR, "failed to start unpark task, task id=%d", this->ID());
-         result=-1;
-      }
-   }
-   return result;
+	if (fVerbose>3) cout<<"UnparkTask::Start()"<<endl;
+	int result=RTTask::Start();
+	if (result==0) {
+		char cmdstr[256];
+		// first, send unpark command to indi
+		sprintf(cmdstr,"echo -n $(indi_setprop %s \"%s=On\")", INDI_PORT.c_str(), INDI_PROP_UNPARK.c_str());
+		int returnvalue = system (cmdstr);
+		syslog (LOG_DEBUG, "executing command: %s , code %d", cmdstr, returnvalue);
+
+		// now, wait until scope becomes idle
+		sprintf( cmdstr, INDI_WAIT_IDLE.c_str() );
+		syslog (LOG_DEBUG, "executing command: %s", cmdstr);
+		int iStatus = RunShellCommand(cmdstr);
+		if (iStatus>0) {
+			syslog (LOG_NOTICE, "starting unpark task, task id=%d (pid %d)", this->ID(), iStatus);
+			fPIDList.push_back(iStatus);
+			result=0;
+		} else {
+			syslog (LOG_ERR, "failed to start unpark task, task id=%d", this->ID());
+			result=-1;
+		}
+	}
+	return result;
 }
 
 int UnparkTask::Stop()
