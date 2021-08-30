@@ -22,7 +22,7 @@ using namespace hgz;
 
 const string INDI_PORT { "-p 7624" };
 const string _cmd_driftscan = "./rt_transitscan %f %f %s";
-const string _cmd_tracking = "./rt_track %f %f %s";
+const string _cmd_tracking = "./rt_tracking %f %f %s";
 const string _cmd_horscan = "./rt_scan_hor %f %f %f %f %s";
 const string _cmd_equscan = "./rt_scan_equ %f %f %f %f %s";
 const string INDI_DEVICE { "Pi Radiotelescope" };
