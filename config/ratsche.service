@@ -1,0 +1,16 @@
+[Unit]
+Description=Radio Telescope Task Scheduler
+Requires=indiserver.service
+BindsTo=indiserver.service
+After=indiserver.service
+
+[Service]
+Type=forking
+User=pi
+ExecStart=/bin/bash -c 'exec $(which ratsche) -d'
+#ExecStop=/bin/kill $MAINPID
+Restart=always
+TimeoutSec=10
+
+[Install]
+WantedBy=multi-user.target
