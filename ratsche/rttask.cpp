@@ -99,7 +99,12 @@ int RTTask::Start()
 	if (fState==FINISHED) return (int)FINISHED;
 	if (fState==ACTIVE) return (int)ACTIVE;
 	if (fState==CANCELLED) return (int)CANCELLED;
-	if (fAnyActive) { return (fState=WAITING); }
+	if (fState==ERROR) return (int)ERROR;
+	if (fState==TIMEOUT) return (int)TIMEOUT;
+	if (fAnyActive) { 
+		fState = WAITING;
+		return fState; 
+	}
 	fState=ACTIVE;
 	fAnyActive=true;
 	fStartTime=Time::Now();
@@ -132,7 +137,7 @@ int RTTask::Stop()
 		fPIDList.clear();
 		fState=STOPPED;
 		fAnyActive=false;
-	} else if (fState==CANCELLED || fState==STOPPED || fState==ERROR) {
+	} else if ( fState==CANCELLED || fState==STOPPED || fState==ERROR || fState==TIMEOUT ) {
 		return fState;
 	} else fState=STOPPED;
 	return 0;
@@ -160,25 +165,9 @@ void RTTask::Print() const
 
 void RTTask::Process()
 {
-	if (fState == FINISHED || fState == STOPPED || fState == CANCELLED || fState == ERROR) return;
+	if ( fState == FINISHED || fState == STOPPED || fState == CANCELLED || fState == ERROR || fState == TIMEOUT ) return;
 	if (fVerbose>4) cout<<"RTTask::Process()"<<endl;
-	if (fScheduleTime.timestamp()-Time::Now().timestamp()<0. &&
-	    (fScheduleTime.timestamp()+fMaxRunTime*3600.-Time::Now().timestamp())>0.) {
-		if (fState==WAITING) {
-			if (!fAnyActive) Start();
-		} else
-		if (fState!=ACTIVE) {
-			if (fVerbose>3) cout<<"RTTask::Process(): started task"<<endl;
-			Start();
-		}
-	} else {
-		if (fState==WAITING) {
-			// need to call the base-class method only
-			// since the measurement process never took place
-			RTTask::Stop();
-			fState=CANCELLED;
-		}
-	}
+	// handle an active task here
 	if (fState==ACTIVE) {
 		// Wait till the commands complete
 		int iChildiStatus = 0;
@@ -186,7 +175,10 @@ void RTTask::Process()
 		if (iDeadId < 0)
 		{
 			// Wait id error
+			// something really bad happened, so terminate the task and set state to error
 			syslog (LOG_DEBUG, "waitpid error: %u", iDeadId);
+			Stop();
+			fState = ERROR;
 		}
 		else if (iDeadId > 0)
 		{
@@ -200,7 +192,7 @@ void RTTask::Process()
 			return;
 		} else {
 			// iDeadId == 0, no processes died
-			// do nothing
+			// the task remains avtive, so do nothing
 		}
 
 		if ((fElapsedTime=(Time::Now().timestamp()-fStartTime.timestamp())/3600.)>fMaxRunTime) {
@@ -209,6 +201,31 @@ void RTTask::Process()
 			if (fVerbose>3) cout<<"RTTask::Process(): forcefully stopped task - maximum runtime exceeded"<<endl;
 			fState=TIMEOUT;
 			//fElapsedTime=fMaxRunTime;
+		}
+		return;
+	}
+
+	// handle the task, if it is idle or waiting
+	if ( fScheduleTime.timestamp()-Time::Now().timestamp()<0. ) {
+		// the schedule time of the task is up, check if it can be executed
+		if ( !fAnyActive ) {
+			if (fVerbose>3) cout<<"RTTask::Process(): started task"<<endl;
+			Start();
+		} else {
+			fState = WAITING;
+			if ( ( fScheduleTime.timestamp() + fMaxRunTime * 3600. - Time::Now().timestamp() ) < 0. ) {
+				// the latest scheduled execution time is surpassed
+				// check if the task can be executed at a later or any time
+				if ( fAltPeriod < -1e-4 ) {
+					// settings indicate that the tusk must have executed at the specified time
+					// since this was not possible, cancel the task for good
+					fState=CANCELLED;
+				} else if ( fAltPeriod > 1e-4  ) {
+					// task can be repeated at a later time with the indicated repetition interval
+					// so reschedule the task to the next possible time slot
+					fScheduleTime += fAltPeriod * 3600.;
+				}
+			}
 		}
 	}
 }
