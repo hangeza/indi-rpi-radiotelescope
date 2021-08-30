@@ -250,8 +250,9 @@ int DriftScanTask::Start()
 //		fDataFile="task_drift"+to_string<long>((long)fStartTime.timestamp(), std::dec);
 
 		cmdstring="cd "+fExecutablePath+" && ";
-		sprintf(tmpstr, string(_cmd_driftscan).c_str(), (float)fStartCoords.Phi(),
-(float)fStartCoords.Theta(), string(fDataPath+"/"+fDataFile).c_str() );
+		sprintf(tmpstr, string(_cmd_driftscan).c_str(), (float)fStartCoords.Phi(), 
+				(float)fStartCoords.Theta(), 
+				string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str() );
 		cmdstring+=tmpstr;
 #if __cplusplus > 199711L
 		if (std::isnormal(fIntTime)) cmdstring+=" "+to_string<int>(fIntTime, std::dec);
@@ -304,7 +305,8 @@ int TrackingTask::Start()
 
 		cmdstring="cd "+fExecutablePath+" && ";
 		sprintf(tmpstr, string(_cmd_tracking).c_str(), (float)fTrackCoords.Phi(),
-(float)fTrackCoords.Theta(), string(fDataPath+"/"+fDataFile).c_str() );
+				(float)fTrackCoords.Theta(), 
+				string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str() );
 		cmdstring+=tmpstr;
 #if __cplusplus > 199711L
 		if (std::isnormal(fIntTime)) cmdstring+=" "+to_string<int>(fIntTime, std::dec);
@@ -356,7 +358,7 @@ int HorScanTask::Start()
 		cmdstring="cd "+fExecutablePath+" && ";
 		sprintf(tmpstr, string(_cmd_horscan).c_str(),(float)fStartCoords.Phi(), (float)fEndCoords.Phi(),
 		 (float)fStartCoords.Theta(), (float)fEndCoords.Theta(),
-		 string(fDataPath+"/"+fDataFile).c_str() );
+		 string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str() );
 		cmdstring+=tmpstr;
 #if __cplusplus > 199711L
 		if (isnormal(fStepAz) && isnormal(fStepAlt)) 
@@ -422,8 +424,8 @@ int EquScanTask::Start()
 //		fDataFile="task"+to_string<long>((long)fStartTime.timestamp(), std::dec);
 		cmdstring="cd "+fExecutablePath+" && ";
 		sprintf(tmpstr, string(_cmd_equscan).c_str(),(float)fStartCoords.Phi(), (float)fEndCoords.Phi(),
-		 (float)fStartCoords.Theta(), (float)fEndCoords.Theta(),
-		 string(fDataPath+"/"+fDataFile).c_str() );
+			(float)fStartCoords.Theta(), (float)fEndCoords.Theta(),
+			string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str() );
 		cmdstring+=tmpstr;
 #if __cplusplus > 199711L
 		if (isnormal(fStepRa) && isnormal(fStepDec))
