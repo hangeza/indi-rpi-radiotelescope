@@ -583,10 +583,11 @@ int MaintenanceTask::Start()
    if (fVerbose>3) cout<<"MaintenanceTask::Start()"<<endl;
    int result=RTTask::Start();
    if (result==0) {
-      // hier code, um messung auszuführen
       char cmdstr[256];
-      // first, send goto command to indi
-      sprintf(cmdstr,"sleep %d",int(fMaxRunTime*3600));
+      // simply issue a forked-off sleep command with the duration of the task's maximum runtime 
+      double duration { fMaxRunTime * 3600. - 0.25 };
+	  if ( duration < 1e-3 ) duration = 1e-3;
+	  sprintf(cmdstr,"sleep %f",duration);
       syslog (LOG_DEBUG, "executing command: %s", cmdstr);
       int iStatus = RunShellCommand(cmdstr);
       if (iStatus>0) {
