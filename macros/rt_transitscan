@@ -1,0 +1,88 @@
+#!/bin/bash
+# make transit scan at given horizontal coordinate
+# 30.08.2021 HGZ
+
+# integration time for measurements
+INT_TIME=1
+# Timeout for waiting until RT reached set position in seconds
+TIMEOUT=300
+
+cmd_stop='indi_setprop "Pi Radiotelescope.TELESCOPE_ABORT_MOTION.ABORT=On"'
+
+prop_az='"Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ"'
+prop_alt='"Pi Radiotelescope.HORIZONTAL_EOD_COORD.ALT"'
+
+# function goto_pos()
+# go to given coordinates and wait until reached there
+# goto_pos az alt [timeout]
+# az,alt...coordinate to go
+# timeout...optional timeout after which the function returns 
+goto_pos()
+{
+	_az=$1
+	_alt=$2
+
+	if [[ $(echo "scale=6; $1 < 0.0"|bc) -eq 1 ]]; then
+		_az=$(echo "scale=6; $1+360.0" | bc)
+	elif [[ $(echo "scale=6; $1 >= 360.0"|bc) -eq 1 ]]; then
+		_az=$(echo "scale=6; $1-360.0" | bc)
+	fi
+
+	tout="$TIMEOUT"
+	if [ "$3" ] # Is parameter #3 !zero length?
+	then
+		tout="$3"
+	fi
+
+	# goto position
+	echo -n $(indi_setprop "Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ;ALT=$_az;$_alt")
+	sleep 1
+	indi_eval -w -t $tout '"Pi Radiotelescope.SCOPE_STATUS.SCOPE_IDLE"==1'
+}
+
+
+if [ $# -lt 3 ]; then
+  echo "Go to horizontal coordinate and take measurement in a loop (transit scan)"
+  echo "need at least 3 arguments (horizontal coordinate and filename) for measurement"
+  echo "usage: $0 <az> <az> <file> [<int_time>]"
+  echo " arguments:"
+  echo "  az, alt - coordinate in horizontal system"
+  echo "  file - output file name"
+  echo "  int_time - (optional) integration time of the measurements in seconds (default 1)"
+  exit 1
+fi
+
+if [[ $(echo "scale=6; $2 < 0.0"|bc) -eq 1 ]]; then
+  echo "error: alt below horizon"
+  echo "exiting"
+  exit 1
+fi
+
+if [[ $(echo "scale=6; $2 > 90.0"|bc) -eq 1 ]]; then
+  echo "error: alt exceeding zenith"
+  echo "exiting"
+  exit 1
+fi
+
+if [ $# -gt 3 ]; then
+  INT_TIME=$4
+fi
+
+az=$1
+alt=$2
+
+echo $(eval $cmd_stop)
+
+echo "az = " $az
+echo "alt = " $alt
+
+# switch off tracking
+echo -n $(indi_setprop "Pi Radiotelescope.TELESCOPE_TRACK_STATE.TRACK_OFF=On")
+
+#set integration time
+echo -n $(indi_setprop -n "Pi Radiotelescope.INT_TIME.TIME=$INT_TIME")
+
+goto_pos $az $alt $TIMEOUT
+
+# start data acquisition
+echo -n $(./rt_ads1115_measurement.sh 0 $INT_TIME >> $3)

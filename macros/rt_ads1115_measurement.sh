@@ -1,15 +1,23 @@
 #!/bin/bash
 # show RT position and onboard adc values in a loop
 
-# settling time after switching in s
-DELAY1=0.5
+# usage: ./rt_ads1115_measurement.sh <N> <DELAY>
+# with the optional two arguments
+# N: number of measurements in a loop, zero for endless loop
 N=0
+# DELAY: waiting time after each measurement in s
+DELAY=0.0
 
 if [ $# -eq 1 ]; then
    let N=$1
 fi
 
-cmd_indi="indi_getprop -t 1 -1"
+if [ $# -eq 2 ]; then
+   let N=$1
+   let DELAY=$2
+fi
+
+cmd_indi="indi_getprop -t 5 -1"
 prop_az="Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ"
 prop_alt="Pi Radiotelescope.HORIZONTAL_EOD_COORD.ALT"
 prop_ra="Pi Radiotelescope.EQUATORIAL_EOD_COORD.RA"
@@ -23,6 +31,7 @@ cmd_date="date '+%s.%N'"
 count=0
 while [[ $count -lt $N ]] || [[ $N == 0 ]]
 do
+  sleep $DELAY
   indi_props=$($cmd_indi "$prop_ra" "$prop_dec" "$prop_az" "$prop_alt" "$prop_temp" "$prop_adc1" "$prop_adc2" 2>/dev/null)
   for i in $indi_props; do
     if echo $i | grep -qe 'EQUATORIAL_EOD_COORD.RA'
@@ -55,5 +64,5 @@ do
     fi
   done
   echo $(eval $cmd_date) $az $alt $ra $dec $adc1 $adc2 $temp
- let count=$count+1
+  let count=$count+1
 done
