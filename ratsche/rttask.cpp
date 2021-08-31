@@ -192,7 +192,7 @@ void RTTask::Process()
 			return;
 		} else {
 			// iDeadId == 0, no processes died
-			// the task remains avtive, so do nothing
+			// the task remains active, so do nothing
 		}
 
 		if ((fElapsedTime=(Time::Now().timestamp()-fStartTime.timestamp())/3600.)>fMaxRunTime) {
@@ -217,7 +217,7 @@ void RTTask::Process()
 				// the latest scheduled execution time is surpassed
 				// check if the task can be executed at a later or any time
 				if ( fAltPeriod < -1e-4 ) {
-					// settings indicate that the tusk must have executed at the specified time
+					// settings indicate that the task must have executed at the specified time
 					// since this was not possible, cancel the task for good
 					fState=CANCELLED;
 				} else if ( fAltPeriod > 1e-4  ) {
