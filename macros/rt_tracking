@@ -36,9 +36,18 @@ goto_pos()
         # goto position
         echo -n $(indi_setprop "Pi Radiotelescope.EQUATORIAL_EOD_COORD.RA;DEC=$_ra;$_dec")
    sleep 1
-   indi_eval -w -t $tout '"Pi Radiotelescope.SCOPE_STATUS.SCOPE_IDLE"==1 || "Pi Radiotelescope.SCOPE_STATUS.SCOPE_TRCKING"==1'
+   indi_eval -w -t $tout '"Pi Radiotelescope.SCOPE_STATUS.SCOPE_IDLE"==1 || "Pi Radiotelescope.SCOPE_STATUS.SCOPE_TRACKING"==1'
 }
 
+# exit handler to cleanly handle kill and term signals such as CTRL-C
+# the tracking should be switched off when exiting the macro
+function exit_handler()
+{
+	# switch off tracking
+	echo -n $(indi_setprop "Pi Radiotelescope.TELESCOPE_TRACK_STATE.TRACK_OFF=On")
+}
+
+# main code
 if [ $# -lt 3 ]; then
   echo "Go to equatorial coordinate and take measurement in a loop while tracking position (tracking scan)"
   echo "need at least 3 arguments (equatorial coordinate and filename) for measurement"
@@ -89,10 +98,14 @@ echo "dec = " $dec
 # switch on tracking
 echo -n $(indi_setprop "Pi Radiotelescope.TELESCOPE_TRACK_STATE.TRACK_ON=On")
 
+#install exit handler
+trap exit_handler EXIT
+
 #set integration time
 echo -n $(indi_setprop -n "Pi Radiotelescope.INT_TIME.TIME=$INT_TIME")
 
 goto_pos $ra $dec $TIMEOUT
+echo "position reached"
 
 # start data acquisition
 echo -n $(./rt_ads1115_measurement.sh 0 $INT_TIME >> $3)
