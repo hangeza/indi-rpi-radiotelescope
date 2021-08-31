@@ -6,7 +6,7 @@
 # with the optional two arguments
 # N: number of measurements in a loop, zero for endless loop
 N=0
-# DELAY: waiting time after each measurement in s
+# DELAY: waiting time BEFORE each measurement in s
 DELAY=0.0
 
 if [ $# -eq 1 ]; then
