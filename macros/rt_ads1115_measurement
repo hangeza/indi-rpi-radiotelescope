@@ -1,5 +1,6 @@
 #!/bin/bash
 # show RT position and onboard adc values in a loop
+# 02.08.2021 HGZ
 
 # usage: ./rt_ads1115_measurement.sh <N> <DELAY>
 # with the optional two arguments

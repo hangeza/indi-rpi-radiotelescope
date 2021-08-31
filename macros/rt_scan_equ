@@ -22,25 +22,25 @@ prop_dec='"Pi Radiotelescope.EQUATORIAL_EOD_COORD.DEC"'
 # timeout...optional timeout after which the function returns 
 goto_pos()
 {
-        _ra=$1
-        _dec=$2
+	_ra=$1
+	_dec=$2
 
-        if [[ $(echo "scale=6; $1 < 0.0"|bc) -eq 1 ]]; then
-                _ra=$(echo "scale=6; $1+24.0" | bc)
-        elif [[ $(echo "scale=6; $1 > 24.0"|bc) -eq 1 ]]; then
-                _ra=$(echo "scale=6; $1-24.0" | bc)
-        fi
+	if [[ $(echo "scale=6; $1 < 0.0"|bc) -eq 1 ]]; then
+		_ra=$(echo "scale=6; $1+24.0" | bc)
+	elif [[ $(echo "scale=6; $1 > 24.0"|bc) -eq 1 ]]; then
+		_ra=$(echo "scale=6; $1-24.0" | bc)
+	fi
 
-        tout="$TIMEOUT"
-        if [ "$3" ] # Is parameter #3 !zero length?
-   then
-                tout="$3"
-   fi
+	tout="$TIMEOUT"
+	if [ "$3" ] # Is parameter #3 !zero length?
+	then
+		tout="$3"
+	fi
 
-        # goto position
-        echo -n $(indi_setprop "Pi Radiotelescope.EQUATORIAL_EOD_COORD.RA;DEC=$_ra;$_dec")
-   sleep 1
-   indi_eval -w '"Pi Radiotelescope.SCOPE_STATUS.SCOPE_IDLE"==1'
+	# goto position
+	echo -n $(indi_setprop "Pi Radiotelescope.EQUATORIAL_EOD_COORD.RA;DEC=$_ra;$_dec")
+	sleep 1
+	indi_eval -w -t $TIMEOUT '"Pi Radiotelescope.SCOPE_STATUS.SCOPE_IDLE"==1'
 }
 
 
@@ -126,8 +126,8 @@ do
       echo "ra=" $ra " dec=" $dec
       goto_pos $ra $dec
       # wait at least int_time before reading out the averaged measurement
-      sleep $INT_TIME 
-      echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
+      #sleep $INT_TIME 
+      echo -n $(./rt_ads1115_measurement.sh 1 $INT_TIME  >> $5)
 
       dec=$(echo "scale=6; $dec+$STEP_DEC" | bc)
    done
@@ -141,8 +141,8 @@ do
       echo "ra=" $ra " dec=" $dec
       goto_pos $ra $dec
       # wait at least int_time before reading out the averaged measurement
-      sleep $INT_TIME
-      echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
+      #sleep $INT_TIME
+      echo -n $(./rt_ads1115_measurement.sh 1 $INT_TIME  >> $5)
 
       dec=$(echo "scale=6; $dec-$STEP_DEC" | bc)
    done

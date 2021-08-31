@@ -1,6 +1,6 @@
 #!/bin/bash
 # scan horizontal window in a grid and take measurement at each point
-# 05.06.2010 HGZ
+# 30.08.2021 HGZ
 
 # integration time for measurements
 INT_TIME=1
@@ -22,25 +22,25 @@ prop_alt='"Pi Radiotelescope.HORIZONTAL_EOD_COORD.ALT"'
 # timeout...optional timeout after which the function returns 
 goto_pos()
 {
-        _az=$1
-        _alt=$2
+	_az=$1
+	_alt=$2
 
-        if [[ $(echo "scale=6; $1 < 0.0"|bc) -eq 1 ]]; then
-                _az=$(echo "scale=6; $1+360.0" | bc)
-        elif [[ $(echo "scale=6; $1 >= 360.0"|bc) -eq 1 ]]; then
-                _az=$(echo "scale=6; $1-360.0" | bc)
-        fi
+	if [[ $(echo "scale=6; $1 < 0.0"|bc) -eq 1 ]]; then
+		_az=$(echo "scale=6; $1+360.0" | bc)
+	elif [[ $(echo "scale=6; $1 >= 360.0"|bc) -eq 1 ]]; then
+		_az=$(echo "scale=6; $1-360.0" | bc)
+	fi
 
-        tout="$TIMEOUT"
-        if [ "$3" ] # Is parameter #3 !zero length?
-   then
-                tout="$3"
-   fi
+	tout="$TIMEOUT"
+	if [ "$3" ] # Is parameter #3 !zero length?
+	then
+		tout="$3"
+	fi
 
-        # goto position
-        echo -n $(indi_setprop "Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ;ALT=$_az;$_alt")
-   sleep 1
-   indi_eval -w '"Pi Radiotelescope.SCOPE_STATUS.SCOPE_IDLE"==1'
+	# goto position
+	echo -n $(indi_setprop "Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ;ALT=$_az;$_alt")
+	sleep 1
+	indi_eval -w -t $TIMEOUT '"Pi Radiotelescope.SCOPE_STATUS.SCOPE_IDLE"==1'
 }
 
 
@@ -134,8 +134,8 @@ do
       echo "az=" $az " alt=" $alt
       goto_pos $az $alt
       # wait at least int_time before reading out the averaged measurement
-      sleep $INT_TIME
-      echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
+#      sleep $INT_TIME
+      echo -n $(./rt_ads1115_measurement.sh 1 $INT_TIME >> $5)
 
       alt=$(echo "scale=6; $alt+$STEP_ALT" | bc)
    done
@@ -149,8 +149,8 @@ do
       echo "az=" $az " alt=" $alt
       goto_pos $az $alt
       # wait at least int_time before reading out the averaged measurement
-      sleep $INT_TIME
-      echo -n $(./rt_ads1115_measurement.sh 1 >> $5)
+#      sleep $INT_TIME
+      echo -n $(./rt_ads1115_measurement.sh 1 $INT_TIME >> $5)
 
       alt=$(echo "scale=6; $alt-$STEP_ALT" | bc)
    done

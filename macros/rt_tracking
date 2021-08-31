@@ -1,6 +1,6 @@
 #!/bin/bash
 # go to given equatorial coordinate and start guided datataking
-# 24.12.2010 HGZ
+# 30.08.2021 HGZ
 
 # integration time for measurements
 INT_TIME=1
