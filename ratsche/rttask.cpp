@@ -100,7 +100,7 @@ int RTTask::Start()
 	if (fState==ACTIVE) return (int)ACTIVE;
 	if (fState==CANCELLED) return (int)CANCELLED;
 	if (fState==ERROR) return (int)ERROR;
-	if (fState==TIMEOUT) return (int)TIMEOUT;
+	if (fState==STOPPED) return (int)STOPPED;
 	if (fAnyActive) { 
 		fState = WAITING;
 		return fState; 
@@ -137,7 +137,7 @@ int RTTask::Stop()
 		fPIDList.clear();
 		fState=STOPPED;
 		fAnyActive=false;
-	} else if ( fState==CANCELLED || fState==STOPPED || fState==ERROR || fState==TIMEOUT ) {
+	} else if ( fState==CANCELLED || fState==STOPPED || fState==ERROR ) {
 		return fState;
 	} else fState=STOPPED;
 	return 0;
@@ -165,7 +165,7 @@ void RTTask::Print() const
 
 void RTTask::Process()
 {
-	if ( fState == FINISHED || fState == STOPPED || fState == CANCELLED || fState == ERROR || fState == TIMEOUT ) return;
+	if ( fState == FINISHED || fState == STOPPED || fState == CANCELLED || fState == ERROR ) return;
 	if (fVerbose>4) cout<<"RTTask::Process()"<<endl;
 	// handle an active task here
 	if (fState==ACTIVE) {
@@ -199,7 +199,7 @@ void RTTask::Process()
 			// max. runtime constraint fulfilled; stop the measurement by force
 			Stop();
 			if (fVerbose>3) cout<<"RTTask::Process(): forcefully stopped task - maximum runtime exceeded"<<endl;
-			fState=TIMEOUT;
+			fState=STOPPED;
 			//fElapsedTime=fMaxRunTime;
 		}
 		return;
