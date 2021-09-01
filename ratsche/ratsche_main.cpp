@@ -807,43 +807,37 @@ int main(int argc, char *argv[])
 						case AC_LIST:
 							// List all tasks
 							syslog (LOG_INFO, "received LIST request, sending back list of %d task(s)", tasklist2.size());
-							//cout<<"received LIST"<<endl;
-							//cout<<" tasklist-size()="<<tasklist.size()<<endl;
 							if (!tasklist2.size()) {
 								// send empty list
 								if (send_message(msqid, 1, fromid, AC_LIST, 0, NULL, 1, 0) < 0) {
 									syslog (LOG_CRIT, "unable to send message to message queue");
 									perror("send_message");
-									//exit(1);
 								}
 							} else
 							for (int i=0; i<tasklist2.size(); i++) {
 								task_t _task=toMsgTask(tasklist2[i]);
-								//_task.id=
 								if (send_message(msqid, 1, fromid, AC_LIST, 0, &_task, i+1, tasklist2.size()) < 0) {
-	//							if (send_message(msqid, 1, fromid, AC_LIST, 0, &tasklist[i], i+1, tasklist.size()) < 0) {
 									syslog (LOG_CRIT, "unable to send message to message queue");
 									perror("send_message");
-									//exit(1);
 								}
 							}
 							break;
 						case AC_ADD:
 							// add task
-							//cout<<"received ADD"<<endl;
 							task.id=++lastTaskID;
 							syslog (LOG_INFO, "received ADD request, adding new task (id=%d) to list", task.id);
-	//						print_task(task);
 							taskptr=fromMsgTask(task);
 							if (taskptr!=NULL) tasklist2.push_back(taskptr);
-	//						tasklist.push_back(task);
 							break;
 						case AC_DELETE:
 							// delete task
 							syslog (LOG_INFO, "received DELETE request, deleting task (id=%d) from list", subaction);
 							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
-								if ((*it)->ID()==subaction) {
-									if (*it!=NULL) delete *it;
+								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
+									if ( (*it)->State() == RTTask::ACTIVE ) {
+										(*it)->Cancel();
+									}
+									delete *it;
 									tasklist2.erase(it);
 									syslog (LOG_DEBUG," deleted task id=%d, new size=%d", subaction, tasklist2.size());
 									break;
