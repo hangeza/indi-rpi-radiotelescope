@@ -132,24 +132,6 @@ int receive_message(int msqid, int* fromID, int toID, int* action, int* subactio
 	return result;
 }
 
-/*
-typedef struct task_struct {
-	long				id;
-	char				type;
-	time_t			start_time;
-	char				priority;
-	double			alt_period;
-	char				user[16];
-	struct coords	coords1;
-	struct coords	coords2;
-	double			step1;
-	double			step2;
-	double			int_time;
-	int				ref_cycle;
-	char				comment[128];
-} task_t;
-*/
-
 void list_tasks(const vector<task_t>& tasklist) {
 	cout<<"# RT TASK"<<endl;
 	cout<<"# v0.1"<<endl;
@@ -259,14 +241,11 @@ int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 		task_t task;
 		string line;
 		getline(infile,line);
-//		cout<<" line1="<<line<<" , size="<<line.size()<<endl;
 		if (line.empty()) continue;
 		// remove comment lines
 		size_t found=line.find_first_of('#');
 		if (found!=string::npos) {
-			//cout<<" # found at "<<found<<endl;
 			line=line.erase(found, string::npos);
-			//cout<<" line2="<<line<<" , size="<<line.size()<<endl;
 		}
 		int i=0;
 		// remove leading spaces
@@ -279,12 +258,6 @@ int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 		isline>>_date>>_time>>_mode>>_prio>>_alt_period>>_user
 				>>_x1>>_y1>>_x2>>_y2>>_step1>>_step2>>_int_time>>_ref_cycle>>_duration;
 
-/*
-		cout<<"parsed data:"<<endl;
-		cout<<" date="<<_date<<endl;
-		cout<<" time="<<_time<<endl;
-		cout<<"  x1="<<_x1<<" y1="<<_y1<<"  x2="<<_x2<<" y2="<<_y2<<endl;
-*/
 		if (_mode=="drift" || _mode=="DRIFT") {
 			task.type=RTTask::DRIFT;
 		} else if (_mode=="track" || _mode=="TRACK") {
@@ -473,58 +446,58 @@ RTTask* fromMsgTask(const task_t& msgtask)
 	switch ((RTTask::TASKTYPE)msgtask.type) {
 		case RTTask::DRIFT:
 			task=new DriftScanTask(msgtask.id, msgtask.priority,
-										  Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										  msgtask.int_time, msgtask.ref_cycle, msgtask.alt_period,
-										  hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.int_time, msgtask.ref_cycle, msgtask.alt_period,
+				hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
 			break;
 		case RTTask::TRACK:
 			task=new TrackingTask(msgtask.id, msgtask.priority,
-										  Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										  msgtask.int_time, msgtask.ref_cycle, msgtask.alt_period,
-										  hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.int_time, msgtask.ref_cycle, msgtask.alt_period,
+				hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
 			break;
 		case RTTask::HORSCAN:
 			task=new HorScanTask(msgtask.id, msgtask.priority,
-										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										msgtask.int_time, msgtask.ref_cycle, msgtask.alt_period,
-										hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y),
-										hgz::SphereCoords(msgtask.coords2.x, msgtask.coords2.y),
-										msgtask.step1, msgtask.step2);
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.int_time, msgtask.ref_cycle, msgtask.alt_period,
+				hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y),
+				hgz::SphereCoords(msgtask.coords2.x, msgtask.coords2.y),
+				msgtask.step1, msgtask.step2);
 			break;
 		case RTTask::EQUSCAN:
 			task=new EquScanTask(msgtask.id, msgtask.priority,
-										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										msgtask.int_time, msgtask.ref_cycle, msgtask.alt_period,
-										hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y),
-										hgz::SphereCoords(msgtask.coords2.x, msgtask.coords2.y),
-										msgtask.step1, msgtask.step2);
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.int_time, msgtask.ref_cycle, msgtask.alt_period,
+				hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y),
+				hgz::SphereCoords(msgtask.coords2.x, msgtask.coords2.y),
+				msgtask.step1, msgtask.step2);
 			break;
 		case RTTask::GOTOHOR:
 			task=new GotoHorTask(msgtask.id, msgtask.priority,
-										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										msgtask.alt_period,
-										hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.alt_period,
+				hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
 			break;
 		case RTTask::GOTOEQU:
 			task=new GotoEquTask(msgtask.id, msgtask.priority,
-										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										msgtask.alt_period,
-										hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.alt_period,
+				hgz::SphereCoords(msgtask.coords1.x, msgtask.coords1.y));
 			break;
 		case RTTask::MAINTENANCE:
 			task=new MaintenanceTask(msgtask.id, msgtask.priority,
-										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										msgtask.alt_period);
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.alt_period);
 			break;
 		case RTTask::PARK:
 			task=new ParkTask(msgtask.id, msgtask.priority,
-										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										msgtask.alt_period);
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.alt_period);
 			break;
 		case RTTask::UNPARK:
 			task=new UnparkTask(msgtask.id, msgtask.priority,
-										Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
-										msgtask.alt_period);
+				Time((long double)msgtask.start_time), Time((long double)msgtask.submit_time),
+				msgtask.alt_period);
 			break;
 		default:
 			return NULL;
@@ -542,7 +515,6 @@ void processTaskList(vector<RTTask*>& tasklist) {
 	// remove identical tasks
 	for (int first=0; first<(int)tasklist.size()-1; first++) {
 		for (int second=first+1; second<tasklist.size(); second++) {
-			//cout<<"compare "<<tasklist[first]->ID()<<" and "<<tasklist[second]->ID()<<endl;
 			// do we have the same type?
 			if (tasklist[first]->type()!=tasklist[second]->type()) continue;
 			// do the start times differ less than 30s?
@@ -557,8 +529,6 @@ void processTaskList(vector<RTTask*>& tasklist) {
 			tasklist.erase(tasklist.begin()+second);
 		}
 	}
-
-
 	// sort tasklist for start-time in ascending order
 	for (int first=0; first<(int)tasklist.size()-1; first++) {
 		for (int second=first+1; second<tasklist.size(); second++) {
@@ -610,14 +580,11 @@ int main(int argc, char *argv[])
 	vector<pair<int,int> > cmdLineActions;
 	bool exportTaskList=false;
 	long lastTaskID=-1;
-//	int cmdLineAction=AC_NONE;
-//	int cmdLineSubAction=0;
 
 	key = MSQ_ID;
 
 	// command line parsing
 	int ch;
-//	const char* progname=argv[0];
 	string infile = "";
 	string execpath = "";
 	string datapath = "/tmp/ratsche";
@@ -682,7 +649,7 @@ int main(int argc, char *argv[])
 	}
 
 	if ((msqid = msgget(key, msgflg )) < 0) {
-		perror("msgget");
+		perror("error accessing message queue: msgget failed");
 		exit(1);
 	}
 	else if (verbose>2)	printf("msgget: msgget succeeded: msqid = %d\n", msqid);
@@ -690,7 +657,7 @@ int main(int argc, char *argv[])
 	struct msqid_ds msqinfo;
 	// see first if the message queue is full
 	if (msgctl(msqid, IPC_STAT, &msqinfo)<0) {
-		perror("msgctl");
+		perror("error accessing message queue: msgctl failed");
 		exit(1);
 	} else {
 		// message queue is full and we started as server process, so throw away all messages
@@ -703,10 +670,10 @@ int main(int argc, char *argv[])
 	}
 
 	if (send_message(msqid, getpid(), 1, AC_PING, 0, NULL) < 0) {
-		perror("send_message");
+		perror("error accessing message queue: send_message failed");
 		exit(1);
 	}
-	else if (verbose>1) printf("sent ping\n");
+	else if (verbose>3) printf("sent ping\n");
 
 	// wait 100ms
 	usleep(100000);
@@ -716,19 +683,22 @@ int main(int argc, char *argv[])
 		if (errno==ENOMSG){
 			if (!server) {
 				cerr<<string(argv[0])<<": no connection to server"<<endl;
-				return(-1);
+				exit(1);
 			} else {
-				if (verbose>1)
-					cout<<"no message: i'm a server"<<endl;
+				if (verbose>3)
+					cout<<"no message found: i'm a server"<<endl;
 			}
-		} else perror("receive_message");
+		} else { 
+			perror("error accessing message queue: receive_message failed");
+			exit(1);
+		}
 	}
 	else {
 		if (server) {
 			cerr<<string(argv[0])<<": server already running"<<endl;
-			return(-1);
+			exit(2);
 		} else {
-			if (verbose>1) printf("received pong: i'm client nr. %d\n", getpid());
+			if (verbose>3) printf("received pong: i'm client nr. %d\n", getpid());
 		}
 	}
 
@@ -739,8 +709,7 @@ int main(int argc, char *argv[])
 		//daemon(NULL, NULL);
 		daemon(0, 0);
 		//daemonize();
-		//vector<task_t> tasklist;
-		vector<RTTask*> tasklist2;
+		vector<RTTask*> tasklist;
 		try
 		{
 			int facility_priority = LOG_NOTICE; // default log priority is LOG_NOTICE
@@ -770,19 +739,19 @@ int main(int argc, char *argv[])
 			// try to load tasklist from previous session
 			{
 				// add task(s)
-				vector<task_t> tasklist;
-				if (getTasklistFromFile(defaultTaskFile, tasklist)!=0) {
+				vector<task_t> msgTaskVector;
+				if (getTasklistFromFile(defaultTaskFile, msgTaskVector)!=0) {
 					error(argv[0], "reading task file");
 				} else {
 					// submit tasklist
 					// loop over tasks
-					syslog (LOG_NOTICE, "loading tasklist from previous session, adding %d tasks", tasklist.size());
-					for (int i=0; i<tasklist.size(); i++) {
-						task_t task=tasklist[i];
+					syslog (LOG_NOTICE, "loading tasklist from previous session, adding %d tasks", msgTaskVector.size());
+					for (int i=0; i<msgTaskVector.size(); i++) {
+						task_t task=msgTaskVector[i];
 						task.id=++lastTaskID;
 						syslog (LOG_INFO, "received ADD request, adding new task (id=%d) to list", task.id);
 						RTTask* taskptr=fromMsgTask(task);
-						if (taskptr!=NULL) tasklist2.push_back(taskptr);
+						if (taskptr!=NULL) tasklist.push_back(taskptr);
 					}
 				}
 			}
@@ -806,17 +775,17 @@ int main(int argc, char *argv[])
 							break;
 						case AC_LIST:
 							// List all tasks
-							syslog (LOG_INFO, "received LIST request, sending back list of %d task(s)", tasklist2.size());
-							if (!tasklist2.size()) {
+							syslog (LOG_INFO, "received LIST request, sending back list of %d task(s)", tasklist.size());
+							if (!tasklist.size()) {
 								// send empty list
 								if (send_message(msqid, 1, fromid, AC_LIST, 0, NULL, 1, 0) < 0) {
 									syslog (LOG_CRIT, "unable to send message to message queue");
 									perror("send_message");
 								}
 							} else
-							for (int i=0; i<tasklist2.size(); i++) {
-								task_t _task=toMsgTask(tasklist2[i]);
-								if (send_message(msqid, 1, fromid, AC_LIST, 0, &_task, i+1, tasklist2.size()) < 0) {
+							for (int i=0; i<tasklist.size(); i++) {
+								task_t _task=toMsgTask(tasklist[i]);
+								if (send_message(msqid, 1, fromid, AC_LIST, 0, &_task, i+1, tasklist.size()) < 0) {
 									syslog (LOG_CRIT, "unable to send message to message queue");
 									perror("send_message");
 								}
@@ -827,19 +796,19 @@ int main(int argc, char *argv[])
 							task.id=++lastTaskID;
 							syslog (LOG_INFO, "received ADD request, adding new task (id=%d) to list", task.id);
 							taskptr=fromMsgTask(task);
-							if (taskptr!=NULL) tasklist2.push_back(taskptr);
+							if (taskptr!=NULL) tasklist.push_back(taskptr);
 							break;
 						case AC_DELETE:
 							// delete task
 							syslog (LOG_INFO, "received DELETE request, deleting task (id=%d) from list", subaction);
-							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
+							for (vector<RTTask*>::iterator it=tasklist.begin(); it!=tasklist.end(); ++it) {
 								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
 									if ( (*it)->State() == RTTask::ACTIVE ) {
 										(*it)->Cancel();
 									}
 									delete *it;
-									tasklist2.erase(it);
-									syslog (LOG_DEBUG," deleted task id=%d, new size=%d", subaction, tasklist2.size());
+									tasklist.erase(it);
+									syslog (LOG_DEBUG," deleted task id=%d, new size=%d", subaction, tasklist.size());
 									break;
 								}
 							}
@@ -848,7 +817,7 @@ int main(int argc, char *argv[])
 						case AC_STOP:
 							// stop task
 							syslog (LOG_INFO, "received STOP request, stopping task (id=%d)", subaction);
-							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
+							for (vector<RTTask*>::iterator it=tasklist.begin(); it!=tasklist.end(); ++it) {
 								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
 									(*it)->Stop();
 									syslog (LOG_DEBUG," stopped task id=%d", subaction);
@@ -859,7 +828,7 @@ int main(int argc, char *argv[])
 						case AC_CANCEL:
 							// cancel task
 							syslog (LOG_INFO, "received CANCEL request, cancelling task (id=%d)", subaction);
-							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
+							for (vector<RTTask*>::iterator it=tasklist.begin(); it!=tasklist.end(); ++it) {
 								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
 									(*it)->Cancel();
 									syslog (LOG_DEBUG," cancelled task id=%d", subaction);
@@ -870,31 +839,31 @@ int main(int argc, char *argv[])
 						case AC_CLEAR:
 							// delete all tasks
 							syslog (LOG_INFO, "received CLEAR request, deleting all tasks");
-							while ( !tasklist2.empty() ) {
-								auto it = tasklist2.begin();
+							while ( !tasklist.empty() ) {
+								auto it = tasklist.begin();
 								long int id = (*it)->ID();
 								if ( (*it)->State() == RTTask::ACTIVE ) {
 									(*it)->Cancel();
 								}
 								delete *it;
-								tasklist2.erase(it);
-								syslog (LOG_DEBUG," deleted task id=%d, new size=%d", id, tasklist2.size());
+								tasklist.erase(it);
+								syslog (LOG_DEBUG," deleted task id=%d, new size=%d", id, tasklist.size());
 							}
 							break;
 						default: break;
 					}
 					// process all tasks
-					processTaskList(tasklist2);
+					processTaskList(tasklist);
 					// the tasklist has been modified, so back it up to file
 					vector<task_t> _tasklist;
-					for (int i=0; i<tasklist2.size(); i++) {
-						_tasklist.push_back(toMsgTask(tasklist2[i]));
+					for (int i=0; i<tasklist.size(); i++) {
+						_tasklist.push_back(toMsgTask(tasklist[i]));
 					}
 					ofstream ostr(defaultTaskFile.c_str());
 					export_tasks(ostr, _tasklist);
 				} else {
 					// process all tasks
-					processTaskList(tasklist2);
+					processTaskList(tasklist);
 					// sleep for 10ms
 					usleep(10000);
 				}
@@ -906,11 +875,11 @@ int main(int argc, char *argv[])
 			syslog (LOG_CRIT, "caught unhandled exception");
 			syslog (LOG_CRIT, "stopping server.");
 			// unqueue task list
-			while (tasklist2.size()) {
-				if (tasklist2[0]!=NULL) delete tasklist2[0];
-				tasklist2.erase(tasklist2.begin());
+			while (tasklist.size()) {
+				if (tasklist[0]!=NULL) delete tasklist[0];
+				tasklist.erase(tasklist.begin());
 			}
-			exit(-1);
+			exit(3);
 		}
 		// Todo: evaluate system signals (SIGTERM, SIGKILL etc.)
 		// and unmount the task list cleanly
@@ -942,10 +911,10 @@ int main(int argc, char *argv[])
 		// list tasks
 		if (act==AC_LIST) {
 			if (send_message(msqid, getpid(), 1, AC_LIST, 0, NULL) < 0) {
-				perror("send_message");
+				perror("send_message in requesting task list failed");
 				exit(1);
 			}
-			else if (verbose>1) printf("sent LIST\n");
+			else if (verbose>2) printf("sent LIST\n");
 
 			usleep(10000);
 
@@ -978,31 +947,31 @@ int main(int argc, char *argv[])
 		} else if (act==AC_DELETE) {
 			// delete task
 			if (send_message(msqid, getpid(), 1, AC_DELETE, subact, NULL) < 0) {
-				perror("send_message");
+				perror("send_message in deleting a task failed");
 				exit(1);
 			}
-			else if (verbose>1) printf("sent DELETE\n");
-                } else if (act==AC_CLEAR) {
-                        // delete all tasks
-                        if (send_message(msqid, getpid(), 1, AC_CLEAR, 0, NULL) < 0) {
-                                perror("send_message");
-                                exit(1);
-                        }
-                        else if (verbose>1) printf("sent CLEAR\n");
+			else if (verbose>2) printf("sent DELETE\n");
+		} else if (act==AC_CLEAR) {
+				// delete all tasks
+				if (send_message(msqid, getpid(), 1, AC_CLEAR, 0, NULL) < 0) {
+					perror("send_message in clearing task list failed");
+					exit(1);
+				}
+				else if (verbose>2) printf("sent CLEAR\n");
 		} else if (act==AC_STOP) {
 			// stop task
 			if (send_message(msqid, getpid(), 1, AC_STOP, subact, NULL) < 0) {
-				perror("send_message");
+				perror("send_message in stopping a task failed");
 				exit(1);
 			}
-			else if (verbose>1) printf("sent STOP\n");
+			else if (verbose>2) printf("sent STOP\n");
 		} else if (act==AC_CANCEL) {
 			// cancel task
 			if (send_message(msqid, getpid(), 1, AC_CANCEL, subact, NULL) < 0) {
-				perror("send_message");
+				perror("send_message in cancelling a task failed");
 				exit(1);
 			}
-			else if (verbose>1) printf("sent CANCEL\n");
+			else if (verbose>2) printf("sent CANCEL\n");
 		} else if (act==AC_ADD) {
 			// add task(s)
 			vector<task_t> tasklist;
@@ -1013,15 +982,15 @@ int main(int argc, char *argv[])
 				// loop over tasks
 				for (int i=0; i<tasklist.size(); i++) {
 					if (send_message(msqid, getpid(), 1, AC_ADD, 0, &tasklist[i]) < 0) {
-						error(argv[0], "adding task failed");
-						perror("send_message");
+						perror("send_message in adding a task failed");
+						exit(1);
 					}
-					else if (verbose>1) printf("added Task\n");
+					else if (verbose>2) printf("added Task\n");
 				}
 			}
 		}
 	}
 
-	exit(0);
+	return 0;
 }
 
