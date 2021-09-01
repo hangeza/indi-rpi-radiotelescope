@@ -3,7 +3,7 @@
 
 // start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle
 
-enum { AC_NONE=0, AC_PING=1, AC_LIST=2, AC_ADD=4, AC_DELETE=8, AC_CANCEL=16, AC_STOP=32 };
+enum { AC_NONE=0, AC_PING=1, AC_LIST=2, AC_ADD=4, AC_DELETE=8, AC_CANCEL=16, AC_STOP=32, AC_CLEAR=64 };
 
 struct coords {
 	coords() : x(0.), y(0.) {}
