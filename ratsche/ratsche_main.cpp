@@ -375,8 +375,8 @@ int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 		errno=0;
 		task.duration=strtod(_duration.c_str(),NULL);
 		if (errno || _duration[0]=='*') {
-			error("","could not determine duration, setting to 24h");
-			task.duration=24.;
+			error("","could not determine duration, setting to 1h");
+			task.duration=1.;
 		}
 
 		task.submit_time=time(NULL);
