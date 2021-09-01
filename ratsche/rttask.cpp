@@ -249,16 +249,27 @@ int DriftScanTask::Start()
 		fDataFile=string(datafilestr);
 //		fDataFile="task_drift"+to_string<long>((long)fStartTime.timestamp(), std::dec);
 
-		cmdstring="cd "+fExecutablePath+" && ";
+		double intTime { 1. };
+		#if __cplusplus > 199711L
+		if (isnormal(fIntTime))
+		#else
+		if (isnormal<double>(fIntTime))
+		#endif		
+		{
+			intTime = fIntTime;
+		}
+		
+		cmdstring="";
+		if ( !fExecutablePath.empty() ) {
+			cmdstring="cd "+fExecutablePath+" && ";
+		}
 		sprintf(tmpstr, string(_cmd_driftscan).c_str(), (float)fStartCoords.Phi(), 
 				(float)fStartCoords.Theta(), 
-				string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str() );
+				string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str(),
+				intTime
+   			);
 		cmdstring+=tmpstr;
-#if __cplusplus > 199711L
-		if (std::isnormal(fIntTime)) cmdstring+=" "+to_string<int>(fIntTime, std::dec);
-#else
-		if (std::isnormal<double>(fIntTime)) cmdstring+=" "+to_string<int>(fIntTime, std::dec);
-#endif		
+
 		syslog (LOG_DEBUG, "executing command: %s", cmdstring.c_str());
 		int iStatus = RunShellCommand(cmdstring.c_str());
 		if (iStatus>0) {
@@ -347,42 +358,46 @@ int HorScanTask::Start()
 	if (fVerbose>3) cout<<"HorScanTask::Start()"<<endl;
 	int result=RTTask::Start();
 	if (result==0) {
-		// hier code, um messung auszuführen
+		// here code to start the measurement
 		string cmdstring;
-		char tmpstr[256];
+		char tmpstr[512];
 		char datafilestr[256];
 		sprintf(datafilestr,"task_horscan%04d%02d%02d_%05d",fStartTime.year(),fStartTime.month(),fStartTime.day(),(long)fStartTime.timestamp()%86400L);
 		fDataFile=string(datafilestr);
 //		fDataFile="task"+to_string<long>((long)fStartTime.timestamp(), std::dec);
 
-		cmdstring="cd "+fExecutablePath+" && ";
-		sprintf(tmpstr, string(_cmd_horscan).c_str(),(float)fStartCoords.Phi(), (float)fEndCoords.Phi(),
-		 (float)fStartCoords.Theta(), (float)fEndCoords.Theta(),
-		 string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str() );
-		cmdstring+=tmpstr;
-#if __cplusplus > 199711L
+		double stepAz { 1. };
+		double stepAlt { 1. };
+		double intTime { 1. };
+		#if __cplusplus > 199711L
 		if (isnormal(fStepAz) && isnormal(fStepAlt)) 
-#else
+		#else
 		if (isnormal<double>(fStepAz) && isnormal<double>(fStepAlt)) 
-#endif		
+		#endif		
 		{
-			cmdstring+=" "+to_string<double>(fStepAz, std::dec)+" "+to_string<double>(fStepAlt, std::dec);
-#if __cplusplus > 199711L
-			if (isnormal(fIntTime)) cmdstring+=" "+to_string<double>(fIntTime, std::dec);
-#else
-			if (isnormal<double>(fIntTime)) cmdstring+=" "+to_string<double>(fIntTime, std::dec);
-#endif		
-		} else {
-			// assume 1 deg step size, if no values are supplied
-			cmdstring+=" 1 1";
-#if __cplusplus > 199711L
-			if (isnormal(fIntTime)) cmdstring+=" "+to_string<double>(fIntTime, std::dec);
-#else
-			if (isnormal<double>(fIntTime)) cmdstring+=" "+to_string<double>(fIntTime, std::dec);
-#endif		
+			stepAz = fStepAz;
+			stepAlt = fStepAlt;
 		}
+		#if __cplusplus > 199711L
+		if (isnormal(fIntTime))
+		#else
+		if (isnormal<double>(fIntTime))
+		#endif		
+		{
+			intTime = fIntTime;
+		}
+		
+		cmdstring="";
+		if ( !fExecutablePath.empty() ) {
+			cmdstring="cd "+fExecutablePath+" && ";
+		}
+		sprintf(tmpstr, string(_cmd_horscan).c_str(),(float)fStartCoords.Phi(), (float)fEndCoords.Phi(),
+		 fStartCoords.Theta(), fEndCoords.Theta(),
+		 string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str(),
+		 stepAz, stepAlt, intTime
+		);
+		cmdstring+=tmpstr;
 
-//		sprintf(cmdstr, string("cd "+fExecutablePath+" && "+_cmd_horscan).c_str(), (float)fStartCoords.Phi(), (float)fEndCoords.Phi(), (float)fStartCoords.Theta(), (float)fEndCoords.Theta(), string(fDataPath+"/"+fDataFile).c_str() );
 		syslog (LOG_DEBUG, "executing command: %s", cmdstring.c_str());
 		int iStatus = RunShellCommand(cmdstring.c_str());
 		if (iStatus>0) {
@@ -422,33 +437,40 @@ int EquScanTask::Start()
 		sprintf(datafilestr,"task_equscan%04d%02d%02d_%05d",fStartTime.year(),fStartTime.month(),fStartTime.day(),(long)fStartTime.timestamp()%86400L);
 		fDataFile=string(datafilestr);
 //		fDataFile="task"+to_string<long>((long)fStartTime.timestamp(), std::dec);
-		cmdstring="cd "+fExecutablePath+" && ";
+
+		double stepRa { 0.067 };
+		double stepDec { 1. };
+		double intTime { 1. };
+		#if __cplusplus > 199711L
+		if (isnormal(fStepRa) && isnormal(fStepDec)) 
+		#else
+		if (isnormal<double>(fStepRa) && isnormal<double>(fStepDec)) 
+		#endif		
+		{
+			stepRa = fStepRa;
+			stepDec = fStepDec;
+		}
+		#if __cplusplus > 199711L
+		if (isnormal(fIntTime))
+		#else
+		if (isnormal<double>(fIntTime))
+		#endif		
+		{
+			intTime = fIntTime;
+		}
+		
+		cmdstring="";
+		if ( !fExecutablePath.empty() ) {
+			cmdstring="cd "+fExecutablePath+" && ";
+		}
+
 		sprintf(tmpstr, string(_cmd_equscan).c_str(),(float)fStartCoords.Phi(), (float)fEndCoords.Phi(),
 			(float)fStartCoords.Theta(), (float)fEndCoords.Theta(),
-			string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str() );
+			string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str(),
+			stepRa, stepDec, intTime
+			);
 		cmdstring+=tmpstr;
-#if __cplusplus > 199711L
-		if (isnormal(fStepRa) && isnormal(fStepDec))
-#else
-		if (isnormal<double>(fStepRa) && isnormal<double>(fStepDec))
-#endif		
-		{
-			cmdstring+=" "+to_string<double>(fStepRa, std::dec)+" "+to_string<double>(fStepDec, std::dec);
-#if __cplusplus > 199711L
-			if (isnormal(fIntTime)) cmdstring+=" "+to_string<double>(fIntTime, std::dec);
-#else
-			if (isnormal<double>(fIntTime)) cmdstring+=" "+to_string<double>(fIntTime, std::dec);
-#endif			
-		  
-		} else {
-			// assume 1 deg step size, if no values are supplied
-			cmdstring+=" 1 1";
-#if __cplusplus > 199711L
-			if (isnormal(fIntTime)) cmdstring+=" "+to_string<double>(fIntTime, std::dec);
-#else
-			if (isnormal<double>(fIntTime)) cmdstring+=" "+to_string<double>(fIntTime, std::dec);
-#endif
-		}
+
 		syslog (LOG_DEBUG, "executing command: %s", cmdstring.c_str());
 		int iStatus = RunShellCommand(cmdstring.c_str());
 		if (iStatus>0) {
