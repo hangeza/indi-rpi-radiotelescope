@@ -1,6 +1,6 @@
 #!/bin/bash
 # make transit scan at given horizontal coordinate
-# 30.08.2021 HGZ
+# 01.09.2021 HGZ
 
 # integration time for measurements
 INT_TIME=1
@@ -55,13 +55,13 @@ fi
 if [[ $(echo "scale=6; $2 < 0.0"|bc) -eq 1 ]]; then
   echo "error: alt below horizon"
   echo "exiting"
-  exit 1
+  exit 2
 fi
 
 if [[ $(echo "scale=6; $2 > 90.0"|bc) -eq 1 ]]; then
   echo "error: alt exceeding zenith"
   echo "exiting"
-  exit 1
+  exit 3
 fi
 
 if [ $# -gt 3 ]; then
@@ -85,4 +85,4 @@ echo -n $(indi_setprop -n "Pi Radiotelescope.INT_TIME.TIME=$INT_TIME")
 goto_pos $az $alt $TIMEOUT
 
 # start data acquisition
-echo -n $(./rt_ads1115_measurement.sh 0 $INT_TIME >> $3)
+echo -n $(rt_ads1115_measurement 0 $INT_TIME >> $3)

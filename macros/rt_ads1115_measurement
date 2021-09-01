@@ -1,6 +1,6 @@
 #!/bin/bash
 # show RT position and onboard adc values in a loop
-# 02.08.2021 HGZ
+# 01.09.2021 HGZ
 
 # usage: ./rt_ads1115_measurement.sh <N> <DELAY>
 # with the optional two arguments
@@ -10,12 +10,12 @@ N=0
 DELAY=0.0
 
 if [ $# -eq 1 ]; then
-   let N=$1
+   N=$1
 fi
 
 if [ $# -eq 2 ]; then
-   let N=$1
-   let DELAY=$2
+   N=$1
+   DELAY=$2
 fi
 
 cmd_indi="indi_getprop -t 5 -1"
