@@ -1,6 +1,6 @@
 #!/bin/bash
 # go to given equatorial coordinate and start guided datataking
-# 30.08.2021 HGZ
+# 01.09.2021 HGZ
 
 # integration time for measurements
 INT_TIME=1
@@ -108,4 +108,4 @@ goto_pos $ra $dec $TIMEOUT
 echo "position reached"
 
 # start data acquisition
-echo -n $(./rt_ads1115_measurement.sh 0 $INT_TIME >> $3)
+echo -n $(rt_ads1115_measurement 0 $INT_TIME >> $3)

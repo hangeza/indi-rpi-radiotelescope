@@ -21,10 +21,10 @@ using namespace std;
 using namespace hgz;
 
 const string INDI_PORT { "-p 7624" };
-const string _cmd_driftscan = "./rt_transitscan %f %f %s";
-const string _cmd_tracking = "./rt_tracking %f %f %s";
-const string _cmd_horscan = "./rt_scan_hor %f %f %f %f %s";
-const string _cmd_equscan = "./rt_scan_equ %f %f %f %f %s";
+const string _cmd_driftscan = "rt_transitscan %f %f %s %f";
+const string _cmd_tracking = "rt_tracking %f %f %s";
+const string _cmd_horscan = "rt_scan_hor %f %f %f %f %s %f %f %f";
+const string _cmd_equscan = "rt_scan_equ %f %f %f %f %s %f %f %f";
 const string INDI_DEVICE { "Pi Radiotelescope" };
 const string INDI_PROP_HOR_COORD { INDI_DEVICE+".HORIZONTAL_EOD_COORD" };
 const string INDI_PROP_EQU_COORD { INDI_DEVICE+".EQUATORIAL_EOD_COORD" };

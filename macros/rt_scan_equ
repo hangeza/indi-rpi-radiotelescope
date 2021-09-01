@@ -1,6 +1,6 @@
 #!/bin/bash
 # scan equatorial window in a grid and take measurement at each point
-# 02.08.2021 HGZ
+# 01.09.2021 HGZ
 
 # integration time for measurements
 INT_TIME=1
@@ -127,7 +127,7 @@ do
       goto_pos $ra $dec
       # wait at least int_time before reading out the averaged measurement
       #sleep $INT_TIME 
-      echo -n $(./rt_ads1115_measurement.sh 1 $INT_TIME  >> $5)
+      echo -n $(rt_ads1115_measurement 1 $INT_TIME  >> $5)
 
       dec=$(echo "scale=6; $dec+$STEP_DEC" | bc)
    done
@@ -142,7 +142,7 @@ do
       goto_pos $ra $dec
       # wait at least int_time before reading out the averaged measurement
       #sleep $INT_TIME
-      echo -n $(./rt_ads1115_measurement.sh 1 $INT_TIME  >> $5)
+      echo -n $(rt_ads1115_measurement 1 $INT_TIME  >> $5)
 
       dec=$(echo "scale=6; $dec-$STEP_DEC" | bc)
    done
