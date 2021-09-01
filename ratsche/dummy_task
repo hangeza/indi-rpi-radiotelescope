@@ -10,9 +10,14 @@
 # x1,y1: coordinates of the lower left corner of the scanwindow for 2d-scans; coordinates of initial position for drift (coordinates are Hor.) and track (coordinates are equ)
 # meaning of columns:
 # start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration
-2010/12/23 00:48:30 drift   1 24 hgz 175    75   *  * * * 250 15 0.02
-2010/12/23 23:26:05 drift   1 24 hgz 180    60   *  * * * 250 15 0.005
-2010/12/23 23:26:45 track   1 24 hgz 180    60   *  * * * 250 15 0.05
-2010/12/23 23:28:00 equscan 3  * hgz  19.5  35  21 45 1 1 100 * 0.02
-2010/12/23 23:29:00 horscan 2  * hgz   0     0 160 45 1 1  50 * 0.1
-2010/12/23 23:31:00 1   2 * hgz   7.5 -20   *  * * * 250 15 0.5
+#2010/12/23 00:48:30 drift   1 24 hgz 175    75   *  * * * 250 15 0.02
+#2010/12/23 23:26:05 drift   1 24 hgz 180    60   *  * * * 250 15 0.005
+#2010/12/23 23:26:45 track   1 24 hgz 180    60   *  * * * 250 15 0.05
+#2010/12/23 23:28:00 equscan 3  * hgz  19.5  35  21 45 1 1 100 * 0.02
+#2010/12/23 23:29:00 horscan 2  * hgz   0     0 160 45 1 1  50 * 0.1
+#2010/12/23 23:31:00 1   2 * hgz   7.5 -20   *  * * * 250 15 0.5
+2021/09/01 10:48:00 unpark   1 0 hgz *    *   *  * * * * * 0.1
+2021/09/01 10:49:00 gotohor   1 0 hgz 190    45   *  * * * * * 0.02
+#2021/09/01 10:50:00 maintenance   1 0 hgz *    *   *  * * * * * 0.01
+2021/09/01 10:52:00 drift   1 0 hgz 180    60   *  * * * 10 1 0.05
+2021/09/01 10:57:00 park   1 0 hgz *    *   *  * * * * * 0.1
