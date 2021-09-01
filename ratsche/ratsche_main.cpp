@@ -47,9 +47,10 @@ void Usage(const char* progname)
 	cout<<"	 -E            erase all tasks"<<endl;
 	cout<<"	 -d            run as daemon (scheduling server)"<<endl;
 	cout<<"	 -x <path>     path to the executable macros"<<endl;
+	cout<<"	 -o <path>     path to data output"<<endl;
 	cout<<"	 -v            increase verbosity level for stderr and syslog"<<endl;
 	cout<<"	 -h -?         show this help and exit"<<endl;
-   cout<<endl;
+	cout<<endl;
 }
 
 
@@ -618,16 +619,12 @@ int main(int argc, char *argv[])
 //	const char* progname=argv[0];
 	string infile = "";
 	string execpath = "";
+	string datapath = "/tmp/ratsche";
 
-	while ((ch = getopt(argc, argv, "vlpde:a:s:c:k:x:h?")) != EOF) {
+	while ((ch = getopt(argc, argv, "vlpdEe:a:s:c:k:x:o:h?")) != EOF) {
 		switch ((char)ch) {
 			case 'v':
-            // increase verbosity level
-/*
-				if (optarg!="") {
-					verbose=atoi(optarg);
-				}
-*/
+				// increase verbosity level
 				verbose++;
 				break;
 			case 'a':
@@ -652,6 +649,9 @@ int main(int argc, char *argv[])
 			case 'l':
 				cmdLineActions.push_back(make_pair((int)AC_LIST,0));
 				break;
+			case 'E':
+				cmdLineActions.push_back(make_pair((int)AC_CLEAR,0));
+				break;
 			case 'e':
 				cmdLineActions.push_back(make_pair((int)AC_DELETE,atoi(optarg)));
 				break;
@@ -663,6 +663,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'x':
 				execpath=optarg;
+				break;
+			case 'o':
+				datapath=optarg;
 				break;
 			case 'h':
 			case '?':  Usage(argv[0]); return 0;
@@ -991,15 +994,20 @@ int main(int argc, char *argv[])
 				}
 			}
 		} else if (act==AC_DELETE) {
-
 			// delete task
 			if (send_message(msqid, getpid(), 1, AC_DELETE, subact, NULL) < 0) {
 				perror("send_message");
 				exit(1);
 			}
 			else if (verbose>1) printf("sent DELETE\n");
+                } else if (act==AC_CLEAR) {
+                        // delete all tasks
+                        if (send_message(msqid, getpid(), 1, AC_CLEAR, 0, NULL) < 0) {
+                                perror("send_message");
+                                exit(1);
+                        }
+                        else if (verbose>1) printf("sent CLEAR\n");
 		} else if (act==AC_STOP) {
-
 			// stop task
 			if (send_message(msqid, getpid(), 1, AC_STOP, subact, NULL) < 0) {
 				perror("send_message");
@@ -1007,7 +1015,6 @@ int main(int argc, char *argv[])
 			}
 			else if (verbose>1) printf("sent STOP\n");
 		} else if (act==AC_CANCEL) {
-
 			// cancel task
 			if (send_message(msqid, getpid(), 1, AC_CANCEL, subact, NULL) < 0) {
 				perror("send_message");
