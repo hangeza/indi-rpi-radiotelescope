@@ -13,7 +13,6 @@
 #include <sys/wait.h>
 #include <syslog.h>
 
-//#include "astro.h"
 #include "rttask.h"
 
 
@@ -240,8 +239,6 @@ int DriftScanTask::Start()
 	int result=RTTask::Start();
 	if (result==0) {
 		// hier code, um messung auszuführen
-//		int returnvalue = system ("ls -la > doof &");
-
 		string cmdstring;
 		char tmpstr[256];
 		char datafilestr[256];
