@@ -743,195 +743,192 @@ int main(int argc, char *argv[])
 	// execute the program in server mode from here on
 	if (server)
 	{
-//	daemon(NULL, NULL);
-	daemon(0, 0);
-	//daemonize();
-	//vector<task_t> tasklist;
-	vector<RTTask*> tasklist2;
-	try
-	{
-		int facility_priority = LOG_NOTICE; // default log priority is LOG_NOTICE
-      if (verbose==1) facility_priority = LOG_INFO; // show also infos in syslog if verbose setting enabled
-      if (verbose>1) facility_priority = LOG_DEBUG; // show all in syslog if verbosity increased
+		//daemon(NULL, NULL);
+		daemon(0, 0);
+		//daemonize();
+		//vector<task_t> tasklist;
+		vector<RTTask*> tasklist2;
+		try
+		{
+			int facility_priority = LOG_NOTICE; // default log priority is LOG_NOTICE
+			if (verbose==1) facility_priority = LOG_INFO; // show also infos in syslog if verbose setting enabled
+			if (verbose>1) facility_priority = LOG_DEBUG; // show all in syslog if verbosity increased
 
-/*
-      switch (verbose) {
-			case 4:
-				facility_priority = LOG_DEBUG;
-				break;
-			case 3:
-				facility_priority = LOG_INFO;
-				break;
-			case 2:
-				facility_priority = LOG_NOTICE;
-				break;
-			case 1:
-				facility_priority = LOG_WARNING;
-				break;
-			case 0:
-			default:
-				break;
-		}
-*/
+			setlogmask (LOG_UPTO (facility_priority));
 
-      setlogmask (LOG_UPTO (facility_priority));
-//		setlogmask (LOG_UPTO (LOG_NOTICE));
-//		setlogmask (LOG_UPTO (LOG_DEBUG));
+			//openlog (NULL, LOG_CONS | LOG_PERROR | LOG_PID, LOG_DAEMON);
+			openlog (NULL, LOG_PID, LOG_DAEMON);
+			syslog (LOG_NOTICE, "starting RT task scheduler server");
+			syslog (LOG_NOTICE, "using message queue 0x%04x",key);
 
-//		openlog (NULL, LOG_CONS | LOG_PERROR | LOG_PID, LOG_DAEMON);
-		openlog (NULL, LOG_PID, LOG_DAEMON);
-		syslog (LOG_NOTICE, "starting RT task scheduler server");
-		syslog (LOG_NOTICE, "using message queue 0x%08x",key);
+			if (!execpath.empty()) {
+				RTTask::SetExecutablePath(execpath);
+				syslog (LOG_NOTICE, "using executable path %s",execpath.c_str());
+			}
+			if (!datapath.empty()) {
+				RTTask::SetDataPath(datapath);
+				syslog (LOG_NOTICE, "using data path %s",datapath.c_str());
+			}
+			// clear queue
+			int nrOldMsg=0;
+			while (receive_message(msqid, &fromid, 0, &action, &subaction, NULL) >= 0) {nrOldMsg++;}
+			if (nrOldMsg) syslog (LOG_WARNING, "found %d zombie message(s) in queue...deleting",nrOldMsg);
 
-		RTTask::SetExecutablePath(execpath);
-		if (!execpath.empty()) syslog (LOG_NOTICE, "using executable path %s",execpath.c_str());
-
-		// clear queue
-		int nrOldMsg=0;
-		while (receive_message(msqid, &fromid, 0, &action, &subaction, NULL) >= 0) {nrOldMsg++;}
-		if (nrOldMsg) syslog (LOG_WARNING, "found %d zombie message(s) in queue...deleting",nrOldMsg);
-
-      // try to load tasklist from previous session
-      {
-         // add task(s)
-         vector<task_t> tasklist;
-         if (getTasklistFromFile(defaultTaskFile, tasklist)!=0) {
-            error(argv[0], "reading task file");
-         } else {
-//          list_tasks(tasklist);
-            // submit tasklist
-            // loop over tasks
-            syslog (LOG_NOTICE, "loading tasklist from previous session, adding %d tasks", tasklist.size());
-            for (int i=0; i<tasklist.size(); i++) {
-                  task_t task=tasklist[i];
-                  task.id=++lastTaskID;
-                  syslog (LOG_INFO, "received ADD request, adding new task (id=%d) to list", task.id);
-                  RTTask* taskptr=fromMsgTask(task);
-                  if (taskptr!=NULL) tasklist2.push_back(taskptr);
-            }
-         }
-      }
-		// stay in endless loop
-		while (true) {
-			// see if there is a message in the queue
-			task_t task;
-			if (receive_message(msqid, &fromid, 1, &action, &subaction, &task) >= 0) {
-				RTTask* taskptr;
-				switch (action) {
-					case AC_PING:
-						// received ping, send back echo
-						syslog (LOG_INFO, "received PING message, sending back echo");
-						if (send_message(msqid, 1, fromid, AC_PING, 0, NULL) < 0) {
-							syslog (LOG_CRIT, "unable to send message to message queue");
-							perror("send_message");
-							//exit(1);
-						}
-						else {
-							//printf("pingpong\n");
-						}
-						break;
-					case AC_LIST:
-						// List all tasks
-						syslog (LOG_INFO, "received LIST request, sending back list of %d task(s)", tasklist2.size());
-						//cout<<"received LIST"<<endl;
-						//cout<<" tasklist-size()="<<tasklist.size()<<endl;
-						if (!tasklist2.size()) {
-							// send empty list
-							if (send_message(msqid, 1, fromid, AC_LIST, 0, NULL, 1, 0) < 0) {
-								syslog (LOG_CRIT, "unable to send message to message queue");
-								perror("send_message");
-								//exit(1);
-							}
-						} else
-						for (int i=0; i<tasklist2.size(); i++) {
-							task_t _task=toMsgTask(tasklist2[i]);
-							//_task.id=
-							if (send_message(msqid, 1, fromid, AC_LIST, 0, &_task, i+1, tasklist2.size()) < 0) {
-//							if (send_message(msqid, 1, fromid, AC_LIST, 0, &tasklist[i], i+1, tasklist.size()) < 0) {
-								syslog (LOG_CRIT, "unable to send message to message queue");
-								perror("send_message");
-								//exit(1);
-							}
-						}
-						break;
-					case AC_ADD:
-						// add task
-						//cout<<"received ADD"<<endl;
+			// try to load tasklist from previous session
+			{
+				// add task(s)
+				vector<task_t> tasklist;
+				if (getTasklistFromFile(defaultTaskFile, tasklist)!=0) {
+					error(argv[0], "reading task file");
+				} else {
+					//list_tasks(tasklist);
+					// submit tasklist
+					// loop over tasks
+					syslog (LOG_NOTICE, "loading tasklist from previous session, adding %d tasks", tasklist.size());
+					for (int i=0; i<tasklist.size(); i++) {
+						task_t task=tasklist[i];
 						task.id=++lastTaskID;
 						syslog (LOG_INFO, "received ADD request, adding new task (id=%d) to list", task.id);
-//						print_task(task);
-						taskptr=fromMsgTask(task);
+						RTTask* taskptr=fromMsgTask(task);
 						if (taskptr!=NULL) tasklist2.push_back(taskptr);
-//						tasklist.push_back(task);
-						break;
-					case AC_DELETE:
-						// delete task
-						syslog (LOG_INFO, "received DELETE request, deleting task (id=%d) from list", subaction);
-						for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
-							if ((*it)->ID()==subaction) {
-								if (*it!=NULL) delete *it;
-								tasklist2.erase(it);
-								cout<<" deleted task id="<<subaction<<", new size="<<tasklist2.size()<<endl;
-								break;
-							}
-						}
-						//syslog (LOG_WARNING, "trying to delete task id=%d, which does not exist", subaction);
-						break;
-					case AC_STOP:
-						// stop task
-						syslog (LOG_INFO, "received STOP request, stopping task (id=%d)", subaction);
-						for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
-							if ((*it)->ID()==subaction) {
-								if (*it!=NULL) (*it)->Stop();
-								cout<<" stopped task id="<<subaction<<endl;
-								break;
-							}
-						}
-						break;
-					case AC_CANCEL:
-						// cancel task
-						syslog (LOG_INFO, "received CANCEL request, cancelling task (id=%d)", subaction);
-						for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
-							if ((*it)->ID()==subaction) {
-								if (*it!=NULL) (*it)->Cancel();
-								cout<<" cancelled task id="<<subaction<<endl;
-								break;
-							}
-						}
-						break;
-					default: break;
+					}
 				}
-				// process all tasks
-				processTaskList(tasklist2);
-            // the tasklist has been modified, so backup it to file
-            vector<task_t> _tasklist;
-            for (int i=0; i<tasklist2.size(); i++) {
-               _tasklist.push_back(toMsgTask(tasklist2[i]));
-            }
-            ofstream ostr(defaultTaskFile.c_str());
-            export_tasks(ostr, _tasklist);
-			} else {
-            // process all tasks
-				processTaskList(tasklist2);
-            // sleep for 10ms
-				usleep(10000);
 			}
+			// stay in endless loop
+			while (true) {
+				// see if there is a message in the queue
+				task_t task;
+				if (receive_message(msqid, &fromid, 1, &action, &subaction, &task) >= 0) {
+					RTTask* taskptr;
+					switch (action) {
+						case AC_PING:
+							// received ping, send back echo
+							syslog (LOG_DEBUG, "received PING message, sending back echo");
+							if (send_message(msqid, 1, fromid, AC_PING, 0, NULL) < 0) {
+								syslog (LOG_CRIT, "unable to send message to message queue");
+								perror("send_message");
+								//exit(1);
+							}
+							else {
+								//printf("pingpong\n");
+							}
+							break;
+						case AC_LIST:
+							// List all tasks
+							syslog (LOG_INFO, "received LIST request, sending back list of %d task(s)", tasklist2.size());
+							//cout<<"received LIST"<<endl;
+							//cout<<" tasklist-size()="<<tasklist.size()<<endl;
+							if (!tasklist2.size()) {
+								// send empty list
+								if (send_message(msqid, 1, fromid, AC_LIST, 0, NULL, 1, 0) < 0) {
+									syslog (LOG_CRIT, "unable to send message to message queue");
+									perror("send_message");
+									//exit(1);
+								}
+							} else
+							for (int i=0; i<tasklist2.size(); i++) {
+								task_t _task=toMsgTask(tasklist2[i]);
+								//_task.id=
+								if (send_message(msqid, 1, fromid, AC_LIST, 0, &_task, i+1, tasklist2.size()) < 0) {
+	//							if (send_message(msqid, 1, fromid, AC_LIST, 0, &tasklist[i], i+1, tasklist.size()) < 0) {
+									syslog (LOG_CRIT, "unable to send message to message queue");
+									perror("send_message");
+									//exit(1);
+								}
+							}
+							break;
+						case AC_ADD:
+							// add task
+							//cout<<"received ADD"<<endl;
+							task.id=++lastTaskID;
+							syslog (LOG_INFO, "received ADD request, adding new task (id=%d) to list", task.id);
+	//						print_task(task);
+							taskptr=fromMsgTask(task);
+							if (taskptr!=NULL) tasklist2.push_back(taskptr);
+	//						tasklist.push_back(task);
+							break;
+						case AC_DELETE:
+							// delete task
+							syslog (LOG_INFO, "received DELETE request, deleting task (id=%d) from list", subaction);
+							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
+								if ((*it)->ID()==subaction) {
+									if (*it!=NULL) delete *it;
+									tasklist2.erase(it);
+									syslog (LOG_DEBUG," deleted task id=%d, new size=%d", subaction, tasklist2.size());
+									break;
+								}
+							}
+							//syslog (LOG_WARNING, "trying to delete task id=%d, which does not exist", subaction);
+							break;
+						case AC_STOP:
+							// stop task
+							syslog (LOG_INFO, "received STOP request, stopping task (id=%d)", subaction);
+							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
+								if ((*it)->ID()==subaction) {
+									if (*it!=NULL) (*it)->Stop();
+									syslog (LOG_DEBUG," stopped task id=%d", subaction);
+									break;
+								}
+							}
+							break;
+						case AC_CANCEL:
+							// cancel task
+							syslog (LOG_INFO, "received CANCEL request, cancelling task (id=%d)", subaction);
+							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
+								if ((*it)->ID()==subaction) {
+									if (*it!=NULL) (*it)->Cancel();
+									syslog (LOG_DEBUG," cancelled task id=%d", subaction);
+									break;
+								}
+							}
+							break;
+						case AC_CLEAR:
+							// delete all tasks
+							syslog (LOG_INFO, "received CLEAR request, deleting all tasks");
+							while ( !tasklist2.empty() ) {
+								auto it = tasklist2.begin();
+								long int id = (*it)->ID();
+								if ( (*it)->State() == RTTask::ACTIVE ) {
+									(*it)->Cancel();
+								}
+								delete *it;
+								tasklist2.erase(it);
+								syslog (LOG_DEBUG," deleted task id=%d, new size=%d", id, tasklist2.size());
+							}
+							break;
+						default: break;
+					}
+					// process all tasks
+					processTaskList(tasklist2);
+					// the tasklist has been modified, so backup it to file
+					vector<task_t> _tasklist;
+					for (int i=0; i<tasklist2.size(); i++) {
+						_tasklist.push_back(toMsgTask(tasklist2[i]));
+					}
+					ofstream ostr(defaultTaskFile.c_str());
+					export_tasks(ostr, _tasklist);
+				} else {
+					// process all tasks
+					processTaskList(tasklist2);
+					// sleep for 10ms
+					usleep(10000);
+				}
+			}
+		} // if (server)
+		catch (...) {
+			// if there's any uncaught exception, clear the task list cleanly,
+			// write to the system log and exit
+			syslog (LOG_CRIT, "caught unhandled exception");
+			syslog (LOG_CRIT, "stopping server.");
+			// unqueue task list
+			while (tasklist2.size()) {
+				if (tasklist2[0]!=NULL) delete tasklist2[0];
+				tasklist2.erase(tasklist2.begin());
+			}
+			exit(-1);
 		}
-	} // if (server)
-	catch (...) {
-		// if there's any uncaught exception, clear the task list cleanly,
-		// write to the system log and exit
-		syslog (LOG_CRIT, "caught unhandled exception");
-		syslog (LOG_CRIT, "stopping server.");
-		// unqueue task list
-		while (tasklist2.size()) {
-			if (tasklist2[0]!=NULL) delete tasklist2[0];
-			tasklist2.erase(tasklist2.begin());
-		}
-		exit(-1);
-	}
-	// Todo: evaluate system signals (SIGTERM, SIGKILL etc.)
-	// and unmount the task list cleanly
+		// Todo: evaluate system signals (SIGTERM, SIGKILL etc.)
+		// and unmount the task list cleanly
 	}
 
 
