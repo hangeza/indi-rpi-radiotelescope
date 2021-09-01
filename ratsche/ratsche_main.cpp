@@ -33,9 +33,10 @@ const string defaultTaskFile = "/home/ratsche/ratsche_tasks";
 
 void Usage(const char* progname)
 {
-	cout<<"Radiotelescope Task Scheduler - HG Zaunick 2010-2011"<<endl;
+	cout<<"RaTSche - The Radiotelescope Task Scheduler"<<endl;
+	cout<<"v1.0 - HG Zaunick 2010-2011,2021"<<endl;
 	cout<<endl;
-	cout<<" Usage : "<<string(progname)<<"  [-vlph?] -k <keyID> -d <taskID> -a <taskfile>"<<endl;
+	cout<<" Usage : "<<string(progname)<<"  [-vlEdph?] -k <keyID> -e|c|s <taskID> -a <taskfile> -x|o <path>"<<endl;
 	cout<<"  command line options are:   "<<endl;
 	cout<<"	 -l            list all tasks"<<endl;
 	cout<<"	 -p            export tasklist (for storage in file) to stdout"<<endl;
@@ -45,7 +46,7 @@ void Usage(const char* progname)
 	cout<<"	 -s <taskID>   stop task with ID taskId"<<endl;
 	cout<<"	 -e <taskID>   erase task with ID taskId"<<endl;
 	cout<<"	 -E            erase all tasks"<<endl;
-	cout<<"	 -d            run as daemon (scheduling server)"<<endl;
+	cout<<"	 -d            run as daemon (scheduling server) and fork to background"<<endl;
 	cout<<"	 -x <path>     path to the executable macros"<<endl;
 	cout<<"	 -o <path>     path to data output"<<endl;
 	cout<<"	 -v            increase verbosity level for stderr and syslog"<<endl;
@@ -152,7 +153,7 @@ typedef struct task_struct {
 void list_tasks(const vector<task_t>& tasklist) {
 	cout<<"# RT TASK"<<endl;
 	cout<<"# v0.1"<<endl;
-	cout<<"# task file for definition of measurement(s) to be done with radiotelescope"<<endl;
+	cout<<"# task file for definition of measurement(s) to be done with the RT300 radio telescope"<<endl;
 	cout<<"# priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}"<<endl;
 	cout<<"# mode = {drift|track|equscan|horscan}"<<endl;
 	cout<<"# alt-period : (float hours) time-period after which the conditions are expected identical (e.g. 24h for equatorial features)"<<endl;
@@ -675,18 +676,10 @@ int main(int argc, char *argv[])
 
 	if (verbose>4) verbose=4;
 
-/*
-   argc -= optind;
-   argv += optind;
-
-   if (argc==1) { infile=*argv; }
-*/
-
-
-
-
-	if (verbose>3)	cout<<"pid="<<getpid()<<endl;
-	if (verbose>3) printf("Calling msgget with key %#lx and flag %#o\n",key,msgflg);
+	if (verbose>3)	{
+		cout<<"pid="<<getpid()<<endl;
+		printf("Calling msgget with key %#lx and flag %#o\n",key,msgflg);
+	}
 
 	if ((msqid = msgget(key, msgflg )) < 0) {
 		perror("msgget");
@@ -781,7 +774,6 @@ int main(int argc, char *argv[])
 				if (getTasklistFromFile(defaultTaskFile, tasklist)!=0) {
 					error(argv[0], "reading task file");
 				} else {
-					//list_tasks(tasklist);
 					// submit tasklist
 					// loop over tasks
 					syslog (LOG_NOTICE, "loading tasklist from previous session, adding %d tasks", tasklist.size());
@@ -807,7 +799,6 @@ int main(int argc, char *argv[])
 							if (send_message(msqid, 1, fromid, AC_PING, 0, NULL) < 0) {
 								syslog (LOG_CRIT, "unable to send message to message queue");
 								perror("send_message");
-								//exit(1);
 							}
 							else {
 								//printf("pingpong\n");
@@ -864,8 +855,8 @@ int main(int argc, char *argv[])
 							// stop task
 							syslog (LOG_INFO, "received STOP request, stopping task (id=%d)", subaction);
 							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
-								if ((*it)->ID()==subaction) {
-									if (*it!=NULL) (*it)->Stop();
+								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
+									(*it)->Stop();
 									syslog (LOG_DEBUG," stopped task id=%d", subaction);
 									break;
 								}
@@ -875,8 +866,8 @@ int main(int argc, char *argv[])
 							// cancel task
 							syslog (LOG_INFO, "received CANCEL request, cancelling task (id=%d)", subaction);
 							for (vector<RTTask*>::iterator it=tasklist2.begin(); it!=tasklist2.end(); ++it) {
-								if ((*it)->ID()==subaction) {
-									if (*it!=NULL) (*it)->Cancel();
+								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
+									(*it)->Cancel();
 									syslog (LOG_DEBUG," cancelled task id=%d", subaction);
 									break;
 								}
@@ -900,7 +891,7 @@ int main(int argc, char *argv[])
 					}
 					// process all tasks
 					processTaskList(tasklist2);
-					// the tasklist has been modified, so backup it to file
+					// the tasklist has been modified, so back it up to file
 					vector<task_t> _tasklist;
 					for (int i=0; i<tasklist2.size(); i++) {
 						_tasklist.push_back(toMsgTask(tasklist2[i]));
@@ -943,7 +934,7 @@ int main(int argc, char *argv[])
 	task.start_time=time(NULL);
 	task.submit_time=time(NULL);
 	task.type=1;
-	(void) strcpy(task.user, "hgz");
+	(void) strcpy(task.user, "ratsche");
 	(void) strcpy(task.comment, "dummy task");
 
 	//print_task(task);
@@ -1024,7 +1015,6 @@ int main(int argc, char *argv[])
 			if (getTasklistFromFile(infile, tasklist)!=0) {
 				error(argv[0], "reading task file");
 			} else {
-//				list_tasks(tasklist);
 				// submit tasklist
 				// loop over tasks
 				for (int i=0; i<tasklist.size(); i++) {
@@ -1039,15 +1029,5 @@ int main(int argc, char *argv[])
 	}
 
 	exit(0);
-
-//	cout<<"sizeof(RTTask)="<<sizeof(RTTask)<<endl;
-//	cout<<"sizeof(DriftScanTask)="<<sizeof(DriftScanTask)<<endl;
-//	DriftScanTask doof;
-//	doof.SetComment("das istn sinnloser kommentar.");
-//	cout<<"sizeof(DriftScanTask)="<<sizeof(doof)<<endl;
-	time_t t1 = time(NULL);
-	Time t2=Time::Now();
-	cout<<"time1="<<t1<<endl;
-	cout<<"time2="<<t2.timestamp()<<endl;
 }
 
