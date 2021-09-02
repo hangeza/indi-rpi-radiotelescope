@@ -4,8 +4,8 @@ This is an all-in-one control system for an Az/Alt mount radio telescope origina
 The main features are:
 - Based on Raspberry Pi (tested for model 4) connecting via GPIOs to easy-to-acquire ubiquitous periphery modules for motor control, position sensing, GPS reception, I/O, ADCs etc.
 - Abstraction to the hardware is managed through a custom Instrument-Neutral-Device-Interface (INDI) driver, which allows access to the scope through the quasi-standard XML-message-based INDI protocol. INDI is utilized in many remote observatories.
-- An observation task manager (The Radio Telescope Task Scheduler - Ratsche) which runs as daemon and manages task such as measurements, parking, maintenance etc. New tasks are added via a message queue interface e.g. via the included ratsche client which allows easy integration into web-based interfaces.
-- A collection of bash scripts which allow for more complex measurement task, i.e. 2d scans in horizontal and equatorial coordinates, transit scans, tracking measurements. The scripts are installed in the system's binary location together with indi-pirt and ratsche and are invoked by the ratsche daemon when required.
+- An observation task manager (The Radio Telescope Task Scheduler - Ratsche) which runs as daemon and manages tasks such as measurements, parking, maintenance etc. New tasks are added through a message queue interface e.g. via the included ratsche client which allows easy integration into web-based interfaces.
+- A collection of bash scripts which allow for more complex measurement tasks, i.e. 2d scans in horizontal and equatorial coordinates, transit scans, tracking measurements. The scripts are installed in the system's binary location together with indi-pirt and ratsche and are invoked by the ratsche daemon when required.
 - SystemD service files for indiserver and ratsche daemon to have the complete control chain started at boot time. These are installed in the according system locations by the cmake scripts, too.
 
 Howto build and install PiRaTe:
