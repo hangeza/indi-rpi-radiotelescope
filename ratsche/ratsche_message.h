@@ -45,7 +45,7 @@ typedef struct task_struct {
 	double			elapsed;
 	double			eta;
 	int				status;
-	char				comment[128];
+	char				comment[256];
 } task_t;
 
 
