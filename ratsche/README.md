@@ -5,8 +5,10 @@ Ratsche runs as a daemon service and communicates via the unix message queue (MS
 the status of current tasks can be monitored via a simple command line interface (CLI) program (ratsche client). 
 This allows for relatively easy integration in js or php code for web interfaces.
 
-Detailed features:
-- Currently, the following tasks can be handled by Ratsche:
+**Detailed features**
+
+Currently, the following tasks can be handled by Ratsche:
+
  * Park
  * Unpark
  * GotoHor - Slew to given set of horizontal (Az/Alt) coordinates
@@ -16,7 +18,9 @@ Detailed features:
  * ScanHor - Scan a 2d grid (defined by window and stepping) in horizontal coordinates and record receiver fieldstrength to file.
  * ScanEqu - Scan a 2d grid (defined by window and stepping) in equatorial coordinates and record receiver fieldstrength to file.
  * Maintenance - Lock the scope for a given time at its current position for maintenance purposes
-- One or multiple tasks can be defined using a simple task file format similar to the definition of cron jobs. The format of the file is the following:
+
+One or multiple tasks can be defined using a simple task file format similar to the definition of cron jobs. The format of the file is the following:
+```
     # RT TASK
     # v0.1 
     # task file for definition of measurement(s) to be done with radiotelescope
@@ -34,7 +38,11 @@ Detailed features:
     2021/09/01 10:50:00 maintenance   1 0 hgz *    *   *  * * * * * 0.01
     2021/09/01 10:52:00 drift   1 0 hgz 180    60   *  * * * 10 1 0.05
     2021/09/01 10:57:00 park   1 0 hgz *    *   *  * * * * * 0.1
-- To add the task list to the scheduler, simply do:
+
+```
+
+To add the task list to the scheduler, simply do:
  `ratsche -a task_file`
+ 
 
     
