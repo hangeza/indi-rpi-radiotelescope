@@ -9,18 +9,18 @@ The main features are:
 - SystemD service files for indiserver and ratsche daemon to have the complete control chain started at boot time. These are installed in the according system locations by the cmake scripts, too.
 
 Howto build and install PiRaTe:
-- checkout the main branch of this git repository: git clone https://github.com/hangeza/indi-rpi-radiotelescope.git
-- in the project dir "mkdir build && cd build"
-- "cmake ../"
-- "make"
-- "sudo make install"
+- checkout the main branch of this git repository: `git clone https://github.com/hangeza/indi-rpi-radiotelescope.git`
+- in the project dir `mkdir build && cd build`
+- `cmake ../`
+- `make`
+- `sudo make install`
 
 The binaries, shell scripts and systemd unit files should then be installed in the appropriate system locations.
 
 In order to execute the driver, indiserver must be installed first. Activate the driver and ratsche via systemd services:
 
-sudo systemctl enable indiserver.service && sudo systemctl start indiserver.service
-sudo systemctl enable ratsche.service && sudo systemctl start ratsche.service
+    sudo systemctl enable indiserver.service && sudo systemctl start indiserver.service
+    sudo systemctl enable ratsche.service && sudo systemctl start ratsche.service
 
 These steps have to be executed only once. The indi driver as well as the task scheduler should then be running.
 
