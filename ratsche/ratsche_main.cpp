@@ -29,7 +29,7 @@ using namespace hgz;
 
 const int MSQ_ID = 10;
 
-const string defaultTaskFile = "/home/ratsche/ratsche_tasks";
+const string defaultTaskFile = "/tmp/ratsche_tasks";
 
 void Usage(const char* progname)
 {
@@ -134,7 +134,7 @@ int receive_message(int msqid, int* fromID, int toID, int* action, int* subactio
 
 void list_tasks(const vector<task_t>& tasklist) {
 	cout<<"# RT TASK"<<endl;
-	cout<<"# v0.1"<<endl;
+	cout<<"# v0.2"<<endl;
 	cout<<"# task file for definition of measurement(s) to be done with the RT300 radio telescope"<<endl;
 	cout<<"# priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}"<<endl;
 	cout<<"# mode = {drift|track|equscan|horscan}"<<endl;
@@ -146,25 +146,26 @@ void list_tasks(const vector<task_t>& tasklist) {
 	cout<<"#  coordinates of initial position for drift (coordinates are Hor.) and track (coordinates are Equ)"<<endl;
 	cout<<"# x2,y2: coordinates of the upper right corner of the scanwindow for 2d-scans;"<<endl;
 	cout<<"# meaning of columns:"<<endl;
-	cout<<"# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration"<<endl;
+	cout<<"# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration comment"<<endl;
 
 	for (int i=0; i< tasklist.size(); i++){
 		task_t task=tasklist[i];
 		char str[100];
 		strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
-		cout<<string(str)<<" "<<(int)task.type<<" "<<(int)task.priority<<" "
-			 <<task.alt_period<<" "<<string(task.user)<<" "
-			 <<task.coords1.x<<" "<<task.coords1.y<<" "
-			 <<task.coords2.x<<" "<<task.coords2.y<<" "
-			 <<task.step1<<" "<<task.step2<<" "
-			 <<task.int_time<<" "<<task.ref_cycle<<" "<<task.duration<<endl;
+		cout << string(str) << " " << static_cast<int>(task.type) << " " << static_cast<int>(task.priority) << " "
+			 << task.alt_period << " " << string(task.user) << " "
+			 << task.coords1.x << " " << task.coords1.y << " "
+			 << task.coords2.x << " " << task.coords2.y << " "
+			 << task.step1 << " " << task.step2 << " "
+			 << task.int_time << " " << task.ref_cycle<< " " << task.duration << " \"" 
+			 << string(task.comment) << "\""<<endl;
 	}
 	return;
 }
 
 void export_tasks(std::ostream& ostr, const vector<task_t>& tasklist) {
    ostr<<"# RT TASK"<<endl;
-   ostr<<"# v0.1"<<endl;
+   ostr<<"# v0.2"<<endl;
    ostr<<"# task file for definition of measurement(s) to be done with the RT300 radio telescope"<<endl;
    ostr<<"# priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}"<<endl;
    ostr<<"# mode = {drift|track|equscan|horscan}"<<endl;
@@ -176,35 +177,37 @@ void export_tasks(std::ostream& ostr, const vector<task_t>& tasklist) {
    ostr<<"#  coordinates of initial position for drift (coordinates are Hor.) and track (coordinates are Equ)"<<endl;
    ostr<<"# x2,y2: coordinates of the upper right corner of the scanwindow for 2d-scans;"<<endl;
    ostr<<"# meaning of columns:"<<endl;
-   ostr<<"# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration"<<endl;
+   ostr<<"# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration comment"<<endl;
 
-   for (int i=0; i< tasklist.size(); i++){
-      task_t task=tasklist[i];
-      char str[100];
-      strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
-      ostr<<string(str)<<" "<<(int)task.type<<" "<<(int)task.priority<<" "
-          <<task.alt_period<<" "<<string(task.user)<<" "
-          <<task.coords1.x<<" "<<task.coords1.y<<" "
-          <<task.coords2.x<<" "<<task.coords2.y<<" "
-          <<task.step1<<" "<<task.step2<<" "
-          <<task.int_time<<" "<<task.ref_cycle<<" "<<task.duration<<endl;
+	for (int i=0; i< tasklist.size(); i++){
+		task_t task=tasklist[i];
+		char str[100];
+		strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
+		ostr << string(str) << " " << static_cast<int>(task.type) << " " << static_cast<int>(task.priority) << " "
+			<< task.alt_period << " " << string(task.user) << " "
+			<< task.coords1.x << " " <<task.coords1.y << " "
+			<< task.coords2.x << " " <<task.coords2.y << " "
+			<< task.step1 << " " << task.step2 <<" "
+			<< task.int_time << " " << task.ref_cycle << " " << task.duration
+			<< " \"" << string(task.comment) << "\""<<endl;
    }
    return;
 }
 
 void print_tasklist(const vector<task_t>& tasklist) {
-	cout<<"# id start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max-duration elapsed eta status"<<endl;
+	cout<<"# id time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max-duration elapsed eta status comment"<<endl;
 	for (int i=0; i< tasklist.size(); i++){
 		task_t task=tasklist[i];
 		char str[100];
 		strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
-		cout<<task.id<<" "<<string(str)<<" "<<(int)task.type<<" "<<(int)task.priority<<" "
-			 <<task.alt_period<<" "<<string(task.user)<<" "
-			 <<task.coords1.x<<" "<<task.coords1.y<<" "
-			 <<task.coords2.x<<" "<<task.coords2.y<<" "
-			 <<task.step1<<" "<<task.step2<<" "
-			 <<task.int_time<<" "<<task.ref_cycle<<" "
-			 <<task.duration<<" "<<task.elapsed<<" "<<task.eta<<" "<<task.status<<endl;
+		cout << task.id << " " << string(str) << " " << static_cast<int>(task.type) << " " << static_cast<int>(task.priority) << " "
+			 << task.alt_period << " " << string(task.user) << " "
+			 << task.coords1.x << " " << task.coords1.y << " "
+			 << task.coords2.x << " " << task.coords2.y << " "
+			 << task.step1 << " " << task.step2 << " "
+			 << task.int_time << " " << task.ref_cycle << " "
+			 << task.duration << " " << task.elapsed << " " << task.eta << " " << task.status
+			 << " \"" << string(task.comment) << "\""<<endl;
 	}
 	return;
 }
@@ -247,7 +250,6 @@ int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 		if (found!=string::npos) {
 			line=line.erase(found, string::npos);
 		}
-		int i=0;
 		// remove leading spaces
 		while (!line.empty() && (isspace(line[0]) || isdigit(line[0])==0)) line.erase(0,1);
 		if (line.empty()) continue;
@@ -257,7 +259,30 @@ int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 		string _alt_period, _x1, _x2, _y1, _y2, _step1, _step2, _int_time, _ref_cycle, _duration;
 		isline>>_date>>_time>>_mode>>_prio>>_alt_period>>_user
 				>>_x1>>_y1>>_x2>>_y2>>_step1>>_step2>>_int_time>>_ref_cycle>>_duration;
+				
+		if ( isline.tellg() != -1 && !isline.fail() ) {
+			// allocate memory:
+			char buffer[256];
 
+			// read data as a block:
+			int length = isline.readsome (buffer,256);
+			
+			string comment ( buffer, buffer+length );
+			
+			while ( isspace(comment.front()) || comment.front() == '\"' ) comment.erase(0,1);
+			while ( !comment.empty() && ( comment.back() == '\"' || !isgraph(comment.back()) ) ) comment.pop_back();
+			
+			if ( !comment.empty() ) {
+				strcpy(task.comment, comment.c_str());
+			} else {
+				strcpy(task.comment, "");
+			}
+		} else {
+			strcpy(task.comment, "");
+		}
+		
+		strcpy(task.user, _user.c_str());
+		
 		if (_mode=="drift" || _mode=="DRIFT") {
 			task.type=RTTask::DRIFT;
 		} else if (_mode=="track" || _mode=="TRACK") {
@@ -296,8 +321,6 @@ int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 			error("","could not determine alt_period, setting to -1 (=singular)");
 		}
 
-		(void) strcpy(task.user, _user.c_str());
-		(void) strcpy(task.comment, "");
 		errno=0;
 		task.coords1.x=strtod(_x1.c_str(),NULL);
 		if (errno || _x1[0]=='*') {
@@ -397,8 +420,8 @@ task_t toMsgTask(RTTask* task)
 	msgtask.elapsed=task->ElapsedTime();
 	msgtask.eta=task->Eta();
 	msgtask.status=task->State();
-	(void) strcpy(msgtask.user, task->User().c_str());
-	(void) strcpy(msgtask.comment, task->Comment().c_str());
+	strcpy(msgtask.user, task->User().c_str());
+	strcpy(msgtask.comment, task->Comment().c_str());
 	switch (task->type()) {
 		case RTTask::DRIFT:
 			msgtask.coords1.x=dynamic_cast<DriftScanTask*>(task)->StartCoords().Phi();
