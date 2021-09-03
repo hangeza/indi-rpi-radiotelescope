@@ -121,9 +121,10 @@ class RTTask
 		static std::string fDataPath;
 		static std::string fExecutablePath;
 		std::vector<int> fPIDList;
-		int fVerbose;
+		int fVerbose { 4 };
 
 		int RunShellCommand(const char *strCommand);
+		virtual auto WriteHeader( const std::string& datafile ) -> bool;
 };
 
 
@@ -151,6 +152,8 @@ class DriftScanTask : public RTTask
 		virtual void Print() const {}
 
 	private:
+		auto WriteHeader( const std::string& datafile ) -> bool override;
+
 		hgz::SphereCoords fStartCoords;
 };
 
@@ -212,6 +215,8 @@ class HorScanTask : public RTTask
 		virtual void Print() const {}
 
 	private:
+		auto WriteHeader( const std::string& datafile ) -> bool override;
+
 		hgz::SphereCoords fStartCoords, fEndCoords;
 		double fStepAz,fStepAlt;
 };
@@ -246,6 +251,8 @@ class EquScanTask : public RTTask
 		virtual void Print() const {}
 
 	private:
+		auto WriteHeader( const std::string& datafile ) -> bool override;
+
 		hgz::SphereCoords fStartCoords, fEndCoords;
 		double fStepRa,fStepDec;
 };

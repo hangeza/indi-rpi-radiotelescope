@@ -21,7 +21,7 @@ using namespace hgz;
 
 const string INDI_PORT { "-p 7624" };
 const string _cmd_driftscan = "rt_transitscan %f %f %s %f";
-const string _cmd_tracking = "rt_tracking %f %f %s";
+const string _cmd_tracking = "rt_tracking %f %f %s %f";
 const string _cmd_horscan = "rt_scan_hor %f %f %f %f %s %f %f %f";
 const string _cmd_equscan = "rt_scan_equ %f %f %f %f %s %f %f %f";
 const string INDI_DEVICE { "Pi Radiotelescope" };
@@ -156,6 +156,25 @@ void RTTask::Print() const
    std::cout<<" id    : "<<setw(8)<<hex<<fId<<dec<<std::endl;
 }
 
+auto RTTask::WriteHeader( const std::string& datafile ) -> bool {
+	std::ofstream file( datafile, ios_base::out | ios_base::trunc );
+	if ( file.fail() || !file.good() ) {
+		syslog (LOG_DEBUG, "RTTask::WriteHeader: error opening data file %s", datafile.c_str());
+		return false;
+	}
+	file << "# " << tasktype_string.at(fType) << "\n";
+	file << "# Task ID: " << fId << "\n";
+	file << "# Submit time: " << fSubmitTime << "\n";
+	file << "# Schedule time: " << fScheduleTime << "\n";
+	file << "# Start time: " << fStartTime << "\n";
+	file << "# Max run time: " << fMaxRunTime << "h\n";
+	file << "# User: " << fUser << "\n";
+	file << "# Priority: " << fPriority << "\n";
+	file << "# Comment: " << fComment << "\n";
+	file << flush;
+	return true;
+}
+
 void RTTask::Process()
 {
 	if ( fState == FINISHED || fState == STOPPED || fState == CANCELLED || fState == ERROR ) return;
@@ -232,13 +251,19 @@ int DriftScanTask::Start()
 	if (fVerbose>3) cout<<"DriftScanTask::Start()"<<endl;
 	int result=RTTask::Start();
 	if (result==0) {
-		// hier code, um messung auszuführen
+		// here code to do the measurement
 		string cmdstring;
 		char tmpstr[256];
 		char datafilestr[256];
 		sprintf(datafilestr,"task_drift%04d%02d%02d_%05d",fStartTime.year(),fStartTime.month(),fStartTime.day(),(long)fStartTime.timestamp()%86400L);
 		fDataFile=string(datafilestr);
 //		fDataFile="task_drift"+to_string<long>((long)fStartTime.timestamp(), std::dec);
+		bool file_success = WriteHeader( ((fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile );
+		if ( !file_success) {
+			fState = ERROR;
+			syslog (LOG_ERR, "failed to start driftscan task with id=%d: data file i/o error", this->ID());
+			return (int)ERROR;
+		}
 
 		double intTime { 1. };
 		#if __cplusplus > 199711L
@@ -285,6 +310,19 @@ int DriftScanTask::Stop()
 	return result;
 }
 
+auto DriftScanTask::WriteHeader( const std::string& datafile ) -> bool {
+        bool success = RTTask::WriteHeader( datafile );
+	if ( !success ) return false;
+	std::ofstream file( datafile, ios_base::out | ios_base::app );
+	if ( file.fail() || !file.good() ) {
+		return false;
+	}
+	file << "#------------------------------------------\n";
+	file << "# Coordinates: Az=" << fStartCoords.Phi() << " Alt=" << fStartCoords.Theta() << "\n";
+	file << "# Integration time: " << fIntTime << "s\n";
+	file << flush;
+	return true;
+}
 
 //
 // TrackingTask
@@ -295,28 +333,41 @@ int TrackingTask::Start()
 	if (fVerbose>3) cout<<"TrackingTask::Start()"<<endl;
 	int result=RTTask::Start();
 	if (result==0) {
-		// hier code, um messung auszuführen
-//		int returnvalue = system ("ls -la > doof &");
-
+		// here code to do the measurement
 		string cmdstring;
 		char tmpstr[256];
 		char datafilestr[256];
 		sprintf(datafilestr,"task_track%04d%02d%02d_%05d",fStartTime.year(),fStartTime.month(),fStartTime.day(),(long)fStartTime.timestamp()%86400L);
 		fDataFile=string(datafilestr);
 //		fDataFile="task"+to_string<long>((long)fStartTime.timestamp(), std::dec);
+		bool file_success = WriteHeader( ((fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile );
+		if ( !file_success) {
+			fState = ERROR;
+			syslog (LOG_ERR, "failed to start tracking scan task with id=%d: data file i/o error", this->ID());
+			return (int)ERROR;
+		}
 
-		cmdstring="cd "+fExecutablePath+" && ";
-		sprintf(tmpstr, string(_cmd_tracking).c_str(), (float)fTrackCoords.Phi(),
-				(float)fTrackCoords.Theta(), 
-				string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str() );
+		double intTime { 1. };
+		#if __cplusplus > 199711L
+		if (isnormal(fIntTime))
+		#else
+		if (isnormal<double>(fIntTime))
+		#endif		
+		{
+			intTime = fIntTime;
+		}
+		
+		cmdstring="";
+		if ( !fExecutablePath.empty() ) {
+			cmdstring="cd "+fExecutablePath+" && ";
+		}
+		sprintf(tmpstr, string(_cmd_tracking).c_str(), (float)fTrackCoords.Phi(), 
+				(float)fTrackCoords.Theta(),
+				string( ( (fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile).c_str(),
+				intTime
+   			);
 		cmdstring+=tmpstr;
-#if __cplusplus > 199711L
-		if (std::isnormal(fIntTime)) cmdstring+=" "+to_string<int>(fIntTime, std::dec);
-#else
-		if (std::isnormal<double>(fIntTime)) cmdstring+=" "+to_string<int>(fIntTime, std::dec);
-#endif		
 
-//		sprintf(cmdstr, string("cd "+fExecutablePath+" && "+_cmd_tracking).c_str(), (float)fTrackCoords.Phi(), (float)fTrackCoords.Theta(), string(fDataPath+"/"+fDataFile).c_str() );
 		syslog (LOG_DEBUG, "executing command: %s", cmdstring.c_str());
 		int iStatus = RunShellCommand(cmdstring.c_str());
 		if (iStatus>0) {
@@ -339,6 +390,20 @@ int TrackingTask::Stop()
 	return RTTask::Stop();
 }
 
+auto TrackingTask::WriteHeader( const std::string& datafile ) -> bool {
+        bool success = RTTask::WriteHeader( datafile );
+	if ( !success ) return false;
+	std::ofstream file( datafile, ios_base::out | ios_base::app );
+	if ( file.fail() || !file.good() ) {
+		return false;
+	}
+	file << "#------------------------------------------\n";
+	file << "# Coordinates: RA=" << fTrackCoords.Phi() << " Dec=" << fTrackCoords.Theta() << "\n";
+	file << "# Integration time: " << fIntTime << "s\n";
+	file << flush;
+	return true;
+}
+
 
 //
 // HorScanTask
@@ -356,6 +421,12 @@ int HorScanTask::Start()
 		sprintf(datafilestr,"task_horscan%04d%02d%02d_%05d",fStartTime.year(),fStartTime.month(),fStartTime.day(),(long)fStartTime.timestamp()%86400L);
 		fDataFile=string(datafilestr);
 //		fDataFile="task"+to_string<long>((long)fStartTime.timestamp(), std::dec);
+		bool file_success = WriteHeader( ((fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile );
+		if ( !file_success) {
+			fState = ERROR;
+			syslog (LOG_ERR, "failed to start horscan task with id=%d: data file i/o error", this->ID());
+			return (int)ERROR;
+		}
 
 		double stepAz { 1. };
 		double stepAlt { 1. };
@@ -411,6 +482,22 @@ int HorScanTask::Stop()
 	return RTTask::Stop();
 }
 
+auto HorScanTask::WriteHeader( const std::string& datafile ) -> bool {
+        bool success = RTTask::WriteHeader( datafile );
+	if ( !success ) return false;
+	std::ofstream file( datafile, ios_base::out | ios_base::app );
+	if ( file.fail() || !file.good() ) {
+		return false;
+	}
+	file << "#------------------------------------------\n";
+	file << "# Start coordinates: Az=" << fStartCoords.Phi() << "deg Alt=" << fStartCoords.Theta() << "deg\n";
+	file << "# End coordinates: Az=" << fEndCoords.Phi() << "deg Alt=" << fEndCoords.Theta() << "deg\n";
+	file << "# Step size: Az=" << fStepAz << "deg Alt=" << fStepAlt << "deg\n";
+	file << "# Integration time: " << fIntTime << "s\n";
+	file << flush;
+	return true;
+}
+
 
 //
 // EquScanTask
@@ -421,13 +508,19 @@ int EquScanTask::Start()
 	if (fVerbose>3) cout<<"EquScanTask::Start()"<<endl;
 	int result=RTTask::Start();
 	if (result==0) {
-		// hier code, um messung auszuführen
+		// here code to do the measurement
 		string cmdstring;
 		char tmpstr[256];
 		char datafilestr[256];
 		sprintf(datafilestr,"task_equscan%04d%02d%02d_%05d",fStartTime.year(),fStartTime.month(),fStartTime.day(),(long)fStartTime.timestamp()%86400L);
 		fDataFile=string(datafilestr);
 //		fDataFile="task"+to_string<long>((long)fStartTime.timestamp(), std::dec);
+		bool file_success = WriteHeader( ((fDataPath.empty()) ? "" : fDataPath+"/" ) + fDataFile );
+		if ( !file_success) {
+			fState = ERROR;
+			syslog (LOG_ERR, "failed to start equscan task with id=%d: data file i/o error", this->ID());
+			return (int)ERROR;
+		}
 
 		double stepRa { 0.067 };
 		double stepDec { 1. };
@@ -482,6 +575,22 @@ int EquScanTask::Stop()
 {
 	if (fVerbose>3) cout<<"EquScanTask::Stop()"<<endl;
 	return RTTask::Stop();
+}
+
+auto EquScanTask::WriteHeader( const std::string& datafile ) -> bool {
+        bool success = RTTask::WriteHeader( datafile );
+	if ( !success ) return false;
+	std::ofstream file( datafile, ios_base::out | ios_base::app );
+	if ( file.fail() || !file.good() ) {
+		return false;
+	}
+	file << "#------------------------------------------\n";
+	file << "# Start coordinates: RA=" << fStartCoords.Phi() << "h Dec=" << fStartCoords.Theta() << "deg\n";
+	file << "# End coordinates: RA=" << fEndCoords.Phi() << "h Dec=" << fEndCoords.Theta() << "deg\n";
+	file << "# Step size: RA=" << fStepRa << "h = " << 360.*fStepRa/24. <<"deg  Dec=" << fStepDec << "deg\n";
+	file << "# Integration time: " << fIntTime << "s\n";
+	file << flush;
+	return true;
 }
 
 //
