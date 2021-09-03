@@ -51,12 +51,6 @@ std::string RTTask::fDataPath="";
 std::string RTTask::fExecutablePath="";
 
 
-RTTask::RTTask()
-{
-	fId=0;
-	fNumTasks++;
-}
-
 RTTask::~RTTask()
 {
 	fNumTasks--;
