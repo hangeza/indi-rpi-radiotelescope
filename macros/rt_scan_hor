@@ -43,8 +43,13 @@ goto_pos()
 	indi_eval -w -t $TIMEOUT '"Pi Radiotelescope.SCOPE_STATUS.SCOPE_IDLE"==1'
 }
 
+# write one line of explanatory header to the file supplied by the first argument
+write_file_header()
+{
+	echo "# time az alt ra dec adc1 adc2 temp" >> $1
+}
 
-
+# main code
 if [ $# -lt 5 ]; then
   echo "Scan Horizontal Window in a grid and take measurement at each point"
   echo "need at least 5 arguments (horizontal coordinate boundaries and filename) for scan"
@@ -123,7 +128,11 @@ echo -n $(indi_setprop "Pi Radiotelescope.TELESCOPE_TRACK_STATE.TRACK_OFF=On")
 #set integration time
 echo -n $(indi_setprop -n "Pi Radiotelescope.INT_TIME.TIME=$INT_TIME")
 
+# goto first measurement position
 goto_pos $az $alt 100
+
+# write first line with explanation of columns as comment to data file
+write_file_header $5
 
 while [ $(echo "scale=6; $az < $max_az"|bc) -eq 1 ]
 do
