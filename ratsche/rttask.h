@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
 #include <sstream>
 #include <iomanip>
 #include <utility>
@@ -19,9 +20,21 @@ class RTTask
 {
    public:
 		enum TASKSTATE { IDLE=0, WAITING, ACTIVE, FINISHED, STOPPED, CANCELLED, ERROR };
-		enum TASKTYPE { DRIFT=0, TRACK, HORSCAN, EQUSCAN, GOTOHOR, GOTOEQU, PARK, MAINTENANCE, UNPARK };
+		enum TASKTYPE { DRIFT=0, TRACK, HORSCAN, EQUSCAN, GOTOHOR, GOTOEQU, PARK, MAINTENANCE, UNPARK, INVALID=255 };
+		const std::map<TASKTYPE, std::string> tasktype_string = 
+			{ { DRIFT, "Transit Scan" },
+			  { TRACK, "Tracking Scan" },
+			  { HORSCAN, "Az/Alt Grid Scan" },
+			  { EQUSCAN, "RA/Dec Grid Scan" },
+			  { GOTOHOR, "Goto Az/Alt" },
+			  { GOTOEQU, "Goto RA/Dec" },
+			  { PARK, "Park Scope" },
+			  { UNPARK, "Unpark Scope" },
+			  { MAINTENANCE, "Maintenance" },
+			  { INVALID, "!Invalid Task!" }
+			};
 
-		RTTask();
+		RTTask() = delete;
 		RTTask(long id, int priority, const hgz::Time& scheduleTime, double intTime, int refInterval, double altPeriod)
 		 : fId(id), fPriority(priority), fScheduleTime(scheduleTime), fSubmitTime(hgz::Time::Now()), fIntTime(intTime), fRefInterval(refInterval), fAltPeriod(altPeriod)
 		{
@@ -57,9 +70,9 @@ class RTTask
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel();
-//		virtual int Resume()=0;
 
-		virtual TASKTYPE type() const =0;
+//		virtual TASKTYPE type() const =0;
+		TASKTYPE type() const { return fType; }
 
 		double IntTime() const { return fIntTime; }
 		int RefInterval() const { return fRefInterval; }
@@ -86,6 +99,7 @@ class RTTask
 		virtual void Process();
 
 	protected:
+		TASKTYPE fType { INVALID };
 		long fId;
 		int fPriority;
 		hgz::Time fScheduleTime;
@@ -119,18 +133,14 @@ RT drift scan task
 class DriftScanTask : public RTTask
 {
 	public:
-		DriftScanTask()
-			: RTTask()
-		{}
 		DriftScanTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
       				  double intTime, int refInterval, double altPeriod, const hgz::SphereCoords& startCoords)
 			: RTTask(id, priority, scheduleTime, submitTime, intTime, refInterval, altPeriod)
 		{
 			fStartCoords=startCoords;
+			fType = RTTask::DRIFT;
 		}
 		virtual ~DriftScanTask() {}
-
-		virtual TASKTYPE type() const { return RTTask::DRIFT; }
 
 		hgz::SphereCoords StartCoords() const { return fStartCoords; }
 
@@ -156,17 +166,19 @@ class TrackingTask : public RTTask
 			: RTTask(id, priority, scheduleTime, submitTime, intTime, refInterval, altPeriod)
 		{
 			fTrackCoords=trackCoords;
+			fType = RTTask::TRACK;
 		}
 		virtual ~TrackingTask() {}
-
-		virtual TASKTYPE type() const { return RTTask::TRACK; }
 
 		hgz::SphereCoords TrackCoords() const { return fTrackCoords; }
 
 		virtual int Start();
 		virtual int Stop();
 		virtual int Cancel() { return RTTask::Cancel(); }
+
 	private:
+		auto WriteHeader( const std::string& datafile ) -> bool override;
+
 		hgz::SphereCoords fTrackCoords;
 };
 
@@ -177,19 +189,16 @@ RT scan task for scans in horizontal coordinates
 class HorScanTask : public RTTask
 {
 	public:
-		HorScanTask()
-      	: RTTask()
-		{}
 		HorScanTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
 						double intTime, int refInterval, double altPeriod,
 						const hgz::SphereCoords& startCoords, const hgz::SphereCoords& endCoords,
 						double stepAz, double stepAlt)
 			: RTTask(id, priority, scheduleTime, submitTime, intTime, refInterval, altPeriod),
 			  fStartCoords(startCoords), fEndCoords(endCoords), fStepAz(stepAz), fStepAlt(stepAlt)
-		{}
+		{
+			fType = RTTask::HORSCAN;
+		}
 		virtual ~HorScanTask() {}
-
-		virtual TASKTYPE type() const { return RTTask::HORSCAN; }
 
 		hgz::SphereCoords StartCoords() const { return fStartCoords; }
 		hgz::SphereCoords EndCoords() const { return fEndCoords; }
@@ -214,19 +223,16 @@ RT scan task for scans in equatorial coordinates
 class EquScanTask : public RTTask
 {
 	public:
-		EquScanTask()
-      	: RTTask()
-		{}
 		EquScanTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
 						double intTime, int refInterval, double altPeriod,
 						const hgz::SphereCoords& startCoords, const hgz::SphereCoords& endCoords,
 						double stepRa, double stepDec)
 			: RTTask(id, priority, scheduleTime, submitTime, intTime, refInterval, altPeriod),
 			  fStartCoords(startCoords), fEndCoords(endCoords), fStepRa(stepRa), fStepDec(stepDec)
-		{}
+		{
+			fType = RTTask::EQUSCAN;
+		}
 		virtual ~EquScanTask() {}
-
-		virtual TASKTYPE type() const { return RTTask::EQUSCAN; }
 
 		hgz::SphereCoords StartCoords() const { return fStartCoords; }
 		hgz::SphereCoords EndCoords() const { return fEndCoords; }
@@ -251,18 +257,14 @@ task for slew operation to horizontal coordinate
 class GotoHorTask : public RTTask
 {
 	public:
-		GotoHorTask()
-			: RTTask()
-		{}
 		GotoHorTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
       				double altPeriod, const hgz::SphereCoords& gotoCoords)
 			: RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
 		{
 			fGotoCoords=gotoCoords;
+			fType = RTTask::GOTOHOR;
 		}
 		virtual ~GotoHorTask() {}
-
-		virtual TASKTYPE type() const { return RTTask::GOTOHOR; }
 
 		hgz::SphereCoords GotoCoords() const { return fGotoCoords; }
 
@@ -282,18 +284,14 @@ task for slew operation to equatorial coordinate
 class GotoEquTask : public RTTask
 {
 	public:
-		GotoEquTask()
-			: RTTask()
-		{}
 		GotoEquTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
       				double altPeriod, const hgz::SphereCoords& gotoCoords)
 			: RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
 		{
 			fGotoCoords=gotoCoords;
+			fType = RTTask::GOTOEQU;
 		}
 		virtual ~GotoEquTask() {}
-
-		virtual TASKTYPE type() const { return RTTask::GOTOEQU; }
 
 		hgz::SphereCoords GotoCoords() const { return fGotoCoords; }
 
@@ -314,16 +312,13 @@ dummy task for maintenance operations. The purpose of this task is to simply blo
 class MaintenanceTask : public RTTask
 {
    public:
-      MaintenanceTask()
-         : RTTask()
-      {}
-      MaintenanceTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
+      	MaintenanceTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
                   double altPeriod)
-         : RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
-      {}
-      virtual ~MaintenanceTask() {}
-
-      virtual TASKTYPE type() const { return RTTask::MAINTENANCE; }
+		: RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
+	{
+		fType = RTTask::MAINTENANCE;
+	}
+	virtual ~MaintenanceTask() {}
 
       virtual int Start();
       virtual int Stop();
@@ -340,16 +335,13 @@ task to park the telescope
 class ParkTask : public RTTask
 {
    public:
-      ParkTask()
-         : RTTask()
-      {}
-      ParkTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
+	ParkTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
                   double altPeriod)
-         : RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
-      {}
+		: RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
+	{
+		fType = RTTask::PARK;
+	}
       virtual ~ParkTask() {}
-
-      virtual TASKTYPE type() const { return RTTask::PARK; }
 
       virtual int Start();
       virtual int Stop();
@@ -366,16 +358,13 @@ task to unpark the telescope
 class UnparkTask : public RTTask
 {
    public:
-      UnparkTask()
-         : RTTask()
-      {}
-      UnparkTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
+	UnparkTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
                   double altPeriod)
-         : RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
-      {}
-      virtual ~UnparkTask() {}
-
-      virtual TASKTYPE type() const { return RTTask::UNPARK; }
+	: RTTask(id, priority, scheduleTime, submitTime, 0, 0, altPeriod)
+	{
+		fType = RTTask::UNPARK;
+	}
+	virtual ~UnparkTask() {}
 
       virtual int Start();
       virtual int Stop();
