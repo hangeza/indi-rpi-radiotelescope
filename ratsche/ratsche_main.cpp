@@ -560,7 +560,7 @@ void processTaskList(vector<RTTask*>& tasklist) {
 			}
 		}
 	}
-	// now process each task by calling the tasks Process() method
+	// now process each task by calling the tasks' Process() method
 	for (vector<RTTask*>::iterator it=tasklist.begin(); it!=tasklist.end(); ++it) {
 		(*it)->Process();
 	}
