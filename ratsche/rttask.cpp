@@ -188,7 +188,7 @@ void RTTask::Process()
 		{
 			// Wait id error
 			// something really bad happened, so terminate the task and set state to error
-			syslog (LOG_DEBUG, "waitpid error: %u", iDeadId);
+			syslog (LOG_ERR, "waitpid error: %u", iDeadId);
 			Stop();
 			fState = ERROR;
 		}
@@ -602,7 +602,6 @@ int GotoHorTask::Start()
 	if (fVerbose>3) cout<<"GotoHorTask::Start()"<<endl;
 	int result=RTTask::Start();
 	if (result==0) {
-		// hier code, um messung auszuführen
 		char cmdstr[256];
 		// first, send goto command to indi
 		sprintf(cmdstr,"echo -n $(indi_setprop %s \"%s.AZ;ALT=%f;%f\")", INDI_PORT.c_str(), INDI_PROP_HOR_COORD.c_str(),fGotoCoords.Phi(),fGotoCoords.Theta());
@@ -654,11 +653,10 @@ int GotoEquTask::Start()
 	if (fVerbose>3) cout<<"GotoEquTask::Start()"<<endl;
 	int result=RTTask::Start();
 	if (result==0) {
-		// hier code, um messung auszuführen
+		// here code to do the measurement
 		char cmdstr[256];
 		// first, send goto command to indi
 		sprintf(cmdstr,"echo -n $(indi_setprop %s \"%s.RA;DEC=%f;%f\")", INDI_PORT.c_str(), INDI_PROP_EQU_COORD.c_str(),fGotoCoords.Phi(),fGotoCoords.Theta());
-//		sprintf(cmdstr,"echo -n $(indi_setprop -p 7273 \"LX200 RT.EQUATORIAL_EOD_COORD.RA;DEC=%f;%f\")",fGotoCoords.Phi(),fGotoCoords.Theta());
 		int returnvalue = system (cmdstr);
 
 		// wait a bit to let the goto command commence and RT state change from idle to slew

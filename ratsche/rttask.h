@@ -42,7 +42,6 @@ class RTTask
 			fUser="N/A";
 			fElapsedTime=0.;
 			fState=IDLE;
-			fVerbose=4;
 		}
 		RTTask(long id, int priority, const hgz::Time& scheduleTime, const hgz::Time& submitTime,
       		 double intTime, int refInterval, double altPeriod)
@@ -53,7 +52,6 @@ class RTTask
 			fUser="N/A";
 			fElapsedTime=0.;
 			fState=IDLE;
-			fVerbose=4;
 		}
 		virtual ~RTTask();
 
@@ -383,4 +381,3 @@ class UnparkTask : public RTTask
 };
 
 #endif // _RTTASK_H
-
