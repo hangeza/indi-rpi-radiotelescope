@@ -1,23 +1,29 @@
 # RT TASK
-# v0.1 
-# task file for definition of measurement(s) to be done with radiotelescope
+# v0.2 
+# task file for definition of measurement(s) with the PiRaTe radio telescope
+# fields are ignored or assumed with defaults when marked with '*'
 # priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}
-# mode = {drift|track|equscan|horscan}
-# alt-period : (float hours) time-period after which the conditions are expected identical (e.g. 24h for equatorial features),
-#              0=always repeatable,
-#             -1=can not or shall not be executed at a later time
-#              *=not defined
-# x1,y1: coordinates of the lower left corner of the scanwindow for 2d-scans; coordinates of initial position for drift (coordinates are Hor.) and track (coordinates are equ)
+# mode = { drift | track | equscan | horscan | gotohor | gotoequ | park | unpark | maintenance }
+# alt-period : time period after which the conditions are expected identical and the measurement can equally commence (hours)
+#              (e.g. 24h for scans of stellar objects),
+#              or  0 = task may be started any time,
+#                 -1 = task shall only be started in the given time window defined by start time and max-duration
+#                  * = don't care, start the task when convenient
+# x1,y1: coordinates of the lower left corner of the scanwindow for 2d-scans (Az/Alt for Hor; RA/Dec for Equ)
+#     or coordinates of measurement position for drift tasks (Az/Alt) 
+#     or coordinates of measurement position for track tasks (RA/Dec)
+# x2,y2: coordinates of the upper right corner of the scanwindow for 2d-scans (Az/Alt for Hor; RA/Dec for Equ)
+# step1,step2 : step sizes for 2d scans (deg/deg for Hor; hours/deg for Equ)
+# int_time : detector adc integration time constant in seconds
+# ref_cycle : N/A
+# max duration : maximum allowed run time of task
 # meaning of columns:
-# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration
-#2010/12/23 00:48:30 drift   1 24 hgz 175    75   *  * * * 250 15 0.02
-#2010/12/23 23:26:05 drift   1 24 hgz 180    60   *  * * * 250 15 0.005
-#2010/12/23 23:26:45 track   1 24 hgz 180    60   *  * * * 250 15 0.05
-#2010/12/23 23:28:00 equscan 3  * hgz  19.5  35  21 45 1 1 100 * 0.02
-#2010/12/23 23:29:00 horscan 2  * hgz   0     0 160 45 1 1  50 * 0.1
-#2010/12/23 23:31:00 1   2 * hgz   7.5 -20   *  * * * 250 15 0.5
-2021/09/01 10:48:00 unpark   1 0 hgz *    *   *  * * * * * 0.1
-2021/09/01 10:49:00 gotohor   1 0 hgz 190    45   *  * * * * * 0.02
-#2021/09/01 10:50:00 maintenance   1 0 hgz *    *   *  * * * * * 0.01
-2021/09/01 10:52:00 drift   1 0 hgz 180    60   *  * * * 10 1 0.05
-2021/09/01 10:57:00 park   1 0 hgz *    *   *  * * * * * 0.1
+# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration comment
+#2021/09/04 11:30:00 unpark   1 0 rtuser *    *   *  * * * * * 0.1 "unpark"
+#2021/09/01 10:50:00 maintenance   1 0 rtuser *    *   *  * * * * * 1 "maintenance cycle"
+#2021/09/03 17:28:00 drift   1 0 rtuser 180    60   *  * * * 5 * 0.5 "transit scan test"
+#2021/09/04 14:15:00 track   1 -1 rtuser 10.9  7.0   *  * * * 10 * 1.0 "test sun track 12GHz"
+#2021/09/03 18:30:00 horscan 2  0 rtuser   170  24  190 34 0.5 0.5  0.5 * 0.1 "Test scan Az/Alt"
+#2021/09/04 11:31:00 equscan 2  1 rtuser   10.7 4 11.25 10 0.015 0.15  1 * 3 "sun scan 12GHz"
+#2021/09/04 13:30:00 park   1 0 rtuser *    *   *  * * * * * 0.1 "park"
+#2021/09/03 10:41:00 maintenance   1 -1 rtuser *    *   *  * * * * * 0.1 "maintenance cycle"
