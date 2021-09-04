@@ -27,7 +27,7 @@ One or multiple tasks can be defined using a simple task file format similar to 
 # fields are ignored or assumed with defaults when marked with '*'
 # priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}
 # mode = { drift | track | equscan | horscan | gotohor | gotoequ | park | unpark | maintenance }
-# alt-period : time period after which the conditions are expected identical and the measurement can equally commence (hours)
+# alt_period : time period after which the conditions are expected identical and the measurement can equally commence (hours)
 #              (e.g. 24h for scans of stellar objects),
 #              or  0 = task may be started any time,
 #                 -1 = task shall only be started in the given time window defined by start time and max-duration
@@ -36,12 +36,12 @@ One or multiple tasks can be defined using a simple task file format similar to 
 #     or coordinates of measurement position for drift tasks (Az/Alt) 
 #     or coordinates of measurement position for track tasks (RA/Dec)
 # x2,y2: coordinates of the upper right corner of the scanwindow for 2d-scans (Az/Alt for Hor; RA/Dec for Equ)
-# step1,step2 : step sizes for 2d scans (deg/deg for Hor; hours/deg for Equ)
+# stepx,stepy : step sizes for 2d scans (deg/deg for Hor; hours/deg for Equ)
 # int_time : detector adc integration time constant in seconds
 # ref_cycle : N/A
 # max duration : maximum allowed run time of task (hours)
 # meaning of columns:
-# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration comment
+# start_time mode priority alt_period user x1 y1 x2 y2 stepx stepy int_time ref_cycle max_duration comment
 2021/09/04 11:30:00 unpark   1 0 rtuser *    *   *  * * * * * 0.1 "unpark"
 2021/09/01 10:50:00 maintenance   1 0 rtuser *    *   *  * * * * * 1 "maintenance cycle"
 2021/09/03 17:28:00 drift   1 0 rtuser 180    60   *  * * * 5 * 0.5 "transit scan test"
