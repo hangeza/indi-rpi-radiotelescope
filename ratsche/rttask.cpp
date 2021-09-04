@@ -53,6 +53,7 @@ std::string RTTask::fExecutablePath="";
 
 RTTask::~RTTask()
 {
+	if ( fState == ACTIVE ) Cancel();
 	fNumTasks--;
 }
 
