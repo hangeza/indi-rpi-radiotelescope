@@ -163,6 +163,38 @@ void list_tasks(const vector<task_t>& tasklist) {
 	return;
 }
 
+bool save_tasks(const std::string& filename, const std::vector<task_t>& tasklist)
+{
+	uint32_t num_tasks = tasklist.size();
+	std::ofstream file( filename, ios_base::out | ios_base::trunc | ios::binary );
+	if ( file.fail() || !file.good() ) {
+		return false;
+	}
+	file.write( reinterpret_cast<char*>(&num_tasks), sizeof(uint32_t) );
+	for ( task_t task : tasklist ) {
+		file.write( reinterpret_cast<char*>(&task), sizeof(task_t) );
+	}
+	return true;
+}
+
+bool load_tasks(const std::string& filename, std::vector<task_t>& tasklist)
+{
+	tasklist.clear();
+	uint32_t num_tasks { 0 };
+	std::ifstream file( filename, ios_base::in | ios::binary );
+	if ( file.fail() || !file.good() ) {
+		return false;
+	}
+	file.read( reinterpret_cast<char*>(&num_tasks), sizeof(uint32_t) );
+	if ( !num_tasks ) return true;
+	for ( int i = 0; i < num_tasks; i++ ) {
+		task_t task { };
+		file.read( reinterpret_cast<char*>(&task), sizeof(task_t) );
+		tasklist.emplace_back( std::move(task) );
+	}
+	return true;
+}
+
 void export_tasks(std::ostream& ostr, const vector<task_t>& tasklist) {
    ostr<<"# RT TASK"<<endl;
    ostr<<"# v0.2"<<endl;
@@ -194,50 +226,9 @@ void export_tasks(std::ostream& ostr, const vector<task_t>& tasklist) {
    return;
 }
 
-void print_tasklist(const vector<task_t>& tasklist) {
-	cout<<"# id time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max-duration elapsed eta status comment"<<endl;
-	for (int i=0; i< tasklist.size(); i++){
-		task_t task=tasklist[i];
-		char str[100];
-		strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
-		cout << task.id << " " << string(str) << " " << static_cast<int>(task.type) << " " << static_cast<int>(task.priority) << " "
-			 << task.alt_period << " " << string(task.user) << " "
-			 << task.coords1.x << " " << task.coords1.y << " "
-			 << task.coords2.x << " " << task.coords2.y << " "
-			 << task.step1 << " " << task.step2 << " "
-			 << task.int_time << " " << task.ref_cycle << " "
-			 << task.duration << " " << task.elapsed << " " << task.eta << " " << task.status
-			 << " \"" << string(task.comment) << "\""<<endl;
-	}
-	return;
-}
-
-void print_task(const task_t& task) {
-	cout<<"*** Task "<<task.id<<" ***"<<endl;
-	cout<<" type       : "<<(int)task.type<<endl;
-	cout<<" priority   : "<<(int)task.priority<<endl;
-	printf(" start time : %s",asctime(localtime(&task.start_time)));
-	printf(" submit time: %s",asctime(localtime(&task.submit_time)));
-	cout<<" user       : "<<string(task.user)<<endl;
-	cout<<" alt. period: "<<task.alt_period<<endl;
-	cout<<" 1st point  : ("<<task.coords1.x<<" , "<<task.coords1.y<<")"<<endl;
-	cout<<" 2nd point  : ("<<task.coords2.x<<" , "<<task.coords2.y<<")"<<endl;
-	cout<<" step(x)    : "<<task.step1<<endl;
-	cout<<" step(y)    : "<<task.step2<<endl;
-	cout<<" int time   : "<<task.int_time<<endl;
-	cout<<" ref cycle  : "<<task.ref_cycle<<endl;
-	cout<<" max. duration : "<<task.duration<<endl;
-	cout<<" elapsed time  : "<<task.elapsed<<endl;
-	cout<<" eta        : "<<task.eta<<endl;
-	cout<<" status     : "<<task.status<<endl;
-	cout<<" comment    : "<<string(task.comment)<<endl;
-}
-
-
-
-int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
+int importTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 	// parse file for following format:
-	// start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle
+	// start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max_duration comment
 	ifstream infile(filename.c_str());
 	if (!infile.good() || infile.eof() || !infile.is_open()) return -1;
 	while (!infile.eof()) {
@@ -398,6 +389,44 @@ int getTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 	return 0;
 }
 
+void print_tasklist(const vector<task_t>& tasklist) {
+	cout<<"# id time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max-duration elapsed eta status comment"<<endl;
+	for (int i=0; i< tasklist.size(); i++){
+		task_t task=tasklist[i];
+		char str[100];
+		strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
+		cout << task.id << " " << string(str) << " " << static_cast<int>(task.type) << " " << static_cast<int>(task.priority) << " "
+			 << task.alt_period << " " << string(task.user) << " "
+			 << task.coords1.x << " " << task.coords1.y << " "
+			 << task.coords2.x << " " << task.coords2.y << " "
+			 << task.step1 << " " << task.step2 << " "
+			 << task.int_time << " " << task.ref_cycle << " "
+			 << task.duration << " " << task.elapsed << " " << task.eta << " " << task.status
+			 << " \"" << string(task.comment) << "\""<<endl;
+	}
+	return;
+}
+
+void print_task(const task_t& task) {
+	cout<<"*** Task "<<task.id<<" ***"<<endl;
+	cout<<" type       : "<<(int)task.type<<endl;
+	cout<<" priority   : "<<(int)task.priority<<endl;
+	printf(" start time : %s",asctime(localtime(&task.start_time)));
+	printf(" submit time: %s",asctime(localtime(&task.submit_time)));
+	cout<<" user       : "<<string(task.user)<<endl;
+	cout<<" alt. period: "<<task.alt_period<<endl;
+	cout<<" 1st point  : ("<<task.coords1.x<<" , "<<task.coords1.y<<")"<<endl;
+	cout<<" 2nd point  : ("<<task.coords2.x<<" , "<<task.coords2.y<<")"<<endl;
+	cout<<" step(x)    : "<<task.step1<<endl;
+	cout<<" step(y)    : "<<task.step2<<endl;
+	cout<<" int time   : "<<task.int_time<<endl;
+	cout<<" ref cycle  : "<<task.ref_cycle<<endl;
+	cout<<" max. duration : "<<task.duration<<endl;
+	cout<<" elapsed time  : "<<task.elapsed<<endl;
+	cout<<" eta        : "<<task.eta<<endl;
+	cout<<" status     : "<<task.status<<endl;
+	cout<<" comment    : "<<string(task.comment)<<endl;
+}
 
 task_t toMsgTask(RTTask* task)
 {
@@ -529,6 +558,8 @@ RTTask* fromMsgTask(const task_t& msgtask)
 	task->SetMaxRunTime(msgtask.duration);
 	task->SetComment(msgtask.comment);
 	task->SetUser(msgtask.user);
+	task->SetState( (RTTask::TASKSTATE)msgtask.status );
+	if ( task->State() == RTTask::TASKSTATE::ACTIVE ) task->SetState( RTTask::TASKSTATE::CANCELLED );
 	return task;
 }
 
@@ -763,7 +794,8 @@ int main(int argc, char *argv[])
 			{
 				// add task(s)
 				vector<task_t> msgTaskVector;
-				if (getTasklistFromFile(defaultTaskFile, msgTaskVector)!=0) {
+//				if (importTasklistFromFile(defaultTaskFile, msgTaskVector)!=0) {
+				if ( !load_tasks(defaultTaskFile, msgTaskVector) ) {
 					error(argv[0], "reading task file");
 				} else {
 					// submit tasklist
@@ -878,12 +910,13 @@ int main(int argc, char *argv[])
 					// process all tasks
 					processTaskList(tasklist);
 					// the tasklist has been modified, so back it up to file
-					vector<task_t> _tasklist;
-					for (int i=0; i<tasklist.size(); i++) {
-						_tasklist.push_back(toMsgTask(tasklist[i]));
+					vector<task_t> msgTaskList;
+					for (auto task : tasklist) {
+						msgTaskList.push_back( toMsgTask(task) );
 					}
-					ofstream ostr(defaultTaskFile.c_str());
-					export_tasks(ostr, _tasklist);
+					//ofstream ostr(defaultTaskFile.c_str());
+					//export_tasks(ostr, _tasklist);
+					save_tasks( defaultTaskFile, msgTaskList );
 				} else {
 					// process all tasks
 					processTaskList(tasklist);
@@ -998,7 +1031,7 @@ int main(int argc, char *argv[])
 		} else if (act==AC_ADD) {
 			// add task(s)
 			vector<task_t> tasklist;
-			if (getTasklistFromFile(infile, tasklist)!=0) {
+			if (importTasklistFromFile(infile, tasklist)!=0) {
 				error(argv[0], "reading task file");
 			} else {
 				// submit tasklist
