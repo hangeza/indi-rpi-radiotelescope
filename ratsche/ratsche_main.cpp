@@ -949,7 +949,7 @@ int main(int argc, char *argv[])
 	task_t task;
 	task.id=1234;
 	task.type=1;
-	task.priority=2;
+	task.priority=5;
 	task.start_time=time(NULL);
 	task.submit_time=time(NULL);
 	task.type=1;
@@ -959,13 +959,10 @@ int main(int argc, char *argv[])
 	//print_task(task);
 
 	// evaluate command line options
-	for (int i=0; i<cmdLineActions.size(); i++)
+	for ( const auto& [ act, subact ] : cmdLineActions )
 	{
-		int act=cmdLineActions[i].first;
-		int subact=cmdLineActions[i].second;
-
 		// list tasks
-		if (act==AC_LIST) {
+		if ( act == AC_LIST ) {
 			if (send_message(msqid, getpid(), 1, AC_LIST, 0, NULL) < 0) {
 				perror("send_message in requesting task list failed");
 				exit(1);
@@ -977,7 +974,7 @@ int main(int argc, char *argv[])
 			unsigned long int ctr=0;
 			int msgcount=-1;
 			vector<task_t> tasklist;
-			while (ctr<100 && msgcount!=0) {
+			while ( ctr < 100 && msgcount != 0) {
 				int serid,sercnt,fromid;
 				if (receive_message(msqid, &fromid, getpid(), &action, &subaction, &task, &serid, &sercnt) >= 0) {
 					if (sercnt==0) { msgcount=0; break; }
@@ -1000,35 +997,35 @@ int main(int argc, char *argv[])
 					print_tasklist(tasklist);
 				}
 			}
-		} else if (act==AC_DELETE) {
+		} else if ( act == AC_DELETE ) {
 			// delete task
 			if (send_message(msqid, getpid(), 1, AC_DELETE, subact, NULL) < 0) {
 				perror("send_message in deleting a task failed");
 				exit(1);
 			}
 			else if (verbose>2) printf("sent DELETE\n");
-		} else if (act==AC_CLEAR) {
+		} else if ( act == AC_CLEAR ) {
 				// delete all tasks
 				if (send_message(msqid, getpid(), 1, AC_CLEAR, 0, NULL) < 0) {
 					perror("send_message in clearing task list failed");
 					exit(1);
 				}
 				else if (verbose>2) printf("sent CLEAR\n");
-		} else if (act==AC_STOP) {
+		} else if ( act == AC_STOP ) {
 			// stop task
 			if (send_message(msqid, getpid(), 1, AC_STOP, subact, NULL) < 0) {
 				perror("send_message in stopping a task failed");
 				exit(1);
 			}
 			else if (verbose>2) printf("sent STOP\n");
-		} else if (act==AC_CANCEL) {
+		} else if ( act == AC_CANCEL ) {
 			// cancel task
 			if (send_message(msqid, getpid(), 1, AC_CANCEL, subact, NULL) < 0) {
 				perror("send_message in cancelling a task failed");
 				exit(1);
 			}
 			else if (verbose>2) printf("sent CANCEL\n");
-		} else if (act==AC_ADD) {
+		} else if ( act == AC_ADD ) {
 			// add task(s)
 			vector<task_t> tasklist;
 			if (importTasklistFromFile(infile, tasklist)!=0) {
