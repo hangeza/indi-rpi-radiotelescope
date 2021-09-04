@@ -77,7 +77,8 @@ class RTTask
 		double AltPeriod() const { return fAltPeriod; }
 
 		// Task State Methods
-		TASKSTATE State() const { return fState; }
+		[[nodiscard]] inline auto State() const -> TASKSTATE { return fState; }
+		inline void SetState( TASKSTATE state ) { fState = state; }
 		double Eta() const;
 		double ElapsedTime() const { return fElapsedTime; }
 		double MaxRunTime() const { return fMaxRunTime; }
