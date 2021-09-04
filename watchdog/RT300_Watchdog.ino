@@ -5,7 +5,7 @@
 
 static byte mymac[] = { 0x00,0x22,0xF9,0x01,0x70,0xF4 };
 static byte hisip[] = { 172,16,2,12 }; // ping target IP
-byte Ethernet::buffer[1600];
+byte Ethernet::buffer[1400];
 
 char*         pwd            =  "fill-password-here";
 boolean       password_valid =   false;
@@ -135,7 +135,7 @@ void loop () {
     else bfill.emit_p(PSTR("<td><button name=\"PWR_ON\">PWR_ON</button></td><td><button name=\"PWR_OFF\" style=\"background-color:red;color:black\" disabled>PWR_OFF</button></td></tr>"));
 
     if(watchdog_state == true) bfill.emit_p(PSTR("<tr><td>IP Watchdog&nbsp;</td><td><button name=\"WDT_ON\" style=\"background-color:lime;color:black\" disabled>WDT_ON</button></td><td><button name=\"WDT_OFF\">WDT_OFF</button></td></tr>"));
-    else bfill.emit_p(PSTR("<tr><td>IP Watchdog&nbsp;</td><td><button name=\"WDT_ON\">WDT_ON</button></td><td><button name=\"WDT_OFF\" style=\"background-color:red;color:black\" disabled>WDT_OFF</button></td><td style=\"color:red\"> WARNING: Watchdog is disabled!</td></tr>"));
+    else bfill.emit_p(PSTR("<tr><td>IP Watchdog&nbsp;</td><td><button name=\"WDT_ON\">WDT_ON</button></td><td><button name=\"WDT_OFF\" style=\"background-color:red;color:black\" disabled>WDT_OFF</button></td></tr>"));
 
     bfill.emit_p(PSTR("<tr><td></td><td></td><td><input type=\"password\" name=\"pwd\" placeholder=\"Password\"></td></tr></table></form></div></body></html>"));
 
