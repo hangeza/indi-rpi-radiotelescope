@@ -20,7 +20,18 @@ class RTTask
 {
    public:
 		enum TASKSTATE { IDLE=0, WAITING, ACTIVE, FINISHED, STOPPED, CANCELLED, ERROR };
-		enum TASKTYPE { DRIFT=0, TRACK, HORSCAN, EQUSCAN, GOTOHOR, GOTOEQU, PARK, MAINTENANCE, UNPARK, INVALID=255 };
+		enum TASKTYPE { 
+			DRIFT=0,
+			TRACK,
+			HORSCAN,
+			EQUSCAN,
+			GOTOHOR,
+			GOTOEQU,
+			PARK,
+			MAINTENANCE,
+			UNPARK,
+			INVALID=255
+		};
 		const std::map<TASKTYPE, std::string> tasktype_string = 
 			{ { DRIFT, "Transit Scan" },
 			  { TRACK, "Tracking Scan" },
