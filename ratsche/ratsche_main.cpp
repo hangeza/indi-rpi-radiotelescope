@@ -27,7 +27,8 @@
 using namespace std;
 using namespace hgz;
 
-const int MSQ_ID = 10;
+constexpr int MSQ_ID { 10 };
+constexpr unsigned long server_loop_delay_us { 10000UL };
 
 const string defaultTaskFile = "/tmp/ratsche_tasks";
 
@@ -132,37 +133,6 @@ int receive_message(int msqid, int* fromID, int toID, int* action, int* subactio
 	return result;
 }
 
-void list_tasks(const vector<task_t>& tasklist) {
-	cout<<"# RT TASK"<<endl;
-	cout<<"# v0.2"<<endl;
-	cout<<"# task file for definition of measurement(s) to be done with the RT300 radio telescope"<<endl;
-	cout<<"# priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}"<<endl;
-	cout<<"# mode = {drift|track|equscan|horscan}"<<endl;
-	cout<<"# alt-period : (float hours) time-period after which the conditions are expected identical (e.g. 24h for equatorial features)"<<endl;
-	cout<<"#              0=always repeatable,"<<endl;
-	cout<<"#             -1=can not or shall not be executed at a later time"<<endl;
-	cout<<"#              *=not defined"<<endl;
-	cout<<"# x1,y1: coordinates of the lower left corner of the scanwindow for 2d-scans;"<<endl;
-	cout<<"#  coordinates of initial position for drift (coordinates are Hor.) and track (coordinates are Equ)"<<endl;
-	cout<<"# x2,y2: coordinates of the upper right corner of the scanwindow for 2d-scans;"<<endl;
-	cout<<"# meaning of columns:"<<endl;
-	cout<<"# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration comment"<<endl;
-
-	for (int i=0; i< tasklist.size(); i++){
-		task_t task=tasklist[i];
-		char str[100];
-		strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
-		cout << string(str) << " " << static_cast<int>(task.type) << " " << static_cast<int>(task.priority) << " "
-			 << task.alt_period << " " << string(task.user) << " "
-			 << task.coords1.x << " " << task.coords1.y << " "
-			 << task.coords2.x << " " << task.coords2.y << " "
-			 << task.step1 << " " << task.step2 << " "
-			 << task.int_time << " " << task.ref_cycle<< " " << task.duration << " \"" 
-			 << string(task.comment) << "\""<<endl;
-	}
-	return;
-}
-
 bool save_tasks(const std::string& filename, const std::vector<task_t>& tasklist)
 {
 	uint32_t num_tasks = tasklist.size();
@@ -196,23 +166,29 @@ bool load_tasks(const std::string& filename, std::vector<task_t>& tasklist)
 }
 
 void export_tasks(std::ostream& ostr, const vector<task_t>& tasklist) {
-   ostr<<"# RT TASK"<<endl;
-   ostr<<"# v0.2"<<endl;
-   ostr<<"# task file for definition of measurement(s) to be done with the RT300 radio telescope"<<endl;
-   ostr<<"# priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}"<<endl;
-   ostr<<"# mode = {drift|track|equscan|horscan}"<<endl;
-   ostr<<"# alt-period : (float hours) time-period after which the conditions are expected identical (e.g. 24h for equatorial features)"<<endl;
-   ostr<<"#              0=always repeatable,"<<endl;
-   ostr<<"#             -1=can not or shall not be executed at a later time"<<endl;
-   ostr<<"#              *=not defined"<<endl;
-   ostr<<"# x1,y1: coordinates of the lower left corner of the scanwindow for 2d-scans;"<<endl;
-   ostr<<"#  coordinates of initial position for drift (coordinates are Hor.) and track (coordinates are Equ)"<<endl;
-   ostr<<"# x2,y2: coordinates of the upper right corner of the scanwindow for 2d-scans;"<<endl;
-   ostr<<"# meaning of columns:"<<endl;
-   ostr<<"# start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max.duration comment"<<endl;
+	ostr<<"# RT TASK"<<endl;
+	ostr<<"# v0.2"<<endl;
+	ostr<<"# task file for definition of measurement(s) with the PiRaTe radio telescope"<<endl;
+	ostr<<"# fields are ignored or assumed with defaults when marked with '*'"<<endl;
+	ostr<<"# priority = {0=ignore|1=immediate|2=immediate when free|3=asap when optimal|4=anytime when optimal|5=low priority}"<<endl;
+	ostr<<"# mode = { drift | track | equscan | horscan | gotohor | gotoequ | park | unpark | maintenance }"<<endl;
+	ostr<<"# alt_period : time period after which the conditions are expected identical and the measurement can equally commence (hours)"<<endl;
+	ostr<<"#              (e.g. 24h for scans of stellar objects),"<<endl;
+	ostr<<"#              or  0 = task may be started any time,"<<endl;
+	ostr<<"#                 -1 = task shall only be started in the given time window defined by start time and max-duration"<<endl;
+	ostr<<"#                  * = don't care, start the task when convenient"<<endl;
+	ostr<<"# x1,y1: coordinates of the lower left corner of the scanwindow for 2d-scans (Az/Alt for Hor; RA/Dec for Equ)"<<endl;
+	ostr<<"#     or coordinates of measurement position for drift tasks (Az/Alt)"<<endl;
+	ostr<<"#     or coordinates of measurement position for track tasks (RA/Dec)"<<endl;
+	ostr<<"# x2,y2: coordinates of the upper right corner of the scanwindow for 2d-scans (Az/Alt for Hor; RA/Dec for Equ)"<<endl;
+	ostr<<"# stepx,stepy : step sizes for 2d scans (deg/deg for Hor; hours/deg for Equ)"<<endl;
+	ostr<<"# int_time : detector adc integration time constant in seconds"<<endl;
+	ostr<<"# ref_cycle : N/A"<<endl;
+	ostr<<"# max duration : maximum allowed run time of task (hours)"<<endl;
+	ostr<<"# meaning of columns:"<<endl;
+	ostr<<"# start_time mode priority alt_period user x1 y1 x2 y2 stepx stepy int_time ref_cycle max_duration comment"<<endl;
 
-	for (int i=0; i< tasklist.size(); i++){
-		task_t task=tasklist[i];
+	for ( task_t task : tasklist ){
 		char str[100];
 		strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
 		ostr << string(str) << " " << static_cast<int>(task.type) << " " << static_cast<int>(task.priority) << " "
@@ -391,8 +367,7 @@ int importTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 
 void print_tasklist(const vector<task_t>& tasklist) {
 	cout<<"# id time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max-duration elapsed eta status comment"<<endl;
-	for (int i=0; i< tasklist.size(); i++){
-		task_t task=tasklist[i];
+	for ( task_t task : tasklist ){
 		char str[100];
 		strftime(str, 100, "%Y/%m/%d %H:%M:%S", localtime(&task.start_time));
 		cout << task.id << " " << string(str) << " " << static_cast<int>(task.type) << " " << static_cast<int>(task.priority) << " "
@@ -493,7 +468,7 @@ task_t toMsgTask(RTTask* task)
 
 RTTask* fromMsgTask(const task_t& msgtask)
 {
-	RTTask* task;
+	RTTask* task { nullptr };
 
 	switch ((RTTask::TASKTYPE)msgtask.type) {
 		case RTTask::DRIFT:
@@ -552,7 +527,7 @@ RTTask* fromMsgTask(const task_t& msgtask)
 				msgtask.alt_period);
 			break;
 		default:
-			return NULL;
+			return nullptr;
 			break;
 	}
 	task->SetMaxRunTime(msgtask.duration);
@@ -801,21 +776,20 @@ int main(int argc, char *argv[])
 					// submit tasklist
 					// loop over tasks
 					syslog (LOG_NOTICE, "loading tasklist from previous session, adding %d tasks", msgTaskVector.size());
-					for (int i=0; i<msgTaskVector.size(); i++) {
-						task_t task=msgTaskVector[i];
+					for ( task_t task : msgTaskVector ) {
 						task.id=++lastTaskID;
 						syslog (LOG_INFO, "received ADD request, adding new task (id=%d) to list", task.id);
-						RTTask* taskptr=fromMsgTask(task);
-						if (taskptr!=NULL) tasklist.push_back(taskptr);
+						RTTask* taskptr { fromMsgTask( task ) };
+						if ( taskptr != nullptr ) tasklist.push_back( taskptr );
 					}
 				}
 			}
 			// stay in endless loop
 			while (true) {
 				// see if there is a message in the queue
-				task_t task;
+				task_t task { };
 				if (receive_message(msqid, &fromid, 1, &action, &subaction, &task) >= 0) {
-					RTTask* taskptr;
+					RTTask* taskptr { nullptr };
 					switch (action) {
 						case AC_PING:
 							// received ping, send back echo
@@ -921,7 +895,7 @@ int main(int argc, char *argv[])
 					// process all tasks
 					processTaskList(tasklist);
 					// sleep for 10ms
-					usleep(10000);
+					usleep( server_loop_delay_us );
 				}
 			}
 		} // if (server)
