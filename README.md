@@ -10,6 +10,11 @@ The main features are:
 - systemd service files for indiserver and ratsche daemon to have the complete control chain started at boot time. These are installed into the according system locations by the cmake scripts, too.
 
 ## Howto build and install PiRaTe
+First, you need all the packages installed, that the driver depends on. Copy&Pasting following command line should do this job:
+
+`sudo apt install libindi-dev libpigpio-dev libpigpiod-if-dev libnova-dev libgsl-dev`
+
+Now, build and install the project:
 - checkout the main branch of this git repository: `git clone https://github.com/hangeza/indi-rpi-radiotelescope.git`
 - in the project dir `mkdir build && cd build`
 - `cmake ../`
