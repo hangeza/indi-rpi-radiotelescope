@@ -38,40 +38,40 @@ class Serial;
 class TCP;
 }
 
-constexpr unsigned int SSI_BAUD_RATE { 500000 };
-constexpr unsigned int POLL_INTERVAL_MS { 200 };
-constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152./9. }; 
-constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 1. };
+constexpr unsigned int SSI_BAUD_RATE { 500000 }; //< SPI baud rate for encoder read-out
+constexpr unsigned int POLL_INTERVAL_MS { 200 }; //< polling interval of this driver
+constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152./9. }; //< ratio between Az encoder revolutions and Az axis revolutions
+constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 1. }; //< ratio between Alt encoder revolutions and Alt axis revolutions
 constexpr double MAX_AZ_OVERTURN { 0.5 }; //< maximum overturn in Az in revolutions at both ends
-//constexpr double MAX_ALT_OVERTURN { 0.5/360. }; //< maximum overturn in Alt in revolutions at both ends
 constexpr double ALT_LIMIT_LOW { 0./360. }; //< lower position limit Alt in revolutions
 constexpr double ALT_LIMIT_HI { 100./360. }; //< upper position limit in Alt in revolutions
-constexpr bool AZ_POS_DIR_INVERT { false };
-constexpr bool ALT_POS_DIR_INVERT { true };
-constexpr double DEFAULT_AZ_AXIS_OFFSET { -181.25 };
-constexpr double DEFAULT_ALT_AXIS_OFFSET { 0.64 };
+constexpr bool AZ_POS_DIR_INVERT { false }; //< invert helicity of Az axis
+constexpr bool ALT_POS_DIR_INVERT { true }; //< invert helicity of Alt axis
+constexpr double DEFAULT_AZ_AXIS_OFFSET { -181.25 }; //< offset between Az encoder-axis zero and real world Az-axis zero
+constexpr double DEFAULT_ALT_AXIS_OFFSET { 0.64 }; //< offset between Alt encoder-axis zero and real world Alt-axis zero
 
-constexpr double SID_RATE { 0.004178 }; /* sidereal rate, degrees/s */
+constexpr double POS_ACCURACY_COARSE { 3.0 }; //< coarse positioning accuracy threshold in degrees
+constexpr double POS_ACCURACY_FINE { 0.2 }; //< fine positioning accuracy threshold in degrees
+constexpr double TRACK_ACCURACY_AZ { 0.06 }; //< tracking accuracy for Az axis threshold in degrees
+constexpr double TRACK_ACCURACY_ALT { 0.03 }; //< tracking accuracy for Alt axis threshold in degrees
 
-constexpr double POS_ACCURACY_COARSE { 3.0 };
-constexpr double POS_ACCURACY_FINE { 0.1 };
-constexpr double TRACK_ACCURACY { 0.05 }; // 3 arc minutes
-constexpr unsigned int NR_SLEW_RATES { 5 };
+constexpr unsigned int NR_SLEW_RATES { 5 }; //< number of slew speeds available for this scope
 
-constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.07 };
-constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.15 };
-constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 4. }; //< absolute motor current limit for Az motor in Ampere
-constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 2.9 }; //< absolute motor current limit for Alt motor in Ampere
+constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.07 }; //< minimum applicable motor throttle, Az motor
+constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.15 }; //< minimum applicable motor throttle, Alt motor
+constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 4.1 }; //< absolute motor current limit for Az motor in Ampere
+constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 3.0 }; //< absolute motor current limit for Alt motor in Ampere
 constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
-constexpr bool AZ_MOTOR_DIR_INVERT { true };
-constexpr bool ALT_MOTOR_DIR_INVERT { true };
+constexpr bool AZ_MOTOR_DIR_INVERT { true }; //< invert default (positive) direction of Az motor
+constexpr bool ALT_MOTOR_DIR_INVERT { true }; //< invert default (positive) direction of Alt motor
+
 constexpr PiRaTe::MotorDriver::Pins AZ_MOTOR_PINS { 
 	.Pwm=12,
 	.Dir=-1,
 	.DirA=23,
 	.DirB=24,
 	.Enable=25,
-	.Fault=-1	};
+	.Fault=-1	}; //< GPIO pin mapping to functions provided by motor driver
 	
 constexpr PiRaTe::MotorDriver::Pins ALT_MOTOR_PINS { 
 	.Pwm=13,
@@ -79,10 +79,10 @@ constexpr PiRaTe::MotorDriver::Pins ALT_MOTOR_PINS {
 	.DirA=5,
 	.DirB=6,
 	.Enable=26,
-	.Fault=-1	};
+	.Fault=-1	}; //< GPIO pin mapping to functions provided by motor driver
 
-constexpr std::uint8_t MOTOR_ADC_ADDR { 0x48 };
-constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x49 };
+constexpr std::uint8_t MOTOR_ADC_ADDR { 0x48 }; //< I2C address of ADS1115 ADC for motor current read-out
+constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x49 }; //< I2C address of ADS1115 ADC for voltage monitoring
 
 struct GpioPin {
 	std::string name;
@@ -1491,7 +1491,7 @@ bool PiRT::ReadScopeStatus()
 					mot = (dx>0.) ? MotorThresholdN[0].value/100. : -MotorThresholdN[0].value/100.;
 				}
 				az_motor->move( mot );
-			} else if ( std::abs(dx) > TRACK_ACCURACY ) {
+			} else if ( std::abs(dx) > TRACK_ACCURACY_AZ ) {
 				az_motor->move( (dx>0.) ? MotorThresholdN[0].value/100. : -MotorThresholdN[0].value/100. );
 			} else az_motor->stop();
 
@@ -1504,13 +1504,13 @@ bool PiRT::ReadScopeStatus()
 					mot = (dy>0.) ? MotorThresholdN[1].value/100. : -MotorThresholdN[1].value/100.;
 				}
 				el_motor->move( mot );
-			} else if ( std::abs(dy) > TRACK_ACCURACY ) {
+			} else if ( std::abs(dy) > TRACK_ACCURACY_ALT ) {
 				el_motor->move( (dy>0.) ? MotorThresholdN[1].value/100. : -MotorThresholdN[1].value/100. );
 			} else el_motor->stop();
 
 			// Let's check if we reached target position for both axes
-			if ( 	std::abs(dx) < TRACK_ACCURACY 
-				&& 	std::abs(dy) < TRACK_ACCURACY	)
+			if ( 	std::abs(dx) < TRACK_ACCURACY_AZ 
+				&& 	std::abs(dy) < TRACK_ACCURACY_ALT	)
 			{
 				if ( TargetCoordSystem == SYSTEM_EQ ) { 
 					EqNP.s = IPS_OK;
