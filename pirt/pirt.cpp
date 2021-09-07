@@ -14,7 +14,6 @@
 #include "pirt.h"
 
 #include "indicom.h"
-//#include <connectioninterface.h>
 
 #include <cmath>
 #include <memory>
@@ -29,7 +28,6 @@
 #include <gpioif.h>
 #include <motordriver.h>
 #include <ads1115.h>
-//#include <rpi_temperatures.h>
 
 namespace Connection
 {
@@ -127,7 +125,7 @@ const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
 		{ INDI::Telescope::LOCATION_ELEVATION, 200. } };
 
 
-
+// the server will handle one unique instance of the driver
 static std::unique_ptr<PiRT> pirt(new PiRT());
 
 
@@ -722,7 +720,7 @@ bool PiRT::Connect()
 		return false;
 	}
 
-	// initialize Az pos encoder
+	// initialize Az pos encoder connected to the main SPI interface
 	az_encoder.reset(new PiRaTe::SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Main, bitrate, 0, GPIO::SPI_MODE::POL1PHA1));
 	if (!az_encoder->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to Az position encoder.");
@@ -733,7 +731,7 @@ bool PiRT::Connect()
 	az_encoder->setStBitWidth(AzEncSettingN[0].value);
 	az_encoder->setMtBitWidth(AzEncSettingN[1].value);
 
-	// initialize Alt pos encoder
+	// initialize Alt pos encoder connected to the aux SPI interface
 	el_encoder.reset(new PiRaTe::SsiPosEncoder(gpio, GPIO::SPI_INTERFACE::Aux, bitrate));
 	if (!el_encoder->isInitialized()) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to connect to Alt position encoder.");
@@ -781,13 +779,13 @@ bool PiRT::Connect()
 	
 	// initialize Az motor driver
 	az_motor.reset( new PiRaTe::MotorDriver( gpio, AZ_MOTOR_PINS, AZ_MOTOR_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 0 ) );
-	if (!az_motor->isInitialized()) {
+	if ( !az_motor->isInitialized() ) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize Az motor driver.");
 		return false;
 	}
 	// initialize Alt motor driver
 	el_motor.reset( new PiRaTe::MotorDriver( gpio, ALT_MOTOR_PINS, ALT_MOTOR_DIR_INVERT, std::dynamic_pointer_cast<ADS1115>( i2cDeviceMap[MOTOR_ADC_ADDR] ), 1 ) );
-	if (!el_motor->isInitialized()) {
+	if ( !el_motor->isInitialized() ) {
         DEBUG(INDI::Logger::DBG_ERROR, "Failed to initialize El motor driver.");
 		return false;
 	}
