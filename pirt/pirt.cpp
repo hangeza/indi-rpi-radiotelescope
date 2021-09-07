@@ -453,7 +453,8 @@ bool PiRT::ISNewSwitch (const char *dev, const char *name, ISState *states, char
 		//  Set output switch (relay switch)
 		if(!strcmp(name,OutputSwitchSP.name)) {
 			std::string tempstr { "Relay" };
-			for ( std::size_t index = 0; index < n; index++) {
+			if ( n < 0 ) return false;
+			for ( int index = 0; index < n; index++) {
 				if ( OutputSwitchS[index].s != states[index] ) {
 					tempstr += std::to_string(index+1);
 					if ( states[index] == ISS_ON ) {
@@ -613,8 +614,6 @@ bool PiRT::ISNewNumber(const char *dev, const char *name, double values[], char 
 
 bool PiRT::ISSnoopDevice(XMLEle *root) {
 	char *dev, *name;
-	XMLEle *ep;
-	int i;
  
 	/* check and crack type, device, name and state */
 	if ( crackDN(root, &dev, &name, NULL) < 0 ) return false;
@@ -631,7 +630,7 @@ bool PiRT::ISSnoopDevice(XMLEle *root) {
 	return INDI::Telescope::ISSnoopDevice(root);
 }
 
-bool PiRT::SetTrackMode(uint8_t mode) {
+bool PiRT::SetTrackMode(uint8_t /* mode */) {
 	return false;
 }
 
