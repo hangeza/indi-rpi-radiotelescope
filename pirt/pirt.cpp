@@ -51,7 +51,7 @@ constexpr double DEFAULT_ALT_AXIS_OFFSET { 0.64 }; //< offset between Alt encode
 constexpr double POS_ACCURACY_COARSE { 3.0 }; //< coarse positioning accuracy threshold in degrees
 constexpr double POS_ACCURACY_FINE { 0.2 }; //< fine positioning accuracy threshold in degrees
 constexpr double TRACK_ACCURACY_AZ { 0.06 }; //< tracking accuracy for Az axis threshold in degrees
-constexpr double TRACK_ACCURACY_ALT { 0.03 }; //< tracking accuracy for Alt axis threshold in degrees
+constexpr double TRACK_ACCURACY_ALT { 0.04 }; //< tracking accuracy for Alt axis threshold in degrees
 
 constexpr unsigned int NR_SLEW_RATES { 5 }; //< number of slew speeds available for this scope
 
@@ -110,7 +110,7 @@ struct I2cVoltageDef {
 
 const std::vector<I2cVoltageDef> supply_voltage_defs { 	{ "+3.3V", 3.3, 2., VOLTAGE_MONITOR_ADC_ADDR, 0, "" },
 														{ "+5V", 5., 2., VOLTAGE_MONITOR_ADC_ADDR, 1, "" },
-														{ "+12V", 12., 11., VOLTAGE_MONITOR_ADC_ADDR, 2, "" },
+														{ "+15V", 15., 11., VOLTAGE_MONITOR_ADC_ADDR, 2, "" },
 														{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3, "" } };
 
 const std::vector<I2cVoltageDef> measurement_voltage_defs {	{ "Analog1", 0., 55.5556, MOTOR_ADC_ADDR, 2, "dB" },
