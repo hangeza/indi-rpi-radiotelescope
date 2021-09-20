@@ -16,7 +16,13 @@
 #include <mutex>
 
 // namespace PiRaTe {
-
+/**
+ * @brief GPIO interface class
+ * This class encapsulates access to the Raspberry Pi GPIO interface based on the pigpiod daemon.
+ * @note The class will connect via TCP socket to a running instance of the pigpiod daemon with 
+ * the network address and port as constructor arguments.
+ * @author HG Zaunick
+ */
 class GPIO {
 public:
 

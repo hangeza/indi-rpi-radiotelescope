@@ -9,7 +9,12 @@
 
 
 /* ADS1115: 4(2) ch, 16 bit ADC  */
-
+/**
+ * @brief ADS1115 (Texas Instruments) ADC readout class
+ * This class provides all functionalities to readout and configure an ADS1115 I2C analog-to-digital converter (ADC).
+ * For low-level access the i2c operations provided by the base class {@link #i2cDevice} are used.
+ * @author HG Zaunick
+ */
 class ADS1115 : public i2cDevice {
 public:
 	enum CFG_CHANNEL { CH0 = 0, CH1, CH2, CH3 };
