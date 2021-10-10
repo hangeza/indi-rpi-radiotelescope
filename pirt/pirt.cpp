@@ -82,6 +82,8 @@ constexpr PiRaTe::MotorDriver::Pins ALT_MOTOR_PINS {
 constexpr std::uint8_t MOTOR_ADC_ADDR { 0x48 }; //< I2C address of ADS1115 ADC for motor current read-out
 constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x49 }; //< I2C address of ADS1115 ADC for voltage monitoring
 
+constexpr std::chrono::milliseconds DEFAULT_INT_TIME { 1000 };
+
 struct GpioPin {
 	std::string name;
 	unsigned int gpio_pin;
@@ -332,7 +334,7 @@ bool PiRT::initProperties()
 	IUFillNumber(&VoltageMeasurementN[0], "MEASUREMENT0", "+0V", "%4.2f V", 0, 0, 0, 0);
     IUFillNumberVector(&VoltageMeasurementNP, VoltageMeasurementN, 0, getDeviceName(), "MEASUREMENTS", "Measurements", "Monitoring",
 		IP_RO, 60, IPS_IDLE);
-	IUFillNumber(&MeasurementIntTimeN, "TIME", "time", "%5.2f s", 0, 0, 0, 1);
+	IUFillNumber(&MeasurementIntTimeN, "TIME", "time", "%5.2f s", 0, 0, 0, DEFAULT_INT_TIME.count() / 1000.);
     IUFillNumberVector(&MeasurementIntTimeNP, &MeasurementIntTimeN, 1, getDeviceName(), "INT_TIME", "Integration Time", "Monitoring",
            IP_RW, 60, IPS_IDLE);
 
@@ -826,7 +828,7 @@ bool PiRT::Connect()
 		if (  it == i2cDeviceMap.end() ) continue;
 		std::shared_ptr<ADS1115> adc( std::dynamic_pointer_cast<ADS1115>(it->second) );
 		std::shared_ptr<PiRaTe::Ads1115Measurement> meas( 
-			new PiRaTe::Ads1115Measurement( item.name, adc, item.adc_channel, item.divider_ratio, std::chrono::milliseconds(10000) )
+			new PiRaTe::Ads1115Measurement( item.name, adc, item.adc_channel, item.divider_ratio, DEFAULT_INT_TIME )
 		);
 		voltageMeasurements.emplace_back( std::move(meas) );
 		deleteProperty(VoltageMeasurementNP.name);
