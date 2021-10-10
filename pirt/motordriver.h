@@ -27,9 +27,21 @@ namespace PiRaTe {
 constexpr unsigned int DEFAULT_PWM_FREQ { 20000 };
 constexpr unsigned int OFFSET_RINGBUFFER_DEPTH { 10 };
 
-//template <typename T, std::size_t N>
-//class Ringbuffer;
-
+/**
+ * @brief Interface class for control of PWM-based DC motor driver boards.
+ * This class provides the interface to control a single channel DC motor control via the RPi's GPIO interface.
+ * The assignment of the different GPIO pins is set in the constructor call by provision of a {@link #MotorDriver::Pins} struct.
+ * For a configuration with minimum functionality, at least the Pwm and Dir pins must be defined. In case, the direction signal
+ * is expected as differential signal (DirA=normal signal, DirB=inverted signal), the DirA and DirB pins must be
+ * defined. The Dir pin is ignored in this case. Enable and Fault signals are not mandatory, but used and evaluated
+ * when defined. Set unused signals to -1.
+ * Some motor driver modules provide an analog signal for supervision of the motor current. If this shall be
+ * measured, a shared pointer to an instance of an {@link  ADS1115} class can be provided additionaly in the constructor.
+ * It is assumed, that the motor driver's current supervision signal is connected to one input channel of the ADC in this case.
+ * Specify the corresponding ADS1115 channel in the constructor, as well.
+ * @note none
+ * @author HG Zaunick
+ */
 class MotorDriver {
 public:
 	struct Pins {
@@ -42,8 +54,17 @@ public:
     };
 
     MotorDriver()=delete;
+	/**
+	* @brief The main constructor
+	* Initializes an object with the given gpio object pointer and gpio pin configuration.
+	* @param gpio shared pointer to an initialized GPIO object
+	* @param invertDirection flag which indicates, that positive/negative direction will be swapped
+	* @param adc shared_ptr object to an initialized instance of {@link  ADS1115} ADC (not mandatory)
+	* @param adc_channel channel to use for supervision of motor current, when adc is specified
+	* @throws std::exception if the supplied gpio object is not initialized
+	*/
 
-    MotorDriver( std::shared_ptr<GPIO> gpio, Pins pins,
+	MotorDriver( std::shared_ptr<GPIO> gpio, Pins pins,
 				 bool invertDirection=false, 
 				 std::shared_ptr<ADS1115> adc = nullptr, 
 				 std::uint8_t adc_channel = 0   );
