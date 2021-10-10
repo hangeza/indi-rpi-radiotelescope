@@ -22,16 +22,16 @@ constexpr double toHours(double unitVal) { return ( unitVal * 24. ); }
 constexpr double toRadians(double unitVal) { return ( unitVal * twopi() ); }
 
 /**
- * @brief A class for handling a rotational axis
+ * @brief A class for handling a rotational axis.
  * This class can represent any kind of values within a cyclic range and a lower and upper boundary. When a value is assigned
- * through {@link #RotAxis::setValue} which lies outside the axis range, it will be folded back into the allowed range
+ * through {@link RotAxis::setValue} which lies outside the axis range, it will be folded back into the allowed range
  * by symmetry transformations.
  * @author HG Zaunick
  */
 class RotAxis {
 public:
 	/**
-	 * @brief The main constructor
+	 * @brief The main constructor.
 	 * Initializes an object with the given properties. The RotAxis' value will be initialized to zero.
 	 * @param min the minimum boundary of the value range
 	 * @param max the maximum boundary of the value range
@@ -41,8 +41,8 @@ public:
 	RotAxis(double min, double max, double ref_unit = twopi());
 
 	/**
-	 * @brief Assignment from value
-	 * Assigns a new value to the object. The value is forwarded to {@link #RotAxis::setValue}.
+	 * @brief Assignment from value.
+	 * Assigns a new value to the object. The value is forwarded to {@link RotAxis::setValue}.
 	 * @param a_value the value to set
 	 */
 	RotAxis& operator=(double a_value); 
@@ -52,26 +52,26 @@ public:
 	[[nodiscard]] auto hourAngle() const -> double { return toHours(fValue); }
 
 	/**
-	 * @brief Assignment from value
+	 * @brief Assignment from value.
 	 * Assigns a new value to the object.
 	 * @param val the value to set
-	 * @note The value is internally projected back to the principal period (given by ref_unit in the constructor {@link #RotAxis::RotAxis})
+	 * @note The value is internally projected back to the principal period (given by ref_unit in the constructor {@link RotAxis::RotAxis})
 	 */
 	void setValue(double val);
 	
 	/**
-	 * @brief current value
+	 * @brief Current value.
 	 * Read the currently set value
 	 * @return the current value
 	 */
 	[[nodiscard]] auto value() const -> double { return fValue * fRefUnit; }
 
 	/**
-	 * @brief Register callback function for gimbal flip
+	 * @brief Register callback function for gimbal flip.
 	 * When setting a new value to the object, it may happen that, depending on the boundaries set, the axis value is folded back
 	 * due to the axis' symmetry. In such cases, the orthogonal axis flips to the opposite side (gimbal flip). With this method, a
-	 * function can be registered which then performs this operation, e.g. the {@link #RotAxis::gimbalFlip} member method of the complementary axis object.
-	 * @example 1 an axis [-pi/2..pi/2] walks with increasing values over pi/2. For further increasing angles, the resulting axis
+	 * function can be registered which then performs this operation, e.g. the {@link RotAxis::gimbalFlip} member method of the complementary axis object.
+	 * Example: an axis [-pi/2..pi/2] walks with increasing values over pi/2. For further increasing angles, the resulting axis
 	 * angle will be mirrored at pi/2 and therefore decreases again. During the transition over the symmetry axis, the orthogonal axis
 	 * flipped around by pi.
 	 * 

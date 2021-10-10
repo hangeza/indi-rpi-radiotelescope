@@ -208,12 +208,6 @@ int i2cDevice::readReg(uint8_t reg, uint8_t* buf, int nBytes)
 	return n;
 }
 
-/** Read a single bit from an 8-bit device register.
-* @param regAddr Register regAddr to read from
-* @param bitNum Bit position to read (0-7)
-* @param data Container for single bit value
-* @return Status of read operation (true = success)
-*/
 int8_t i2cDevice::readBit(uint8_t regAddr, uint8_t bitNum, uint8_t *data) {
 	uint8_t b;
 	uint8_t count = readReg(regAddr, &b, 1);
@@ -221,13 +215,6 @@ int8_t i2cDevice::readBit(uint8_t regAddr, uint8_t bitNum, uint8_t *data) {
 	return count;
 }
 
-/** Read multiple bits from an 8-bit device register.
-* @param regAddr Register regAddr to read from
-* @param bitStart First bit position to read (0-7)
-* @param length Number of bits to read (not more than 8)
-* @param data Container for right-aligned value (i.e. '101' read from any bitStart position will equal 0x05)
-* @return Status of read operation (true = success)
-*/
 int8_t i2cDevice::readBits(uint8_t regAddr, uint8_t bitStart, uint8_t length, uint8_t *data) {
 	// 01101001 read byte
 	// 76543210 bit numbers
@@ -244,33 +231,16 @@ int8_t i2cDevice::readBits(uint8_t regAddr, uint8_t bitStart, uint8_t length, ui
 	return count;
 }
 
-/** Read single byte from an 8-bit device register.
-* @param regAddr Register regAddr to read from
-* @param data Container for byte value read from device
-* @return Status of read operation (true = success)
-*/
 bool i2cDevice::readByte(uint8_t regAddr, uint8_t *data) {
 	return (readBytes(regAddr, 1, data) == 1);
 }
 
-/** Read multiple bytes from an 8-bit device register.
-* @param regAddr First register regAddr to read from
-* @param length Number of bytes to read
-* @param data Buffer to store read data in
-* @return Number of bytes read (-1 indicates failure)
-*/
 int16_t i2cDevice::readBytes(uint8_t regAddr, uint16_t length, uint8_t *data) {
 	// not used?! int8_t count = 0;
 	//    int fd = open("/dev/i2c-1", O_RDWR);
 	return readReg(regAddr, data, length);
 }
 
-/** write a single bit in an 8-bit device register.
-* @param regAddr Register regAddr to write to
-* @param bitNum Bit position to write (0-7)
-* @param data New bit value to write
-* @return Status of operation (true = success)
-*/
 bool i2cDevice::writeBit(uint8_t regAddr, uint8_t bitNum, uint8_t data) {
 	uint8_t b;
 	int n = readByte(regAddr, &b);
@@ -279,13 +249,6 @@ bool i2cDevice::writeBit(uint8_t regAddr, uint8_t bitNum, uint8_t data) {
 	return writeByte(regAddr, b);
 }
 
-/** Write multiple bits in an 8-bit device register.
-* @param regAddr Register regAddr to write to
-* @param bitStart First bit position to write (0-7)
-* @param length Number of bits to write (not more than 8)
-* @param data Right-aligned value to write
-* @return Status of operation (true = success)
-*/
 bool i2cDevice::writeBits(uint8_t regAddr, uint8_t bitStart, uint8_t length, uint8_t data) {
 	//      010 value to write
 	// 76543210 bit numbers
@@ -308,22 +271,10 @@ bool i2cDevice::writeBits(uint8_t regAddr, uint8_t bitStart, uint8_t length, uin
 	}
 }
 
-/** Write single byte to an 8-bit device register.
-* @param regAddr Register address to write to
-* @param data New byte value to write
-* @return Status of operation (true = success)
-*/
 bool i2cDevice::writeByte(uint8_t regAddr, uint8_t data) {
 	return writeBytes(regAddr, 1, &data);
 }
 
-/** Write multiple bytes to an 8-bit device register.
-* @param devAddr I2C slave device address
-* @param regAddr First register address to write to
-* @param length Number of bytes to write
-* @param data Buffer to copy new data from
-* @return Status of operation (true = success)
-*/
 bool i2cDevice::writeBytes(uint8_t regAddr, uint16_t length, uint8_t* data) {
 	//     int8_t count = 0;
 	//     uint8_t buf[128];
@@ -333,12 +284,6 @@ bool i2cDevice::writeBytes(uint8_t regAddr, uint16_t length, uint8_t* data) {
 	return (n == length);
 }
 
-/** Write multiple words to a 16-bit device register.
-* @param regAddr First register address to write to
-* @param length Number of words to write
-* @param data Buffer to copy new data from
-* @return Status of operation (true = success)
-*/
 bool i2cDevice::writeWords(uint8_t regAddr, uint16_t length, uint16_t* data) {
 	int8_t count = 0;
 	uint8_t buf[512];
@@ -367,11 +312,6 @@ bool i2cDevice::writeWords(uint8_t regAddr, uint16_t length, uint16_t* data) {
 	return true;
 }
 
-/** Write single word to a 16-bit device register.
-* @param regAddr Register address to write to
-* @param data New word value to write
-* @return Status of operation (true = success)
-*/
 bool i2cDevice::writeWord(uint8_t regAddr, uint16_t data) {
 	return writeWords(regAddr, 1, &data);
 }

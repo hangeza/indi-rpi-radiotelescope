@@ -31,7 +31,7 @@ constexpr unsigned int MAX_CONN_ERRORS { 10U };
  * @brief Interface class for reading out SSI-interface based positional encoders.
  * This class manages the read-out of absolute position encoders connected to the SPI interface.
  * The interface to be utilized is set in the constructor call together with baud rate and SPI mode settings. 
- * The absolute position is obtained with {@link #SsiPosEncoder::absolutePosition} with the return value in evolutions.
+ * The absolute position is obtained with {@link SsiPosEncoder::absolutePosition} with the return value in evolutions.
  * @note The class launches a separate thread loop upon successfull construction which reads the encoder's data word every 10 ms.
  * @author HG Zaunick
  */
@@ -39,7 +39,7 @@ class SsiPosEncoder {
   public:
     SsiPosEncoder()=delete;
 	/**
-	 * @brief The main constructor
+	 * @brief The main constructor.
 	 * Initializes an object with the given gpio object pointer and SPI parameters.
 	 * @param gpio shared pointer to an initialized GPIO object
 	 * @param GPIO::SPI_INTERFACE the SPI interface to use (GPIO::SPI_INTERFACE::Main or GPIO::SPI_INTERFACE:Aux)

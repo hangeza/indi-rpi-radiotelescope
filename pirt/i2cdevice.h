@@ -94,15 +94,83 @@ public:
 	// refer to the device's datasheet
 	int readReg(uint8_t reg, uint8_t* buf, int nBytes);
 
+	/** Read a single bit from an 8-bit device register.
+	* @param regAddr Register regAddr to read from
+	* @param bitNum Bit position to read (0-7)
+	* @param data Container for single bit value
+	* @return Status of read operation (true = success)
+	*/
 	int8_t readBit(uint8_t regAddr, uint8_t bitNum, uint8_t *data);
+
+	/** Read multiple bits from an 8-bit device register.
+	* @param regAddr Register regAddr to read from
+	* @param bitStart First bit position to read (0-7)
+	* @param length Number of bits to read (not more than 8)
+	* @param data Container for right-aligned value (i.e. '101' read from any bitStart position will equal 0x05)
+	* @return Status of read operation (true = success)
+	*/
 	int8_t readBits(uint8_t regAddr, uint8_t bitStart, uint8_t length, uint8_t *data);
+
+	/** Read single byte from an 8-bit device register.
+	* @param regAddr Register regAddr to read from
+	* @param data Container for byte value read from device
+	* @return Status of read operation (true = success)
+	*/
 	bool readByte(uint8_t regAddr, uint8_t *data);
+
+	/** Read multiple bytes from an 8-bit device register.
+	* @param regAddr First register regAddr to read from
+	* @param length Number of bytes to read
+	* @param data Buffer to store read data in
+	* @return Number of bytes read (-1 indicates failure)
+	*/
 	int16_t readBytes(uint8_t regAddr, uint16_t length, uint8_t *data);
+
+	/** write a single bit in an 8-bit device register.
+	* @param regAddr Register regAddr to write to
+	* @param bitNum Bit position to write (0-7)
+	* @param data New bit value to write
+	* @return Status of operation (true = success)
+	*/
 	bool writeBit(uint8_t regAddr, uint8_t bitNum, uint8_t data);
+
+	/** Write multiple bits in an 8-bit device register.
+	* @param regAddr Register regAddr to write to
+	* @param bitStart First bit position to write (0-7)
+	* @param length Number of bits to write (not more than 8)
+	* @param data Right-aligned value to write
+	* @return Status of operation (true = success)
+	*/
 	bool writeBits(uint8_t regAddr, uint8_t bitStart, uint8_t length, uint8_t data);
+
+	/** Write single byte to an 8-bit device register.
+	* @param regAddr Register address to write to
+	* @param data New byte value to write
+	* @return Status of operation (true = success)
+	*/
 	bool writeByte(uint8_t regAddr, uint8_t data);
+
+	/** Write multiple bytes to an 8-bit device register.
+	* @param regAddr First register address to write to
+	* @param length Number of bytes to write
+	* @param data Buffer to copy new data from
+	* @return Status of operation (true = success)
+	*/
 	bool writeBytes(uint8_t regAddr, uint16_t length, uint8_t* data);
+
+	/** Write multiple words to a 16-bit device register.
+	* @param regAddr First register address to write to
+	* @param length Number of words to write
+	* @param data Buffer to copy new data from
+	* @return Status of operation (true = success)
+	*/
 	bool writeWords(uint8_t regAddr, uint16_t length, uint16_t* data);
+
+	/** Write single word to a 16-bit device register.
+	* @param regAddr Register address to write to
+	* @param data New word value to write
+	* @return Status of operation (true = success)
+	*/
 	bool writeWord(uint8_t regAddr, uint16_t data);
 
 	void getCapabilities();

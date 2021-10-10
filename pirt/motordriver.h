@@ -30,13 +30,13 @@ constexpr unsigned int OFFSET_RINGBUFFER_DEPTH { 10 };
 /**
  * @brief Interface class for control of PWM-based DC motor driver boards.
  * This class provides the interface to control a single channel DC motor control via the RPi's GPIO interface.
- * The assignment of the different GPIO pins is set in the constructor call by provision of a {@link #MotorDriver::Pins} struct.
+ * The assignment of the different GPIO pins is set in the constructor call by provision of a {@link MotorDriver::Pins} struct.
  * For a configuration with minimum functionality, at least the Pwm and Dir pins must be defined. In case, the direction signal
  * is expected as differential signal (DirA=normal signal, DirB=inverted signal), the DirA and DirB pins must be
  * defined. The Dir pin is ignored in this case. Enable and Fault signals are not mandatory, but used and evaluated
  * when defined. Set unused signals to -1.
  * Some motor driver modules provide an analog signal for the supervision of the motor current. If this shall be
- * measured, a shared pointer to an instance of an {@link  ADS1115} class can be provided additionally in the constructor.
+ * measured, a shared pointer to an instance of an {@link ADS1115} class can be provided additionally in the constructor.
  * It is assumed, that the motor driver's current-supervision signal is connected to one input channel of the ADC.
  * Specify the corresponding ADS1115 channel in the constructor in this case.
  * @note none
@@ -45,7 +45,7 @@ constexpr unsigned int OFFSET_RINGBUFFER_DEPTH { 10 };
 class MotorDriver {
 public:
 	/**
-	* @brief Struct for storing the configuration of the motor driver gpio pins
+	* @brief Struct for storing the configuration of the motor driver gpio pins.
 	* In this struct all gpio pins are defined which are connected to the actual motor driver hardware.
 	* @note Unused pins must be set to -1.
 	*/
@@ -60,11 +60,11 @@ public:
 
     MotorDriver()=delete;
 	/**
-	* @brief The main constructor
+	* @brief The main constructor.
 	* Initializes an object with the given gpio object pointer and gpio pin configuration.
 	* @param gpio shared pointer to an initialized GPIO object
 	* @param invertDirection flag which indicates, that positive/negative direction will be swapped
-	* @param adc shared_ptr object to an initialized instance of {@link  ADS1115} ADC (not mandatory)
+	* @param adc shared_ptr object to an initialized instance of {@link ADS1115} ADC (not mandatory)
 	* @param adc_channel channel to use for supervision of motor current, when adc is specified
 	* @throws std::exception if the supplied gpio object is not initialized
 	*/
