@@ -35,10 +35,10 @@ constexpr unsigned int OFFSET_RINGBUFFER_DEPTH { 10 };
  * is expected as differential signal (DirA=normal signal, DirB=inverted signal), the DirA and DirB pins must be
  * defined. The Dir pin is ignored in this case. Enable and Fault signals are not mandatory, but used and evaluated
  * when defined. Set unused signals to -1.
- * Some motor driver modules provide an analog signal for supervision of the motor current. If this shall be
- * measured, a shared pointer to an instance of an {@link  ADS1115} class can be provided additionaly in the constructor.
- * It is assumed, that the motor driver's current supervision signal is connected to one input channel of the ADC in this case.
- * Specify the corresponding ADS1115 channel in the constructor, as well.
+ * Some motor driver modules provide an analog signal for the supervision of the motor current. If this shall be
+ * measured, a shared pointer to an instance of an {@link  ADS1115} class can be provided additionally in the constructor.
+ * It is assumed, that the motor driver's current-supervision signal is connected to one input channel of the ADC.
+ * Specify the corresponding ADS1115 channel in the constructor in this case.
  * @note none
  * @author HG Zaunick
  */
