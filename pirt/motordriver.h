@@ -44,13 +44,18 @@ constexpr unsigned int OFFSET_RINGBUFFER_DEPTH { 10 };
  */
 class MotorDriver {
 public:
+	/**
+	* @brief Struct for storing the configuration of the motor driver gpio pins
+	* In this struct all gpio pins are defined which are connected to the actual motor driver hardware.
+	* @note Unused pins must be set to -1.
+	*/
 	struct Pins {
-		int Pwm;
-		int Dir;
-		int DirA;
-		int DirB;
-		int Enable;
-		int Fault;
+		int Pwm; ///< GPIO pin of the PWM signal (output)
+		int Dir; ///< GPIO pin of the direction signal (output). This field must be defined, when only one direction signal is used
+		int DirA; ///< GPIO pin of the direction signal (output, normal polarity). Use this field together with the DirB pin when two phase shifted signals are used for the direction
+		int DirB; ///< GPIO pin of the direction signal (output, inverted polarity). Use this field together with the DirA pin when two phase shifted signals are used for the direction
+		int Enable; ///< GPIO pin of the enable signal (output)
+		int Fault; ///< GPIO pin of the fault signal (low-active input). The internal pull-up will be enabled when using this signal)
     };
 
     MotorDriver()=delete;
