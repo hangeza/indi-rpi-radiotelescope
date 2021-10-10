@@ -48,7 +48,7 @@ constexpr bool ALT_POS_DIR_INVERT { true }; //< invert helicity of Alt axis
 constexpr double DEFAULT_AZ_AXIS_OFFSET { -181.25 }; //< offset between Az encoder-axis zero and real world Az-axis zero
 constexpr double DEFAULT_ALT_AXIS_OFFSET { 0.64 }; //< offset between Alt encoder-axis zero and real world Alt-axis zero
 
-constexpr double POS_ACCURACY_COARSE { 3.0 }; //< coarse positioning accuracy threshold in degrees
+constexpr double POS_ACCURACY_COARSE { 4.0 }; //< coarse positioning accuracy threshold in degrees
 constexpr double POS_ACCURACY_FINE { 0.2 }; //< fine positioning accuracy threshold in degrees
 constexpr double TRACK_ACCURACY_AZ { 0.06 }; //< tracking accuracy for Az axis threshold in degrees
 constexpr double TRACK_ACCURACY_ALT { 0.04 }; //< tracking accuracy for Alt axis threshold in degrees
