@@ -184,7 +184,7 @@ protected:
 	unsigned long int fNrBytesRead;
 	static unsigned long int fGlobalNrBytesRead;
 	static unsigned long int fGlobalNrBytesWritten;
-	double fLastTimeInterval; // the last time measurement's result is stored here
+	double fLastTimeInterval; ///< the last time measurement's result is stored here
 	struct timeval fT1, fT2;
 	int fDebugLevel;
 	static std::vector<i2cDevice*> fGlobalDeviceList;
@@ -192,7 +192,7 @@ protected:
 	uint8_t fMode = MODE_NONE;
 	unsigned int fIOErrors=0;
 
-	// fuctions for measuring time intervals
+	// functions for measuring time intervals
 	void startTimer();
 	void stopTimer();
 };

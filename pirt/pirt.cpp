@@ -59,7 +59,7 @@ constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.07 }; //< minimum applicable 
 constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.15 }; //< minimum applicable motor throttle, Alt motor
 constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 4.1 }; //< absolute motor current limit for Az motor in Ampere
 constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 3.0 }; //< absolute motor current limit for Alt motor in Ampere
-constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
+//constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
 constexpr bool AZ_MOTOR_DIR_INVERT { true }; //< invert default (positive) direction of Az motor
 constexpr bool ALT_MOTOR_DIR_INVERT { true }; //< invert default (positive) direction of Alt motor
 
