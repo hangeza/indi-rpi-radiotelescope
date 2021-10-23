@@ -25,7 +25,7 @@ class ADS1115;
 namespace PiRaTe {
 
 constexpr unsigned int DEFAULT_PWM_FREQ { 20000 };
-constexpr unsigned int OFFSET_RINGBUFFER_DEPTH { 10 };
+constexpr unsigned int OFFSET_RINGBUFFER_DEPTH { 16 };
 
 /**
  * @brief Interface class for control of PWM-based DC motor driver boards.
