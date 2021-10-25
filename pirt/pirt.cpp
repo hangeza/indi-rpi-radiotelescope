@@ -1566,12 +1566,14 @@ bool PiRT::ReadScopeStatus()
 		// no more movements towards negative direction allowed
 		if ( el_motor->currentSpeed() < 0. ) {
 			Abort();
+			if (fIsTracking) TrackState = SCOPE_IDLE;
 			fIsTracking = false;
 		}
 	} else if ( altAbsTurns > ALT_LIMIT_HI ) {
 		// no more movements towards positive direction allowed
 		if ( el_motor->currentSpeed() > 0. ) {
 			Abort();
+			if (fIsTracking) TrackState = SCOPE_IDLE;
 			fIsTracking = false;
 		}
 	}
