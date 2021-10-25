@@ -854,6 +854,14 @@ bool PiRT::Connect()
 	}	
 
 	INDI::Telescope::Connect();
+	
+	updatePosition();
+	if ( 	std::fabs(currentHorizontalCoords.Az.degrees() - DefaultParkPosition.Az.degrees() ) < 0.5 
+		&&	std::fabs(currentHorizontalCoords.Alt.degrees() - DefaultParkPosition.Alt.degrees() ) < 0.5	)
+	{
+		SetParked(true);
+	}
+	
 	return true;
 }
 
