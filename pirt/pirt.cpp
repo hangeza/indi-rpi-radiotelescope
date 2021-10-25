@@ -41,7 +41,7 @@ constexpr unsigned int POLL_INTERVAL_MS { 200 }; //< polling interval of this dr
 constexpr double DEFAULT_AZ_AXIS_TURNS_RATIO { 152./9. }; //< ratio between Az encoder revolutions and Az axis revolutions
 constexpr double DEFAULT_EL_AXIS_TURNS_RATIO { 1. }; //< ratio between Alt encoder revolutions and Alt axis revolutions
 constexpr double MAX_AZ_OVERTURN { 0.5 }; //< maximum overturn in Az in revolutions at both ends
-constexpr double ALT_LIMIT_LOW { 0./360. }; //< lower position limit Alt in revolutions
+constexpr double ALT_LIMIT_LOW { 0.25/360. }; //< lower position limit Alt in revolutions
 constexpr double ALT_LIMIT_HI { 100./360. }; //< upper position limit in Alt in revolutions
 constexpr bool AZ_POS_DIR_INVERT { false }; //< invert helicity of Az axis
 constexpr bool ALT_POS_DIR_INVERT { true }; //< invert helicity of Alt axis
@@ -112,7 +112,7 @@ struct I2cVoltageDef {
 
 const std::vector<I2cVoltageDef> supply_voltage_defs { 	{ "+3.3V", 3.3, 2., VOLTAGE_MONITOR_ADC_ADDR, 0, "" },
 														{ "+5V", 5., 2., VOLTAGE_MONITOR_ADC_ADDR, 1, "" },
-														{ "+15V", 15., 11., VOLTAGE_MONITOR_ADC_ADDR, 2, "" },
+														{ "+13.8V", 13.8, 11., VOLTAGE_MONITOR_ADC_ADDR, 2, "" },
 														{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3, "" } };
 
 const std::vector<I2cVoltageDef> measurement_voltage_defs {	{ "Analog1", 0., 55.5556, MOTOR_ADC_ADDR, 2, "dB" },
