@@ -1357,15 +1357,11 @@ void PiRT::updatePosition() {
 	}
 }
 
+void PiRT::updateTime() {
 
-/**************************************************************************************
-** Client is asking us to report telescope status
-***************************************************************************************/
-bool PiRT::ReadScopeStatus()
-{
 	static struct timeval ltv { 0, 0 };
     struct timeval tv { 0, 0 };
-    double dt = 0, dx = 0, dy = 0;
+    double dt = 0;
     static double dt_time_update = 0.;
 
     static char ts[32]={0};
@@ -1380,22 +1376,7 @@ bool PiRT::ReadScopeStatus()
       LocationNP.s = IPS_OK;
       IDSetNumber(&LocationNP, NULL);
     }
-
-    //DEBUG(INDI::Logger::DBG_SESSION, "before encoder readout");
-	double azAbsTurns { 0. };
-	double altAbsTurns { 0. };
-
-	// read pos encoders and update the horizontal coordinates, absolute turn values and properties
-	updatePosition();
-	azAbsTurns = AxisAbsTurnsN[0].value;
-	altAbsTurns = AxisAbsTurnsN[1].value;
-
-	// update motor status
-	updateMotorStatus();
 	
-	// update monitoring variables
-	updateMonitoring();
-
 	// time since last update
     dt  = tv.tv_sec - ltv.tv_sec + 1e-6*(tv.tv_usec - ltv.tv_usec);
     ltv = tv;
@@ -1439,6 +1420,32 @@ bool PiRT::ReadScopeStatus()
 //       LocationNP.s = IPS_OK;
 //       IDSetNumber(&LocationNP, NULL);
     }
+}
+
+/**************************************************************************************
+** Client is asking us to report telescope status
+***************************************************************************************/
+bool PiRT::ReadScopeStatus()
+{
+    double dx = 0, dy = 0;
+
+	updateTime();
+	
+    //DEBUG(INDI::Logger::DBG_SESSION, "before encoder readout");
+	double azAbsTurns { 0. };
+	double altAbsTurns { 0. };
+
+	// read pos encoders and update the horizontal coordinates, absolute turn values and properties
+	updatePosition();
+	azAbsTurns = AxisAbsTurnsN[0].value;
+	altAbsTurns = AxisAbsTurnsN[1].value;
+
+	// update motor status
+	updateMotorStatus();
+	
+	// update monitoring variables
+	updateMonitoring();
+
 
 	const unsigned int MAX_TARGET_POINTING_CYCLES { 1 + MAX_TARGET_POINTING_IMPROVEMENT_TIME_MS / std::max( getCurrentPollingPeriod(), 10U ) };
     

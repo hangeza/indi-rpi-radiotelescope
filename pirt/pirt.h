@@ -113,6 +113,7 @@ class PiRT : public INDI::Telescope
 	void updateMotorStatus();
 	void updateMonitoring();
 	void updateTemperatures( PiRaTe::RpiTemperatureMonitor::TemperatureItem item );
+	void updateTime();
 	auto upTime() const -> std::chrono::duration<long, std::ratio<1>>;
 
     ILight ScopeStatusL[5];
