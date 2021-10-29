@@ -1534,9 +1534,7 @@ bool PiRT::ReadScopeStatus()
 				}
 				if ( TrackState == SCOPE_SLEWING ) {
 					DEBUG(INDI::Logger::DBG_SESSION, "Telescope slew is complete.");
-				}
-				// Let's set state to Idle, Tracking or Parked
-				if ( TrackState == SCOPE_PARKING) {
+				} else if ( TrackState == SCOPE_PARKING) {
 					fIsTracking = false;
 					//TrackState = SCOPE_PARKED;
 					SetParked(true);
