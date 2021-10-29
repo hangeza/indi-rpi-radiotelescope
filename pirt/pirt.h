@@ -198,4 +198,5 @@ class PiRT : public INDI::Telescope
 	std::vector<std::shared_ptr<PiRaTe::Ads1115VoltageMonitor>> voltageMonitors { };
 	std::vector<std::shared_ptr<PiRaTe::Ads1115Measurement>> voltageMeasurements { };
 	std::chrono::time_point<std::chrono::system_clock> fStartTime { };
+	unsigned int targetPointingCycles { 0 };
 };

@@ -84,6 +84,8 @@ constexpr std::uint8_t VOLTAGE_MONITOR_ADC_ADDR { 0x49 }; //< I2C address of ADS
 
 constexpr std::chrono::milliseconds DEFAULT_INT_TIME { 1000 };
 
+constexpr unsigned int MAX_TARGET_POINTING_IMPROVEMENT_TIME_MS { 250 };
+
 struct GpioPin {
 	std::string name;
 	unsigned int gpio_pin;
@@ -1437,6 +1439,8 @@ bool PiRT::ReadScopeStatus()
 //       LocationNP.s = IPS_OK;
 //       IDSetNumber(&LocationNP, NULL);
     }
+
+	const unsigned int MAX_TARGET_POINTING_CYCLES { 1 + MAX_TARGET_POINTING_IMPROVEMENT_TIME_MS / std::max( getCurrentPollingPeriod(), 10U ) };
     
 	// the state machine to handle all operation conditions:
 	// SCOPE_IDLE, SCOPE_TRACKING, SCOPE_PARKING, SCOPE_PARKED and SCOPE_SLEWING
@@ -1518,7 +1522,8 @@ bool PiRT::ReadScopeStatus()
 
 			// Let's check if we reached target position for both axes
 			if ( 	std::abs(dx) < TRACK_ACCURACY_AZ 
-				&& 	std::abs(dy) < TRACK_ACCURACY_ALT	)
+				&& 	std::abs(dy) < TRACK_ACCURACY_ALT
+				&& ( ++targetPointingCycles > MAX_TARGET_POINTING_CYCLES ) )
 			{
 				if ( TargetCoordSystem == SYSTEM_EQ ) { 
 					EqNP.s = IPS_OK;
