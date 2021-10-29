@@ -1542,15 +1542,12 @@ bool PiRT::ReadScopeStatus()
 					SetParked(true);
 				}
 				Abort();
+			} else {
+				targetPointingCycles = 0;
 			}
 			break;
 		case SCOPE_PARKED:
 		case SCOPE_IDLE:
-/*
-			if ( std::abs(az_motor->currentSpeed()) < 0.001 && std::abs(el_motor->currentSpeed()) < 0.001 ) {
-				measureMotorCurrentOffsets();
-			}
-*/
 		default:
 			//Abort();
 			break;
