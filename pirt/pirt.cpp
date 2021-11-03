@@ -957,6 +957,8 @@ bool PiRT::Goto(double ra, double dec)
     // Inform client we are slewing to a new position
     DEBUGF(INDI::Logger::DBG_SESSION, "Slewing to RA: %s - DEC: %s", RAStr, DecStr);
 
+	targetPointingCycles = 0;
+
     // Success!
     return true;
 }
@@ -992,6 +994,8 @@ bool PiRT::GotoHor(double az, double alt)
     // Inform client we are slewing to a new position
     DEBUGF(INDI::Logger::DBG_SESSION, "Slewing to Az: %s - Alt: %s", AzStr, AltStr);
 
+	targetPointingCycles = 0;
+
     // Success!
     return true;
 }
@@ -1003,6 +1007,7 @@ bool PiRT::Abort()
 {
 	az_motor->stop();
 	el_motor->stop();
+	targetPointingCycles = 0;
 	if ( TrackState == SCOPE_IDLE || TrackState == SCOPE_TRACKING || TrackState == SCOPE_PARKED ) return true;
 	else  TrackState = (isTracking() ? SCOPE_TRACKING : SCOPE_IDLE);
 
@@ -1548,7 +1553,7 @@ bool PiRT::ReadScopeStatus()
 				}
 				Abort();
 			} else {
-				targetPointingCycles = 0;
+				//targetPointingCycles = 0;
 			}
 			break;
 		case SCOPE_PARKED:
