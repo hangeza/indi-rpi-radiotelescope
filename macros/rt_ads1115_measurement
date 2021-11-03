@@ -23,7 +23,7 @@ prop_az="Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ"
 prop_alt="Pi Radiotelescope.HORIZONTAL_EOD_COORD.ALT"
 prop_ra="Pi Radiotelescope.EQUATORIAL_EOD_COORD.RA"
 prop_dec="Pi Radiotelescope.EQUATORIAL_EOD_COORD.DEC"
-prop_temp="Pi Radiotelescope.TEMPERATURE_MONITOR.TEMPERATURE1"
+prop_temp="Pi Radiotelescope.TEMPERATURE_MONITOR.TEMPERATURE2"
 prop_adc1="Pi Radiotelescope.MEASUREMENTS.MEASUREMENT0"
 prop_adc2="Pi Radiotelescope.MEASUREMENTS.MEASUREMENT1"
 cmd_date="date '+%s.%N'"
@@ -51,7 +51,7 @@ do
     then
       alt=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
     fi
-    if echo $i | grep -qe 'TEMPERATURE1'
+    if echo $i | grep -qe 'TEMPERATURE2'
     then
       temp=$(echo $i | awk -F"=" '{ printf "%1.1f", strtonum($(NF)) }')
     fi
