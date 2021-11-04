@@ -46,7 +46,7 @@ goto_pos()
 # write one line of explanatory header to the file supplied by the first argument
 write_file_header()
 {
-	echo "# time az alt ra dec adc1 adc2 temp" >> $1
+	echo "# time az alt ra dec adc1 adc2 temp1 temp2" >> $1
 }
 
 # main code

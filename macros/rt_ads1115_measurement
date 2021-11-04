@@ -1,6 +1,6 @@
 #!/bin/bash
 # show RT position and onboard adc values in a loop
-# 01.09.2021 HGZ
+# 11/04/2021 HGZ
 
 # usage: ./rt_ads1115_measurement.sh <N> <DELAY>
 # with the optional two arguments
@@ -18,52 +18,64 @@ if [ $# -eq 2 ]; then
    DELAY=$2
 fi
 
+indi_device="Pi Radiotelescope"
 cmd_indi="indi_getprop -t 5 -1"
-prop_az="Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ"
-prop_alt="Pi Radiotelescope.HORIZONTAL_EOD_COORD.ALT"
-prop_ra="Pi Radiotelescope.EQUATORIAL_EOD_COORD.RA"
-prop_dec="Pi Radiotelescope.EQUATORIAL_EOD_COORD.DEC"
-prop_temp="Pi Radiotelescope.TEMPERATURE_MONITOR.TEMPERATURE2"
-prop_adc1="Pi Radiotelescope.MEASUREMENTS.MEASUREMENT0"
-prop_adc2="Pi Radiotelescope.MEASUREMENTS.MEASUREMENT1"
 cmd_date="date '+%s.%N'"
+
+prop_az="HORIZONTAL_EOD_COORD.AZ"
+prop_alt="HORIZONTAL_EOD_COORD.ALT"
+prop_ra="EQUATORIAL_EOD_COORD.RA"
+prop_dec="EQUATORIAL_EOD_COORD.DEC"
+prop_temp1="TEMPERATURE_MONITOR.TEMPERATURE1"
+prop_temp2="TEMPERATURE_MONITOR.TEMPERATURE2"
+prop_adc1="MEASUREMENTS.MEASUREMENT0"
+prop_adc2="MEASUREMENTS.MEASUREMENT1"
 
 # make number of measurements
 count=0
 while [[ $count -lt $N ]] || [[ $N == 0 ]]
 do
   sleep $DELAY
-  indi_props=$($cmd_indi "$prop_ra" "$prop_dec" "$prop_az" "$prop_alt" "$prop_temp" "$prop_adc1" "$prop_adc2" 2>/dev/null)
+  indi_props=$($cmd_indi "$indi_device.$prop_ra" "$indi_device.$prop_dec" \
+  "$indi_device.$prop_az" "$indi_device.$prop_alt" \
+  "$indi_device.$prop_adc1" "$indi_device.$prop_adc2" \
+  "$indi_device.$prop_temp1" "$indi_device.$prop_temp2" \
+  2>/dev/null)
+
   for i in $indi_props; do
-    if echo $i | grep -qe 'EQUATORIAL_EOD_COORD.RA'
+    if echo $i | grep -qe $prop_ra
     then
       ra=$(echo $i | awk -F"=" '{ printf "%1.5f", strtonum($(NF)) }')
     fi
-    if echo $i | grep -qe 'EQUATORIAL_EOD_COORD.DEC'
+    if echo $i | grep -qe $prop_dec
     then
       dec=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
     fi
-    if echo $i | grep -qe 'HORIZONTAL_EOD_COORD.AZ'
+    if echo $i | grep -qe $prop_az
     then
       az=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
     fi
-    if echo $i | grep -qe 'HORIZONTAL_EOD_COORD.ALT'
+    if echo $i | grep -qe $prop_alt
     then
       alt=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
     fi
-    if echo $i | grep -qe 'TEMPERATURE2'
+    if echo $i | grep -qe $prop_temp1
     then
-      temp=$(echo $i | awk -F"=" '{ printf "%1.1f", strtonum($(NF)) }')
+      temp1=$(echo $i | awk -F"=" '{ printf "%1.1f", strtonum($(NF)) }')
     fi
-        if echo $i | grep -qe 'MEASUREMENTS.MEASUREMENT0'
+    if echo $i | grep -qe $prop_temp2
+    then
+      temp2=$(echo $i | awk -F"=" '{ printf "%1.1f", strtonum($(NF)) }')
+    fi
+    if echo $i | grep -qe $prop_adc1
     then
       adc1=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
     fi
-    if echo $i | grep -qe 'MEASUREMENTS.MEASUREMENT1'
+    if echo $i | grep -qe $prop_adc2
     then
       adc2=$(echo $i | awk -F"=" '{ printf "%1.4f", strtonum($(NF)) }')
     fi
   done
-  echo $(eval $cmd_date) $az $alt $ra $dec $adc1 $adc2 $temp
+  echo $(eval $cmd_date) $az $alt $ra $dec $adc1 $adc2 $temp1 $temp2
   let count=$count+1
 done
