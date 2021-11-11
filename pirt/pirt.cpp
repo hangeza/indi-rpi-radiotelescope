@@ -845,6 +845,7 @@ bool PiRT::Connect()
 	}
 
 	// set up the gpio pins for the relay switches
+	IUResetSwitch( &OutputSwitchSP);
 	for ( unsigned int i = 0; i<GpioOutputVector.size(); i++ ) {
 		gpio->set_gpio_direction( GpioOutputVector[i].gpio_pin, true );
 		gpio->set_gpio_state( GpioOutputVector[i].gpio_pin, GpioOutputVector[i].inverted );
