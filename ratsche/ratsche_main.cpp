@@ -29,6 +29,7 @@ using namespace hgz;
 
 constexpr int MSQ_ID { 10 };
 constexpr unsigned long server_loop_delay_us { 10000UL };
+constexpr size_t MAX_MSG_LEN { 2048 };
 
 const string defaultTaskFile = "/tmp/ratsche_tasks";
 
@@ -103,7 +104,8 @@ int receive_message(int msqid, int* fromID, int toID, int* action, int* subactio
 	message_t rmsg;
 //	int pid=getpid();
 
-	size_t buf_length = sizeof(rmsg) ;
+//	size_t buf_length = sizeof(rmsg);
+	size_t buf_length = MAX_MSG_LEN;
 	int result;
 
 	unsigned long int cnt=0;
