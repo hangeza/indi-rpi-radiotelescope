@@ -31,7 +31,7 @@ constexpr int MSQ_ID { 10 };
 constexpr unsigned long server_loop_delay_us { 10000UL };
 constexpr size_t MAX_MSG_LEN { 2048 };
 
-const string defaultTaskFile = "/tmp/ratsche_tasks";
+const string defaultTaskFile = "/var/ratsche/ratsche_tasks";
 
 void Usage(const char* progname)
 {

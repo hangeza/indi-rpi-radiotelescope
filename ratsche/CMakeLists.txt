@@ -33,3 +33,6 @@ TARGET_LINK_LIBRARIES(ratsche
 
 # tell cmake where to install our executable
 install(TARGETS ratsche RUNTIME DESTINATION bin)
+install(CODE "execute_process(COMMAND mkdir -p /var/ratsche)")
+install(CODE "execute_process(COMMAND chown pi:users /var/ratsche)")
+install(CODE "execute_process(COMMAND chmod g+w /var/ratsche)")
