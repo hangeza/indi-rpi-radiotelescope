@@ -36,7 +36,7 @@ const string defaultTaskFile = "/tmp/ratsche_tasks";
 void Usage(const char* progname)
 {
 	cout<<"RaTSche - The Radiotelescope Task Scheduler"<<endl;
-	cout<<"v1.0 - HG Zaunick 2010-2011,2021"<<endl;
+	cout<<"v1.1 - HG Zaunick 2010-2011,2021"<<endl;
 	cout<<endl;
 	cout<<" Usage : "<<string(progname)<<"  [-vlEdph?] -k <keyID> -e|c|s <taskID> -a <taskfile> -x|o <path>"<<endl;
 	cout<<"  command line options are:   "<<endl;
@@ -44,6 +44,7 @@ void Usage(const char* progname)
 	cout<<"	 -p            export tasklist (for storage in file) to stdout"<<endl;
 	cout<<"	 -k <keyID>    use message queue with key keyID"<<endl;
 	cout<<"	 -a <taskfile> add task(s) supplied in file taskfile"<<endl;
+	cout<<"	 -a -          add single task supplied through stdin"<<endl;
 	cout<<"	 -c <taskID>   cancel task with ID taskId"<<endl;
 	cout<<"	 -s <taskID>   stop task with ID taskId"<<endl;
 	cout<<"	 -e <taskID>   erase task with ID taskId"<<endl;
@@ -204,16 +205,9 @@ void export_tasks(std::ostream& ostr, const vector<task_t>& tasklist) {
    return;
 }
 
-int importTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
-	// parse file for following format:
-	// start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max_duration comment
-	ifstream infile(filename.c_str());
-	if (!infile.good() || infile.eof() || !infile.is_open()) return -1;
-	while (!infile.eof()) {
-		task_t task;
-		string line;
-		getline(infile,line);
-		if (line.empty()) continue;
+int parseStringForTask( const std::string& str, task_t& task ) {
+		string line(str);
+		if (line.empty()) return -1;
 		// remove comment lines
 		size_t found=line.find_first_of('#');
 		if (found!=string::npos) {
@@ -221,7 +215,7 @@ int importTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 		}
 		// remove leading spaces
 		while (!line.empty() && (isspace(line[0]) || isdigit(line[0])==0)) line.erase(0,1);
-		if (line.empty()) continue;
+		if (line.empty()) return -1;
 		// parse line
 		istringstream isline(line);
 		string _date,_time,_mode,_user,_prio;
@@ -361,8 +355,21 @@ int importTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
 		starttm.tm_sec=(int)s;
 		starttm.tm_isdst=-1;
 		task.start_time=mktime(&starttm);
+		return 0;
+}
 
-		tasklist.push_back(task);
+int importTasklistFromFile(const string& filename, vector<task_t>& tasklist) {
+	// parse file for following format:
+	// start-time mode priority alt-period user x1 y1 x2 y2 step1 step2 int-time ref-cycle max_duration comment
+	ifstream infile(filename.c_str());
+	if (!infile.good() || infile.eof() || !infile.is_open()) return -1;
+	while (!infile.eof()) {
+		task_t task;
+		string line;
+		getline(infile,line);
+		if ( parseStringForTask(line, task) == 0 ) {
+			tasklist.push_back(task);
+		}
 	}
 	return 0;
 }
@@ -614,11 +621,26 @@ int main(int argc, char *argv[])
 
 	key = MSQ_ID;
 
+/*	
+int main() {
+    char buf[BUFSIZ];
+    fgets(buf, sizeof buf, stdin);
+    if (buf[strlen(buf)-1] == '\n') {
+        // read full line
+    } else {
+        // line was truncated
+    }
+    return 0;
+}
+*/
+	
+	
 	// command line parsing
 	int ch;
 	string infile = "";
 	string execpath = "";
 	string datapath = "/tmp/ratsche";
+    char buf[BUFSIZ];
 
 	while ((ch = getopt(argc, argv, "vlpdEe:a:s:c:k:x:o:h?")) != EOF) {
 		switch ((char)ch) {
@@ -628,7 +650,13 @@ int main(int argc, char *argv[])
 				break;
 			case 'a':
 				// add request only once to the action list
-				if (optarg!="" && infile=="") {
+				//printf("optarg: %s", optarg);
+				if ( !strcmp(optarg ,"-") ) {
+					//printf("reading from stdin\n");
+					fgets(buf, sizeof buf, stdin);
+					printf("reading: %s", buf);
+					cmdLineActions.push_back(make_pair((int)AC_ADD,1));
+				} else if (optarg != "" && infile == "") {
 					infile=string(optarg);
 					cmdLineActions.push_back(make_pair((int)AC_ADD,0));
 				}
@@ -1003,19 +1031,30 @@ int main(int argc, char *argv[])
 			else if (verbose>2) printf("sent CANCEL\n");
 		} else if ( act == AC_ADD ) {
 			// add task(s)
+			task_t task;
 			vector<task_t> tasklist;
-			if (importTasklistFromFile(infile, tasklist)!=0) {
-				error(argv[0], "reading task file");
-			} else {
-				// submit tasklist
-				// loop over tasks
-				for (int i=0; i<tasklist.size(); i++) {
-					if (send_message(msqid, getpid(), 1, AC_ADD, 0, &tasklist[i]) < 0) {
-						perror("send_message in adding a task failed");
-						exit(1);
+			switch ( subact ) {
+				case 0:
+					if (importTasklistFromFile(infile, tasklist) !=0 ) {
+						error(argv[0], "reading task file");
 					}
-					else if (verbose>2) printf("added Task\n");
+					break;
+				case 1:
+					if ( parseStringForTask(string(buf), task) == 0 ) {
+						tasklist.push_back(task);
+					}
+					break;
+				default:
+					break;
+			};
+			// submit tasklist
+			// loop over tasks
+			for (int i=0; i<tasklist.size(); i++) {
+				if (send_message(msqid, getpid(), 1, AC_ADD, 0, &tasklist[i]) < 0) {
+					perror("send_message in adding a task failed");
+					exit(1);
 				}
+				else if (verbose>2) printf("added Task\n");
 			}
 		}
 	}
