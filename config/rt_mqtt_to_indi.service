@@ -1,0 +1,16 @@
+[Unit]
+Description=MQTT to Indiserver Bridge
+Requires=indiserver.service
+BindsTo=indiserver.service
+After=indiserver.service sockets.target network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/bin/bash -c 'exec $(which rt_mqtt_to_indi)'
+ExecStop=/bin/kill $MAINPID
+Restart=always
+TimeoutSec=10
+
+[Install]
+WantedBy=multi-user.target

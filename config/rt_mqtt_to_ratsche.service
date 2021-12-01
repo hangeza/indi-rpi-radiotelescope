@@ -1,0 +1,16 @@
+[Unit]
+Description=MQTT to Ratsche Bridge
+Requires=ratsche.service
+BindsTo=ratsche.service
+After=ratsche.service sockets.target network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/bin/bash -c 'exec $(which rt_mqtt_to_ratsche)'
+ExecStop=/bin/kill $MAINPID
+Restart=always
+TimeoutSec=10
+
+[Install]
+WantedBy=multi-user.target

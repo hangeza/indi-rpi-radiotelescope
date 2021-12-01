@@ -1,0 +1,36 @@
+#!/bin/bash
+# read mqtt messages in a loop and send them to ratsche
+# 01.12.2021 antrares
+
+mqtt_host="*****"
+mqtt_port="*****"
+mqtt_id="*****"
+mqtt_topic="*****"
+
+while read line; do
+
+prop=${line%%|*}
+value=${line##*|}
+
+case $prop in
+	"create")
+	echo $value | ratsche -a - 2>/dev/null
+	;;
+	"stop")
+		ratsche -s $value 2>/dev/null
+	;;
+	"cancel")
+		ratsche -c $value 2>/dev/null
+	;;
+	"erase")
+		if [ $value == "all" ]; then
+		ratsche -E 2>/dev/null
+		else
+		ratsche -e $value 2>/dev/null
+		fi
+	;;
+	*)
+	;;
+esac
+
+done < <(mosquitto_sub --quiet -h $mqtt_host  -p $mqtt_port  -i $mqtt_id  -t $mqtt_topic)

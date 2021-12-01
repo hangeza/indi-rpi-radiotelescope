@@ -7,10 +7,10 @@
 
 DELAY=10.0
 
-mqtt_host="antrares.tk"
-mqtt_port="43580"
-mqtt_id="STW-RT300-Ratsche"
-mqtt_topic="STW/RT300/RATSCHE/status"
+mqtt_host="*****"
+mqtt_port="*****"
+mqtt_id="*****"
+mqtt_topic="*****"
 
 
 while :
@@ -18,9 +18,8 @@ do
 
 sleep $DELAY
 
-ratsche_msg=$(ratsche -l)
+ratsche_msg=$(ratsche -l 2>/dev/null)
 
-#echo "$ratsche_msg"
 mosquitto_pub --quiet -h $mqtt_host  -p $mqtt_port  -i $mqtt_id  -t $mqtt_topic  -m "$ratsche_msg"
 
 done
