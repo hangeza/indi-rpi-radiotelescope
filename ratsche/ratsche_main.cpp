@@ -540,6 +540,7 @@ RTTask* fromMsgTask(const task_t& msgtask)
 			break;
 	}
 	task->SetMaxRunTime(msgtask.duration);
+	task->SetElapsedTime(msgtask.elapsed);
 	task->SetComment(msgtask.comment);
 	task->SetUser(msgtask.user);
 	task->SetState( (RTTask::TASKSTATE)msgtask.status );

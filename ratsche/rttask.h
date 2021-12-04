@@ -92,6 +92,7 @@ class RTTask
 		inline void SetState( TASKSTATE state ) { fState = state; }
 		double Eta() const;
 		double ElapsedTime() const { return fElapsedTime; }
+		void SetElapsedTime(double elapsed) { fElapsedTime=elapsed; }
 		double MaxRunTime() const { return fMaxRunTime; }
 		void SetMaxRunTime(double runtime) { fMaxRunTime=runtime; }
 		static int NumTasks() { return fNumTasks; }

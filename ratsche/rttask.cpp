@@ -212,7 +212,7 @@ void RTTask::Process()
 			// max. runtime constraint fulfilled; stop the measurement by force
 			Stop();
 			if (fVerbose>3) cout<<"RTTask::Process(): forcefully stopped task - maximum runtime exceeded"<<endl;
-			fState=STOPPED;
+			fState=FINISHED;
 			//fElapsedTime=fMaxRunTime;
 		}
 		return;
