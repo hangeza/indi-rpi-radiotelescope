@@ -2,7 +2,7 @@
 Description=MQTT to Ratsche Bridge
 Requires=ratsche.service
 BindsTo=ratsche.service
-After=ratsche.service sockets.target network-online.target
+After=ratsche.service network-online.target
 
 [Service]
 Type=simple
@@ -10,6 +10,7 @@ User=pi
 ExecStart=/bin/bash -c 'exec $(which rt_mqtt_to_ratsche)'
 ExecStop=/bin/kill $MAINPID
 Restart=always
+RestartSec=5s
 TimeoutSec=10
 
 [Install]
