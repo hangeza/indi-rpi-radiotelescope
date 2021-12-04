@@ -7,7 +7,8 @@ The main features are:
 - Abstraction to the hardware is managed through a custom Instrument-Neutral-Device-Interface (INDI) driver, which allows access to the scope through the quasi-standard XML-message-based INDI protocol. INDI is utilized in many remote observatories.
 - An observation task manager (Radio Telescope Task Scheduler - RaTSche) which runs as daemon and manages tasks such as measurements, parking, maintenance etc. New tasks are added through a message queue interface e.g. through the included command-line-interface (CLI) client which allows easy integration into web-based interfaces.
 - A collection of bash scripts which allow for more complex measurement tasks, i.e. 2d scans in horizontal and equatorial coordinates, transit scans, tracking measurements. The scripts are installed through CMake in the system's binary location together with indi-pirt and ratsche and are invoked by the ratsche daemon when required.
-- systemd service files for indiserver and ratsche daemon to have the complete control chain started at boot time. These are installed into the according system locations by the cmake scripts, too.
+- Four bash MQTT bridges which translate the indi and ratsche messages into an MQTT telemetry stream and vice versa: indi->MQTT, MQTT->indi, ratsche->MQTT and MQTT->ratsche
+- systemd service files for indiserver, ratsche daemon and the MQTT bridges to have the complete control chain started at boot time. These are installed into the according system locations by the cmake scripts, too.
 
 ## Howto build and install PiRaTe
 First, you need all the packages installed, that the driver depends on. Copy&Pasting following command line should do this job:
@@ -41,4 +42,4 @@ These steps have to be executed only once. The indi driver as well as the task s
     systemctl status indiserver.service
     systemctl status ratsche.service
 
-The output should not contain critical messages.
+The output should not contain any critical messages.
