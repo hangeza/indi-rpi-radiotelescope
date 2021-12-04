@@ -824,7 +824,7 @@ int main() {
 					switch (action) {
 						case AC_PING:
 							// received ping, send back echo
-							syslog (LOG_DEBUG, "received PING message, sending back echo");
+							//syslog (LOG_DEBUG, "received PING message, sending back echo");
 							if (send_message(msqid, 1, fromid, AC_PING, 0, NULL) < 0) {
 								syslog (LOG_CRIT, "unable to send message to message queue");
 								perror("send_message");
@@ -835,7 +835,7 @@ int main() {
 							break;
 						case AC_LIST:
 							// List all tasks
-							syslog (LOG_INFO, "received LIST request, sending back list of %d task(s)", tasklist.size());
+							//syslog (LOG_DEBUG, "received LIST request, sending back list of %d task(s)", tasklist.size());
 							if (!tasklist.size()) {
 								// send empty list
 								if (send_message(msqid, 1, fromid, AC_LIST, 0, NULL, 1, 0) < 0) {
@@ -854,13 +854,13 @@ int main() {
 						case AC_ADD:
 							// add task
 							task.id=++lastTaskID;
-							syslog (LOG_INFO, "received ADD request, adding new task (id=%d) to list", task.id);
+							syslog (LOG_DEBUG, "received ADD request, adding new task (id=%d) to list", task.id);
 							taskptr=fromMsgTask(task);
 							if (taskptr!=NULL) tasklist.push_back(taskptr);
 							break;
 						case AC_DELETE:
 							// delete task
-							syslog (LOG_INFO, "received DELETE request, deleting task (id=%d) from list", subaction);
+							syslog (LOG_DEBUG, "received DELETE request, deleting task (id=%d) from list", subaction);
 							for (vector<RTTask*>::iterator it=tasklist.begin(); it!=tasklist.end(); ++it) {
 								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
 									if ( (*it)->State() == RTTask::ACTIVE ) {
@@ -876,7 +876,7 @@ int main() {
 							break;
 						case AC_STOP:
 							// stop task
-							syslog (LOG_INFO, "received STOP request, stopping task (id=%d)", subaction);
+							syslog (LOG_DEBUG, "received STOP request, stopping task (id=%d)", subaction);
 							for (vector<RTTask*>::iterator it=tasklist.begin(); it!=tasklist.end(); ++it) {
 								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
 									(*it)->Stop();
@@ -887,7 +887,7 @@ int main() {
 							break;
 						case AC_CANCEL:
 							// cancel task
-							syslog (LOG_INFO, "received CANCEL request, cancelling task (id=%d)", subaction);
+							syslog (LOG_DEBUG, "received CANCEL request, cancelling task (id=%d)", subaction);
 							for (vector<RTTask*>::iterator it=tasklist.begin(); it!=tasklist.end(); ++it) {
 								if ( (*it != NULL) && ((*it)->ID() == subaction) ) {
 									(*it)->Cancel();
