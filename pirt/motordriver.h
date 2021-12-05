@@ -58,7 +58,7 @@ public:
 		int Fault; ///< GPIO pin of the fault signal (low-active input). The internal pull-up will be enabled when using this signal)
     };
 
-    MotorDriver()=delete;
+	MotorDriver()=delete;
 	/**
 	* @brief The main constructor.
 	* Initializes an object with the given gpio object pointer and gpio pin configuration.
