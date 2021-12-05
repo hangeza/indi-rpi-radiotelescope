@@ -74,22 +74,25 @@ public:
 				 std::shared_ptr<ADS1115> adc = nullptr, 
 				 std::uint8_t adc_channel = 0   );
 	
-    ~MotorDriver();
+	~MotorDriver();
 
-    [[nodiscard]] auto getPinConfig() const -> Pins { return fPins; }
+	[[nodiscard]] auto getPinConfig() const -> Pins { return fPins; }
 	void setPwmFrequency(unsigned int freq);
 	
 	void move(float speed_ratio);    
-    void stop();
-    void emergencyStop();
+	void stop();
+	void emergencyStop();
 	[[nodiscard]] auto isFault() -> bool;
-    [[nodiscard]] auto isInitialized() const -> bool { return fActiveLoop; }
-    [[nodiscard]] auto currentSpeed() -> float;
+	[[nodiscard]] auto isInitialized() const -> bool { return fActiveLoop; }
+	[[nodiscard]] auto currentSpeed() -> float;
 	[[nodiscard]] auto hasFaultSense() const -> bool { return (fPins.Fault > 0); }
 	[[nodiscard]] auto hasEnable() const -> bool { return (fPins.Enable > 0); }
 	[[nodiscard]] auto hasDualDir() const -> bool { return ( (fPins.DirA > 0) && (fPins.DirB > 0)); }
-    [[nodiscard]] auto hasAdc() const -> bool { return (fAdc != nullptr); }
-    [[nodiscard]] auto readCurrent() -> double;
+	[[nodiscard]] auto hasAdc() const -> bool { return (fAdc != nullptr); }
+	[[nodiscard]] auto readCurrent() -> double;
+	[[nodiscard]] auto readMaxCurrent() -> double;
+	void resetMaxCurrent();
+	
 	void setEnabled(bool enable);
 	[[nodiscard]] auto adc() -> std::shared_ptr<ADS1115>& { return fAdc; }
 
@@ -112,6 +115,7 @@ private:
 	std::uint8_t fAdcChannel { 0 };
 	//double fVoltageOffset { 0. };
 	double fCurrent { 0. };
+	double fMaxCurrent { 0. };
 
     std::unique_ptr<std::thread> fThread { nullptr };
 

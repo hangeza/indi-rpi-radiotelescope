@@ -152,6 +152,7 @@ void MotorDriver::threadLoop()
 			double _current = ( voltage - fOffsetBuffer.mean() ) * MOTOR_CURRENT_FACTOR;
 			fMutex.lock();
 			fCurrent = _current;
+			if ( _current > fMaxCurrent ) fMaxCurrent = _current;
 			fUpdated = true;
 			fMutex.unlock();
 			cycle_counter = adc_measurement_rate_loop_cycles;
@@ -175,6 +176,18 @@ auto MotorDriver::readCurrent() -> double
 	std::lock_guard<std::mutex> lock(fMutex);
 	fUpdated = false;
 	return (fCurrent);
+}
+
+auto MotorDriver::readMaxCurrent() -> double 
+{ 
+	std::lock_guard<std::mutex> lock(fMutex);
+	return (fMaxCurrent);
+}
+
+void MotorDriver::resetMaxCurrent()
+{
+	std::lock_guard<std::mutex> lock(fMutex);
+	fMaxCurrent = 0.;
 }
 
 auto MotorDriver::isFault() -> bool {
