@@ -544,7 +544,7 @@ RTTask* fromMsgTask(const task_t& msgtask)
 	task->SetComment(msgtask.comment);
 	task->SetUser(msgtask.user);
 	task->SetState( (RTTask::TASKSTATE)msgtask.status );
-	if ( task->State() == RTTask::TASKSTATE::ACTIVE ) task->SetState( RTTask::TASKSTATE::CANCELLED );
+	if ( task->State() == RTTask::TASKSTATE::ACTIVE ) task->SetState( RTTask::TASKSTATE::STOPPED );
 	return task;
 }
 
