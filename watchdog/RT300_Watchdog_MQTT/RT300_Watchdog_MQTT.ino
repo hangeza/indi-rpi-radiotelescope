@@ -9,10 +9,13 @@
 static byte mac[] = {0x00,0x22,0xF9,0x01,0x70,0xF4};
 IPAddress pingAddr(172,16,2,12);
 
-SOCKET pingSocket = 1;
+
 EthernetClient ethClient;
 EthernetClient pingClient;
 PubSubClient mqttclient(ethClient);
+
+SOCKET pingSocket = 1;
+char buffer [256];
 EthernetICMPPing ping(pingSocket, (uint16_t)random(0, 255));
 
 boolean             watchdog_state = false;
@@ -40,43 +43,42 @@ void setup() {
   pinMode(RELAY2,OUTPUT);
    
   Ethernet.begin(mac);
-  mqttclient.setServer("antrares.tk", 43580);
+  mqttclient.setServer("xxxxx.xx", xxxx);
   mqttclient.setCallback(callback);
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-    payload[length] = '\0';
-    String MqttMessage = String((char*)payload);
-
- if (MqttMessage == "WDT_OFF"){
+    char *cstring = (char *) payload;
+    cstring[length] = '\0';
+  if (strcmp(cstring, "WDT_OFF") == 0) {
     watchdog_state = false;
     digitalWrite(STATUSLED, HIGH);
   }
-  if (MqttMessage == "WDT_ON"){
+  if (strcmp(cstring, "WDT_ON") == 0) {
     ping_cycles = 0;
     watchdog_state = true;
     digitalWrite(STATUSLED, LOW);
   }
-  if (MqttMessage == "PWR_OFF"){
+  if (strcmp(cstring, "PWR_OFF") == 0) {
     digitalWrite(RELAY1, HIGH);
     digitalWrite(RELAY2, HIGH);
     relay_state = false;
     digitalWrite(RELAYLED1, LOW);
     digitalWrite(RELAYLED2, LOW);      
-    }
-    if (MqttMessage == "PWR_ON"){
-      digitalWrite(RELAY1, LOW);
-      digitalWrite(RELAY2, LOW);
-      relay_state = true;
-      digitalWrite(RELAYLED1, HIGH);
-      digitalWrite(RELAYLED2, HIGH);      
+  }
+  if (strcmp(cstring, "PWR_ON") == 0) {
+    digitalWrite(RELAY1, LOW);
+    digitalWrite(RELAY2, LOW);
+    relay_state = true;
+    digitalWrite(RELAYLED1, HIGH);
+    digitalWrite(RELAYLED2, HIGH);      
   }
   MqttReport();
 }
 
 void reconnect() {
-  if (mqttclient.connect("STW-RT300_Watchdog")) {
-    mqttclient.subscribe("STW/RT300/WATCHDOG/command");
+  if (mqttclient.connect("xxxxx_Watchdog")) {
+    mqttclient.subscribe("xxxxx/WATCHDOG/command");
   } else {
       delay(5000);
     }
@@ -110,16 +112,16 @@ void MqttReport() {
     reconnect();
   }
   if (!watchdog_state && !relay_state) {
-    mqttclient.publish("STW/RT300/WATCHDOG/status", "0|0" );
+    mqttclient.publish("xxxxx/WATCHDOG/status", "0|0" );
   } 
   if (!watchdog_state && relay_state) {
-    mqttclient.publish("STW/RT300/WATCHDOG/status", "0|1" );
+    mqttclient.publish("xxxxx/WATCHDOG/status", "0|1" );
     }
   if (watchdog_state && !relay_state) {
-    mqttclient.publish("STW/RT300/WATCHDOG/status", "1|0" );
+    mqttclient.publish("xxxxx/WATCHDOG/status", "1|0" );
   } 
   if (watchdog_state && relay_state) {
-    mqttclient.publish("STW/RT300/WATCHDOG/status", "1|1" );
+    mqttclient.publish("xxxxx/WATCHDOG/status", "1|1" );
     }
   if (!watchdog_state) {
     timer = millis();
