@@ -28,14 +28,14 @@ The binaries, shell scripts and systemd unit files should then be installed in t
 The driver depends on the pigpiod daemon and indiserver which both must be installed and started first:
 ```
 sudo apt install pigpiod indi-bin
-sudo systemctl enable pigpiod.service && sudo systemctl start pigpiod.service
+sudo systemctl enable --now pigpiod.service
 ```
 
 ## Activate and Start PiRaTe
 Now activate the driver and ratsche via systemd services:
 
-    sudo systemctl --now enable indiserver.service
-    sudo systemctl --now enable ratsche.service
+    sudo systemctl enable --now indiserver.service
+    sudo systemctl enable --now ratsche.service
 
 These steps have to be executed only once. The indi driver as well as the task scheduler should now be running which may be checked by:
 
