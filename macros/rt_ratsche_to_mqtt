@@ -18,7 +18,7 @@ do
 
 sleep $DELAY
 
-ratsche_msg=$(ratsche -l 2>/dev/null)
+ratsche_msg=$(ratsche -lr 2>/dev/null)
 
 mosquitto_pub --quiet -h $mqtt_host  -p $mqtt_port  -i $mqtt_id  -t $mqtt_topic  -m "$ratsche_msg"
 
