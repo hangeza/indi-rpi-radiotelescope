@@ -91,6 +91,7 @@ int send_message(int msqid, int fromID, int toID, int action, int subaction, tas
 	unsigned long int cnt=0;
 	while ((result=msgsnd(msqid, &smsg, buf_length, IPC_NOWAIT)) < 0 && cnt++<100) {
 		perror("msgsnd");
+        usleep(10000UL);
 	}
 	if (result<0) {
 		syslog (LOG_CRIT, "error in msgsnd: unable to access message queue");
@@ -987,7 +988,7 @@ int main() {
 			}
 			else if (verbose>2) printf("sent LIST\n");
 
-			usleep(10000);
+			usleep(20000);
 
 			unsigned long int ctr=0;
 			int msgcount=-1;
@@ -1000,8 +1001,8 @@ int main() {
 					tasklist.push_back(task);
 					if (verbose>3) cout<<"rx task entry: serid="<<serid<<" , sercnt="<<sercnt<<endl;
 				} else {
-					// sleep 10ms
-					usleep(10000);
+					// sleep 25ms
+					usleep(25000);
 					ctr++;
 				}
 			}
