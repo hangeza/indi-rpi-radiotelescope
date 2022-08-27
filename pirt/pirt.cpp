@@ -118,7 +118,7 @@ const std::vector<I2cVoltageDef> supply_voltage_defs { 	{ "+3.3V", 3.3, 2., VOLT
 														{ "+24V", 24., 11., VOLTAGE_MONITOR_ADC_ADDR, 3, "" } };
 
 const std::vector<I2cVoltageDef> measurement_voltage_defs {	{ "Analog1", 0., 55.5556, MOTOR_ADC_ADDR, 2, "dB" },
-															{ "Analog2", 0., 1., MOTOR_ADC_ADDR, 3, "V" } };
+															{ "Analog2", 0., 55.5556, MOTOR_ADC_ADDR, 3, "dB" } };
 
 const HorCoords DefaultParkPosition { 180., 89.5 };
 
