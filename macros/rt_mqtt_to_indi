@@ -53,6 +53,14 @@ case $prop in
 		indi_setprop "Pi Radiotelescope.GPIO_OUTPUTS.GPIO_OUT0=Off" 2>/dev/null
 		fi
 	;;
+	"gpio1")
+		if [ $value == "1" ]; then
+		indi_setprop "Pi Radiotelescope.GPIO_OUTPUTS.GPIO_OUT1=On" 2>/dev/null
+		fi
+		if [ $value == "0" ]; then
+		indi_setprop "Pi Radiotelescope.GPIO_OUTPUTS.GPIO_OUT1=Off" 2>/dev/null
+		fi
+	;;
 	"rt_abort")
 		if [ $value == "1" ]; then
 		indi_setprop "Pi Radiotelescope.TELESCOPE_ABORT_MOTION.ABORT=On" 2>/dev/null

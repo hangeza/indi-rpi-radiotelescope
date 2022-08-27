@@ -18,7 +18,11 @@ indi_props=(
 "Pi Radiotelescope.TELESCOPE_PARK.PARK"
 "Pi Radiotelescope.TELESCOPE_PARK.UNPARK"
 "Pi Radiotelescope.GPIO_OUTPUTS.GPIO_OUT0"
+"Pi Radiotelescope.GPIO_OUTPUTS.GPIO_OUT1"
+"Pi Radiotelescope.GPIO_OUTPUTS.GPIO_OUT2"
+"Pi Radiotelescope.GPIO_OUTPUTS.GPIO_OUT3"
 "Pi Radiotelescope.MEASUREMENTS.MEASUREMENT0"
+"Pi Radiotelescope.MEASUREMENTS.MEASUREMENT1"
 "Pi Radiotelescope.INT_TIME.TIME"
 "Pi Radiotelescope.HORIZONTAL_EOD_COORD.AZ"
 "Pi Radiotelescope.HORIZONTAL_EOD_COORD.ALT"
@@ -118,8 +122,32 @@ case $prop in
 		rt_gpio0=0
 		fi
 	;;
+	"GPIO_OUTPUTS.GPIO_OUT1")
+		if [ $value == "On" ]; then
+		rt_gpio1=1
+		else
+		rt_gpio1=0
+		fi
+	;;
+	"GPIO_OUTPUTS.GPIO_OUT2")
+		if [ $value == "On" ]; then
+		rt_gpio2=1
+		else
+		rt_gpio2=0
+		fi
+	;;
+	"GPIO_OUTPUTS.GPIO_OUT3")
+		if [ $value == "On" ]; then
+		rt_gpio3=1
+		else
+		rt_gpio3=0
+	fi
+	;;
 	"MEASUREMENTS.MEASUREMENT0")
 		rt_adc0=$(printf "%1.3f" $value)
+	;;
+	"MEASUREMENTS.MEASUREMENT1")
+		rt_adc1=$(printf "%1.3f" $value)
 	;;
 	"INT_TIME.TIME")
 		rt_inttime=$value
@@ -322,7 +350,11 @@ mqtt_props=(
 "$rt_trackstate |"
 "$rt_park |"
 "$rt_gpio0 |"
+"$rt_gpio1 |"
+"$rt_gpio2 |"
+"$rt_gpio3 |"
 "$rt_adc0 |"
+"$rt_adc1 |"
 "$rt_inttime |"
 "$rt_az |"
 "$rt_alt |"
@@ -378,7 +410,7 @@ fi
 if [ $rt_connection == "1" ]; then
 	mosquitto_pub --quiet -h $mqtt_host  -p $mqtt_port  -i $mqtt_id  -t $mqtt_topic  -m $(printf "%s" ${mqtt_props[@]})
 	else
-	mosquitto_pub --quiet -h $mqtt_host  -p $mqtt_port  -i $mqtt_id  -t $mqtt_topic  -m "$rt_connection||||||||||||||||||||||||||||||||||||||||||||||||||"
+	mosquitto_pub --quiet -h $mqtt_host  -p $mqtt_port  -i $mqtt_id  -t $mqtt_topic  -m "$rt_connection||||||||||||||||||||||||||||||||||||||||||||||||||||||"
 fi
 
 done
