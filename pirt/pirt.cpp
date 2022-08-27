@@ -120,7 +120,7 @@ const std::vector<I2cVoltageDef> supply_voltage_defs { 	{ "+3.3V", 3.3, 2., VOLT
 const std::vector<I2cVoltageDef> measurement_voltage_defs {	{ "Analog1", 0., 55.5556, MOTOR_ADC_ADDR, 2, "dB" },
 															{ "Analog2", 0., 55.5556, MOTOR_ADC_ADDR, 3, "dB" } };
 
-const HorCoords DefaultParkPosition { 180., 89.5 };
+const HorCoords DefaultParkPosition { 180., 89.7 };
 
 // VSTW Radebeul, Google-Maps: 51°06'58.1"N 13°37'17.3"E
 const std::map<INDI::Telescope::TelescopeLocation, double> DefaultLocation =
