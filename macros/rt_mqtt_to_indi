@@ -99,6 +99,16 @@ case $prop in
 		esac
 		indi_setprop "$cmd" 2>/dev/null
 	;;
+	"rt_stop")
+		case $value in
+			"N") cmd="Pi Radiotelescope.TELESCOPE_MOTION_NS.MOTION_NORTH=Off" ;;
+			"S") cmd="Pi Radiotelescope.TELESCOPE_MOTION_NS.MOTION_SOUTH=Off" ;;
+			"W") cmd="Pi Radiotelescope.TELESCOPE_MOTION_WE.MOTION_WEST=Off" ;;
+			"E") cmd="Pi Radiotelescope.TELESCOPE_MOTION_WE.MOTION_EAST=Off" ;;
+			*) ;;
+		esac
+		indi_setprop "$cmd" 2>/dev/null
+	;;
 	*)
 	;;
 esac
