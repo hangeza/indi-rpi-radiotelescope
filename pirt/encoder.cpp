@@ -7,6 +7,7 @@
 
 #include "encoder.h"
 #include "gpioif.h"
+#include "utility.h"
 
 #define DEFAULT_VERBOSITY 1
 
@@ -15,12 +16,6 @@ namespace PiRaTe {
 unsigned int SsiPosEncoder::fNrInstances = 0;
 constexpr std::chrono::milliseconds loop_delay { 50 };
 constexpr double MAX_TURNS_PER_SECOND { 10. };
-
-template <typename T>
-constexpr int sgn(T val)
-{
-    return (T(0) < val) - (val < T(0));
-}
 
 auto SsiPosEncoder::intToBinaryString(unsigned long number) -> std::string
 {

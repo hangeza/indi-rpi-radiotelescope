@@ -14,6 +14,13 @@
 
 namespace PiRaTe {
 
+// helper function for determination of a value's sign
+template <typename T>
+constexpr int sgn(T val)
+{
+    return (T(0) < val) - (val < T(0));
+}
+
 template <typename T, std::size_t N>
 class Ringbuffer {
 public:

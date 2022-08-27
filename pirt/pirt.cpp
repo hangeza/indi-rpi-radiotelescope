@@ -24,10 +24,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <ads1115.h>
-#include <encoder.h>
-#include <gpioif.h>
-#include <motordriver.h>
+#include "ads1115.h"
+#include "encoder.h"
+#include "gpioif.h"
+#include "motordriver.h"
 
 namespace Connection {
 class Interface;

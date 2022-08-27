@@ -1,11 +1,7 @@
 #include <iostream>
 #include <stdio.h>
-//#include <pigpio.h>
 
-//#include <stdint.h>
 #include <unistd.h>
-//#include <stdlib.h>
-//#include <getopt.h>
 
 #include "gpioif.h"
 

@@ -17,22 +17,6 @@ constexpr std::chrono::milliseconds loop_delay { 5000 };
 const std::vector<std::string> tempFileNameCandidates { "temp", "temperature" };
 constexpr std::size_t MAX_DEVICES { 64 };
 
-// helper functions for compilation with c++11
-// remove, when compiling with c++14 and add std:: to the lines where these functions are used
-template <class T>
-const T& clamp(const T& v, const T& lo, const T& hi)
-{
-    assert(!(hi < lo));
-    return (v < lo) ? lo : (hi < v) ? hi
-                                    : v;
-}
-
-template <typename T>
-constexpr int sgn(T val)
-{
-    return (T(0) < val) - (val < T(0));
-}
-
 RpiTemperatureMonitor::RpiTemperatureMonitor(const std::string device_path)
     : fDevPath { std::move(device_path) }
 {

@@ -6,30 +6,15 @@
 #include <string>
 #include <unistd.h>
 
+#include "ads1115.h"
 #include "ads1115_measurement.h"
-#include <ads1115.h>
+#include "utility.h"
 
 #define DEFAULT_VERBOSITY 1
 
 namespace PiRaTe {
 
 constexpr std::chrono::microseconds loop_delay { 10000L };
-
-// helper functions for compilation with c++11
-// remove, when compiling with c++14 and add std:: to the lines where these functions are used
-template <class T>
-const T& clamp(const T& v, const T& lo, const T& hi)
-{
-    assert(!(hi < lo));
-    return (v < lo) ? lo : (hi < v) ? hi
-                                    : v;
-}
-
-template <typename T>
-constexpr int sgn(T val)
-{
-    return (T(0) < val) - (val < T(0));
-}
 
 Ads1115Measurement::Ads1115Measurement(std::string name,
     std::shared_ptr<ADS1115> adc,

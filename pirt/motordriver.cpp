@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <iostream>
@@ -6,9 +7,9 @@
 #include <string>
 #include <unistd.h>
 
+#include "ads1115.h"
 #include "motordriver.h"
-
-#include <ads1115.h>
+#include "utility.h"
 
 #define DEFAULT_VERBOSITY 1
 
@@ -21,22 +22,6 @@ constexpr double ramp_increment { static_cast<double>(loop_delay.count()) / ramp
 constexpr unsigned int HW_PWM1_PIN { 12 };
 constexpr unsigned int HW_PWM2_PIN { 13 };
 constexpr double MOTOR_CURRENT_FACTOR { 1. / 0.14 }; //< conversion factor for motor current sense in A/V
-
-// helper functions for compilation with c++11
-// remove, when compiling with c++14 and add std:: to the lines where these functions are used
-template <class T>
-const T& clamp(const T& v, const T& lo, const T& hi)
-{
-    assert(!(hi < lo));
-    return (v < lo) ? lo : (hi < v) ? hi
-                                    : v;
-}
-
-template <typename T>
-constexpr int sgn(T val)
-{
-    return (T(0) < val) - (val < T(0));
-}
 
 MotorDriver::MotorDriver(std::shared_ptr<GPIO> gpio, Pins pins, bool invertDirection, std::shared_ptr<ADS1115> adc, std::uint8_t adc_channel)
     : fGpio { gpio }
@@ -223,7 +208,7 @@ void MotorDriver::setSpeed(float speed_ratio)
         }
         fCurrentDir = dir;
     }
-    float abs_speed_ratio = std::abs(clamp(speed_ratio, -1.f, 1.f));
+    float abs_speed_ratio = std::abs(std::clamp(speed_ratio, -1.f, 1.f));
     std::uint32_t duty_cycle { 0 };
     if ((static_cast<unsigned int>(fPins.Pwm) == HW_PWM1_PIN) || (static_cast<unsigned int>(fPins.Pwm) == HW_PWM2_PIN)) {
         // use hardware pwm
@@ -238,7 +223,7 @@ void MotorDriver::setSpeed(float speed_ratio)
 void MotorDriver::move(float speed_ratio)
 {
     const std::lock_guard<std::mutex> lock(fMutex);
-    fTargetDutyCycle = clamp(speed_ratio, -1.f, 1.f);
+    fTargetDutyCycle = std::clamp(speed_ratio, -1.f, 1.f);
 }
 
 void MotorDriver::stop()
