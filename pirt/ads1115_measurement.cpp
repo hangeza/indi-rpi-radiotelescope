@@ -122,4 +122,8 @@ void Ads1115Measurement::setIntTime( std::chrono::milliseconds ms ) {
 	fIntTime = ms;
 }
 
+void Ads1115Measurement::setFactor( double factor ) {
+    fFactor = factor;
+}
+
 } // namespace PiRaTe

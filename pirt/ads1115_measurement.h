@@ -51,6 +51,7 @@ public:
 	[[nodiscard]] auto factor() const -> double { return fFactor; }
 	[[nodiscard]] auto name() const -> std::string { return fName; }
 	void setIntTime( std::chrono::milliseconds ms );
+	void setFactor( double factor );
 
 	void registerVoltageReadyCallback(std::function<void(double)> fn) {	fVoltageReadyFn = fn; }
 
