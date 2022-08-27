@@ -55,8 +55,8 @@ constexpr double TRACK_ACCURACY_ALT { 0.04 }; //< tracking accuracy for Alt axis
 
 constexpr unsigned int NR_SLEW_RATES { 5 }; //< number of slew speeds available for this scope
 
-constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.07 }; //< minimum applicable motor throttle, Az motor
-constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.15 }; //< minimum applicable motor throttle, Alt motor
+constexpr double MIN_AZ_MOTOR_THROTTLE_DEFAULT { 0.04 }; //< minimum applicable motor throttle, Az motor
+constexpr double MIN_ALT_MOTOR_THROTTLE_DEFAULT { 0.10 }; //< minimum applicable motor throttle, Alt motor
 constexpr double AZ_MOTOR_CURRENT_LIMIT_DEFAULT { 4.1 }; //< absolute motor current limit for Az motor in Ampere
 constexpr double ALT_MOTOR_CURRENT_LIMIT_DEFAULT { 3.0 }; //< absolute motor current limit for Alt motor in Ampere
 //constexpr double MOTOR_CURRENT_FACTOR { 1./0.14 }; //< conversion factor for motor current sense in A/V
