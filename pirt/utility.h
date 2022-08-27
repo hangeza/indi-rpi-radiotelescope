@@ -14,7 +14,6 @@
 
 namespace PiRaTe {
 
-	
 template <typename T, std::size_t N>
 class Ringbuffer {
 public:
@@ -29,7 +28,6 @@ private:
     std::size_t m_index;
     bool m_full { false };
 };
-
 
 // +++++++++++++++++++++++++++++++
 // implementation part starts here
