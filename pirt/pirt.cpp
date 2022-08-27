@@ -1462,7 +1462,9 @@ bool PiRT::ReadScopeStatus()
 		case SCOPE_TRACKING:
 			TargetCoordSystem = SYSTEM_HOR;
 			targetHorizontalCoords = Equ2Hor(targetEquatorialCoords);
+            [[fallthrough]];
 		case SCOPE_PARKING:
+            [[fallthrough]];
 		case SCOPE_SLEWING:
 			if (TargetCoordSystem == SYSTEM_EQ) {
 				//Equ2Hor(targetRA, targetDEC, &targetAz, &targetAlt);

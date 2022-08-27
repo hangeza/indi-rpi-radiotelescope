@@ -53,6 +53,8 @@ public:
 
   private:
     void threadLoop();
+
+    std::string fName { "GND" };
     std::shared_ptr<ADS1115> fAdc { nullptr };
 	bool fUpdated { false };
     bool fActiveLoop { false };
@@ -66,7 +68,6 @@ public:
 	double fVoltage { 0. };
 	Ringbuffer<double, 100> fBuffer { };
 
-	std::string fName { "GND" };
 	double fNominalVoltage { 0. };
 	double fLoLimit { -0.001 };
 	double fHiLimit { 0.001 };

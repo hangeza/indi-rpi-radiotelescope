@@ -118,7 +118,6 @@ void MotorDriver::threadLoop()
 {
 	std::size_t cycle_counter { adc_measurement_rate_loop_cycles };
 	auto lastReadOutTime = std::chrono::system_clock::now();
-	bool errorFlag = true;
 	while (fActiveLoop) {
 		auto currentTime = std::chrono::system_clock::now();
 		
@@ -127,7 +126,6 @@ void MotorDriver::threadLoop()
 			emergencyStop();
 		} else {
 			const std::lock_guard<std::mutex> lock(fMutex);
-			//fMutex.lock();
 			if (fTargetDutyCycle != fCurrentDutyCycle) {
 				fCurrentDutyCycle += ramp_increment * sgn( fTargetDutyCycle - fCurrentDutyCycle );
 				if ( std::abs(fTargetDutyCycle-fCurrentDutyCycle) < ramp_increment ) {
@@ -135,13 +133,11 @@ void MotorDriver::threadLoop()
 				}
 				setSpeed(fCurrentDutyCycle);
 			}
-			//fMutex.unlock();
 		}
 		if ( hasAdc() && !cycle_counter-- ) {
 			double voltage { 0. };
 			double conv_time { 0. };
-			if ( bool readout_guard = true ) {
-				//std::lock_guard<std::mutex> lock(fMutex);
+			if ( [[maybe_unused]] bool readout_guard = true ) {
 				// read current from adc
 				fMutex.lock();
 				voltage = fAdc->readVoltage(fAdcChannel);
@@ -212,11 +208,11 @@ void MotorDriver::setSpeed(float speed_ratio) {
 	if ( (static_cast<unsigned int>(fPins.Pwm) == HW_PWM1_PIN) || (static_cast<unsigned int>(fPins.Pwm) == HW_PWM2_PIN) ) {
 		// use hardware pwm
 		duty_cycle = 1000000U * abs_speed_ratio;
-		int res = fGpio->hw_pwm_set_value(static_cast<unsigned int>(fPins.Pwm), fPwmFreq, duty_cycle);
+		[[maybe_unused]] int result = fGpio->hw_pwm_set_value(static_cast<unsigned int>(fPins.Pwm), fPwmFreq, duty_cycle);
 		return;
 	}
 	duty_cycle = abs_speed_ratio * fPwmRange;
-	int res = fGpio->pwm_set_value(static_cast<unsigned int>(fPins.Pwm), duty_cycle);
+	[[maybe_unused]] int result = fGpio->pwm_set_value(static_cast<unsigned int>(fPins.Pwm), duty_cycle);
 }
 
 void MotorDriver::move(float speed_ratio) {
@@ -244,7 +240,7 @@ void MotorDriver::setPwmFrequency(unsigned int freq)
 	if (freq == fPwmFreq) return;
 	if ( !(fPins.Pwm == HW_PWM1_PIN || fPins.Pwm == HW_PWM2_PIN) ) {
 		fMutex.lock();
-		int res = fGpio->pwm_set_frequency(static_cast<unsigned int>(fPins.Pwm), freq);
+		[[maybe_unused]] int result = fGpio->pwm_set_frequency(static_cast<unsigned int>(fPins.Pwm), freq);
 		fMutex.unlock();
 	}
 	fPwmFreq = freq;

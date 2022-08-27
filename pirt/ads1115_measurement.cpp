@@ -68,12 +68,10 @@ Ads1115Measurement::~Ads1115Measurement()
 void Ads1115Measurement::threadLoop()
 {
 	auto lastReadOutTime = std::chrono::system_clock::now();
-	bool errorFlag = true;
 	while (fActiveLoop) {
 		if ( hasAdc() ) {
 			double conv_time { 0. };
-			if ( bool readout_guard = true ) {
-				//std::lock_guard<std::mutex> lock(fMutex);
+			if ( [[maybe_unused]] bool readout_guard = true ) {
 				// read current voltage from adc
 				fMutex.lock();
 				fValue = fAdc->readVoltage(fAdcChannel) * fFactor;

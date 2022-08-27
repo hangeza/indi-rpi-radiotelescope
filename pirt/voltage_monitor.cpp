@@ -71,12 +71,11 @@ Ads1115VoltageMonitor::~Ads1115VoltageMonitor()
 void Ads1115VoltageMonitor::threadLoop()
 {
 	auto lastReadOutTime = std::chrono::system_clock::now();
-	bool errorFlag = true;
 	while (fActiveLoop) {
 		auto currentTime = std::chrono::system_clock::now();
 		
 		if ( hasAdc() ) {
-			if ( bool readout_guard = true ) {
+			if ( [[maybe_unused]] bool readout_guard = true ) {
 				//std::lock_guard<std::mutex> lock(fMutex);
 				// read current voltage from adc
 				fMutex.lock();
