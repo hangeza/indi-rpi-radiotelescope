@@ -19,3 +19,9 @@ add_subdirectory(pirt)
 add_subdirectory(macros)
 add_subdirectory(config)
 
+set(ALL_FILES
+    "${PIRT_SOURCE_FILES}"
+    "${PIRT_HEADER_FILES}"
+)
+
+add_custom_target(clangformat COMMAND clang-format -style=WebKit -i ${ALL_FILES})
